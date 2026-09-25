@@ -48,8 +48,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Pearson and Spearman correlation
 - [x] Rolling z-score
 - [x] Half-life and lead/lag
-- [ ] Rolling beta and stability
-- [ ] Cointegration and stationarity tests
+- [x] Rolling beta and stability
+- [x] Cointegration and stationarity tests
 
 ## Phase 6 — Discovery Engine
 

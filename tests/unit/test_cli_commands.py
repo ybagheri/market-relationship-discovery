@@ -79,6 +79,23 @@ def test_discover_accepts_advanced_price_panel_options() -> None:
     assert arguments.max_depth == 2
     assert arguments.training_fraction == 0.8
     assert arguments.ridge_alpha == 2.5
+    assert arguments.rolling_beta_window == 30
+    assert arguments.statistical_significance == 0.05
+
+
+def test_research_accepts_statistical_diagnostic_options() -> None:
+    arguments = build_parser().parse_args(
+        [
+            "research",
+            "--rolling-beta-window",
+            "40",
+            "--statistical-significance",
+            "0.01",
+        ]
+    )
+
+    assert arguments.rolling_beta_window == 40
+    assert arguments.statistical_significance == 0.01
 
 
 def test_discover_accepts_repeated_symbol_options() -> None:

@@ -2,6 +2,17 @@
 
 All notable changes follow semantic versioning.
 
+## [1.0.0] - 2026-09-25
+
+### Added
+
+- Rolling beta with warmup, sign consistency, and stability summaries
+- OLS-residual cointegration proxy diagnostics
+- Fixed-lag ADF and level KPSS approximation diagnostics
+- Statistical results in historical and advanced candidate research reports
+- Configurable rolling-beta and significance CLI/settings parameters
+- Deterministic statistical tests and bilingual methodology documentation
+
 ## [0.9.0] - 2026-09-25
 
 ### Added

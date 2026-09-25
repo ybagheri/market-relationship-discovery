@@ -45,6 +45,8 @@ class ResearchSettings(BaseModel):
     default_timeframe: str = "M1"
     minimum_observations: int = Field(default=100, ge=2)
     zscore_window: int = Field(default=100, ge=2)
+    rolling_beta_window: int = Field(default=30, ge=2)
+    statistical_significance: float = Field(default=0.05, gt=0.0, lt=1.0)
 
 
 class CostSettings(BaseModel):

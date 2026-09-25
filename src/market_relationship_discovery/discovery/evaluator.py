@@ -30,6 +30,8 @@ class GraphCandidateEvaluator:
         regime_window: int = 20,
         regime_low_quantile: float = 0.20,
         regime_high_quantile: float = 0.80,
+        rolling_beta_window: int = 30,
+        statistical_significance: float = 0.05,
     ) -> list[EvaluatedCandidate]:
         if minimum_observations < 3:
             raise ValueError("minimum_observations must be at least three")
@@ -41,6 +43,8 @@ class GraphCandidateEvaluator:
                 regime_window,
                 regime_low_quantile,
                 regime_high_quantile,
+                rolling_beta_window,
+                statistical_significance,
             )
             for candidate in candidates
         ]
@@ -53,6 +57,8 @@ class GraphCandidateEvaluator:
         regime_window: int,
         regime_low_quantile: float,
         regime_high_quantile: float,
+        rolling_beta_window: int,
+        statistical_significance: float,
     ) -> EvaluatedCandidate:
         required = {candidate.target, *FormulaParser.parse(candidate.formula).dependencies()}
         missing = required - set(prices.columns)
@@ -99,6 +105,12 @@ class GraphCandidateEvaluator:
             half_life = analyzer.half_life(discrepancy).half_life
         except (ValueError, np.linalg.LinAlgError):
             half_life = None
+        rolling_beta = analyzer.rolling_beta(actual, synthetic, rolling_beta_window)
+        cointegration = analyzer.cointegration_stationarity(
+            actual,
+            synthetic,
+            statistical_significance,
+        )
         zscore = CausalFeatureBuilder.rolling_zscore(discrepancy, min(20, len(discrepancy)))
         zscore = zscore.replace([np.inf, -np.inf], np.nan).fillna(0.0)
         discrepancy_volatility = (
@@ -119,6 +131,7 @@ class GraphCandidateEvaluator:
                 "abs_discrepancy": discrepancy.abs().to_numpy(),
                 "zscore": zscore.to_numpy(),
                 "discrepancy_volatility": discrepancy_volatility.to_numpy(),
+                "rolling_beta": rolling_beta.values.reindex(actual.index).to_numpy(),
                 "regime": regime.labels.reindex(actual.index).fillna("unknown").to_numpy(),
                 "next_abs_zscore": zscore.abs().shift(-1).to_numpy(),
             },
@@ -137,6 +150,8 @@ class GraphCandidateEvaluator:
             "p95_absolute_discrepancy": float(discrepancy.abs().quantile(0.95)),
             "latest_zscore": float(zscore.iloc[-1]),
             "regime_counts": regime.summary()["counts"],
+            "beta_stability": rolling_beta.summary,
+            "cointegration_stationarity": cointegration,
         }
         return EvaluatedCandidate(
             replace(

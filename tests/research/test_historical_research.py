@@ -23,7 +23,7 @@ def test_historical_research_evaluates_synthetic_formula() -> None:
     gbpusd = [1.5 + index / 20000 for index in range(20)]
     eurgbp = [eurusd[index] / gbpusd[index] for index in range(20)]
     relationship = RelationshipDefinition("EURGBP_TEST", "EURGBP", "EURUSD / GBPUSD")
-    researcher = HistoricalRelationshipResearcher(100, 5, 10)
+    researcher = HistoricalRelationshipResearcher(100, 5, 10, rolling_beta_window=5)
 
     result = researcher.run(
         relationship,
@@ -38,6 +38,8 @@ def test_historical_research_evaluates_synthetic_formula() -> None:
     assert result.mean_discrepancy == pytest.approx(0.0, abs=1e-12)
     assert result.executable_discrepancy_claimed is False
     assert result.classification == "requires_further_validation"
+    assert result.beta_stability["valid_windows"] > 0
+    assert result.cointegration_stationarity["status"] == "available"
 
 
 def test_historical_research_requires_complete_alignment() -> None:

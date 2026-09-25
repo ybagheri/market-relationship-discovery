@@ -28,6 +28,9 @@ def test_evaluator_scores_exact_relationship() -> None:
 
     assert result.candidate.status is CandidateStatus.REQUIRES_FURTHER_VALIDATION
     assert result.summary["mean_absolute_discrepancy"] == 0.0
+    assert "rolling_beta" in result.frame
+    assert result.summary["beta_stability"]["valid_windows"] > 0
+    assert result.summary["cointegration_stationarity"]["status"] == "available"
     assert result.frame["next_abs_zscore"].iloc[-1] != result.frame["next_abs_zscore"].iloc[-1]
 
 

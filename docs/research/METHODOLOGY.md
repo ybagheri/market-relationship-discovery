@@ -13,13 +13,15 @@ Research classifies observations into theoretical discrepancy, executable discre
 5. Compare actual quote with theoretical and executable synthetic intervals.
 6. Apply spread-independent research cost assumptions separately.
 7. Measure correlation, spread normalization, persistence, and lead/lag.
-8. Label all output as a research candidate unless a later validation process proves more.
+8. Compute causal rolling beta and stability diagnostics.
+9. Report retrospective OLS-residual cointegration, fixed-lag ADF, and level KPSS approximations.
+10. Label all output as a research candidate unless a later validation process proves more.
 
 ## Statistical limitations
 
 Pearson correlation measures linear co-movement; Spearman measures rank co-movement. Neither establishes causality, cointegration, or arbitrage. Rolling z-score depends on its window and regime. Half-life is descriptive and unstable in non-stationary or sparse data. Lead/lag results can change with resampling and timestamp tolerance.
 
-A complete cointegration workflow, stationarity tests, and multiple-testing correction remain planned. Advanced research now supports causal volatility regimes, dependency-graph expansion, and deterministic chronological ridge ranking over bar-price panels.
+The cointegration, ADF, and KPSS outputs are retrospective full-sample approximations. They do not establish causality, execution, future returns, or multiple-testing-adjusted significance. Advanced research also supports causal volatility regimes, dependency-graph expansion, and deterministic chronological ridge ranking over bar-price panels.
 
 ## Data requirements
 

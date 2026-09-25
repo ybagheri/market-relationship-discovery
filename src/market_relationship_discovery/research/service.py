@@ -28,6 +28,8 @@ class ResearchSummary:
     spearman_correlation: float
     latest_zscore: float | None
     half_life: float | None
+    beta_stability: dict[str, object]
+    cointegration_stationarity: dict[str, object]
     executable_discrepancy_claimed: bool = False
 
     def to_dict(self) -> dict[str, object]:
@@ -43,10 +45,14 @@ class HistoricalRelationshipResearcher:
         max_alignment_delay_ms: int,
         zscore_window: int,
         minimum_observations: int,
+        rolling_beta_window: int = 30,
+        statistical_significance: float = 0.05,
     ) -> None:
         self._max_alignment_delay_ms = max_alignment_delay_ms
         self._zscore_window = zscore_window
         self._minimum_observations = minimum_observations
+        self._rolling_beta_window = rolling_beta_window
+        self._statistical_significance = statistical_significance
         self._statistics = StatisticalAnalyzer()
 
     def run(
@@ -77,6 +83,16 @@ class HistoricalRelationshipResearcher:
             half_life = self._statistics.half_life(discrepancy).half_life
         except InsufficientDataError:
             half_life = None
+        beta_stability = self._statistics.rolling_beta(
+            actual,
+            synthetic,
+            self._rolling_beta_window,
+        ).summary
+        cointegration_stationarity = self._statistics.cointegration_stationarity(
+            actual,
+            synthetic,
+            self._statistical_significance,
+        )
         latest_zscore = float(zscore.iloc[-1]) if isfinite(zscore.iloc[-1]) else None
         return ResearchSummary(
             relationship=relationship.name,
@@ -93,6 +109,8 @@ class HistoricalRelationshipResearcher:
             spearman_correlation=correlation.spearman,
             latest_zscore=latest_zscore,
             half_life=half_life,
+            beta_stability=beta_stability,
+            cointegration_stationarity=cointegration_stationarity,
         )
 
     def _align(

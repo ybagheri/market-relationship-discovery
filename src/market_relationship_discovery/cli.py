@@ -72,11 +72,15 @@ def build_parser() -> argparse.ArgumentParser:
     discover_parser.add_argument("--max-depth", type=int, default=1)
     discover_parser.add_argument("--training-fraction", type=float, default=0.70)
     discover_parser.add_argument("--ridge-alpha", type=float, default=1.0)
+    discover_parser.add_argument("--rolling-beta-window", type=int, default=30)
+    discover_parser.add_argument("--statistical-significance", type=float, default=0.05)
     research_parser = subparsers.add_parser("research")
     research_parser.add_argument("--broker-profile", default="default")
     research_parser.add_argument("--relationship", default="XAUEUR_SYNTHETIC")
     research_parser.add_argument("--timeframe", default="M1")
     research_parser.add_argument("--limit", type=int, default=500)
+    research_parser.add_argument("--rolling-beta-window", type=int)
+    research_parser.add_argument("--statistical-significance", type=float)
     backtest_parser = subparsers.add_parser("backtest")
     backtest_parser.add_argument("file", type=Path)
     backtest_parser.add_argument("--signal-column", default="signal")
@@ -252,6 +256,8 @@ def _discover(arguments: argparse.Namespace) -> int:
             arguments.max_depth,
             arguments.training_fraction,
             arguments.ridge_alpha,
+            arguments.rolling_beta_window,
+            arguments.statistical_significance,
             arguments.output or get_settings().data.reports_directory,
         )
     else:
@@ -264,14 +270,21 @@ def _discover(arguments: argparse.Namespace) -> int:
 
 
 def _research(arguments: argparse.Namespace) -> int:
+    settings = get_settings()
     print(
         _serializable(
             run_historical_research(
-                get_settings(),
+                settings,
                 arguments.broker_profile,
                 arguments.relationship,
                 arguments.timeframe,
                 arguments.limit,
+                arguments.rolling_beta_window or settings.research.rolling_beta_window,
+                (
+                    arguments.statistical_significance
+                    if arguments.statistical_significance is not None
+                    else settings.research.statistical_significance
+                ),
             )
         )
     )

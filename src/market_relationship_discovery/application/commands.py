@@ -164,6 +164,8 @@ def run_advanced_research(
     max_depth: int,
     training_fraction: float,
     ridge_alpha: float,
+    rolling_beta_window: int = 30,
+    statistical_significance: float = 0.05,
     output_directory: Path | None = None,
 ) -> dict[str, object]:
     from market_relationship_discovery.discovery.ranker import CandidateRankingConfig
@@ -175,6 +177,8 @@ def run_advanced_research(
         regime_low_quantile=regime_low_quantile,
         regime_high_quantile=regime_high_quantile,
         max_depth=max_depth,
+        rolling_beta_window=rolling_beta_window,
+        statistical_significance=statistical_significance,
         ranking_config=CandidateRankingConfig(
             training_fraction=training_fraction,
             ridge_alpha=ridge_alpha,
@@ -189,6 +193,8 @@ def run_historical_research(
     relationship_name: str,
     timeframe: str,
     limit: int,
+    rolling_beta_window: int = 30,
+    statistical_significance: float = 0.05,
 ) -> dict[str, object]:
     catalog = RelationshipCatalog()
     relationship = next(
@@ -224,6 +230,8 @@ def run_historical_research(
             settings.data.max_alignment_delay_ms,
             settings.research.zscore_window,
             settings.research.minimum_observations,
+            rolling_beta_window,
+            statistical_significance,
         ).run(relationship, series)
     return {
         "broker_profile": broker_profile,

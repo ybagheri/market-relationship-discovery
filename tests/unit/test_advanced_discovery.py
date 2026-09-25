@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +37,15 @@ def test_advanced_discovery_writes_advanced_research_report(tmp_path: Path) -> N
     assert result["results"]["regimes"]
     assert result["results"]["candidates"]
     assert result["results"]["ranking"]["model"] == "numpy_ridge"
+    assert result["experiment"]["parameters"]["rolling_beta_window"] == 30
+    assert result["experiment"]["parameters"]["statistical_significance"] == 0.05
+    candidate_summary = result["results"]["candidates"][0]["summary"]
+    assert "beta_stability" in candidate_summary
+    assert candidate_summary["cointegration_stationarity"]["status"] == "available"
     report_path = Path(result["report_path"])
     assert report_path.is_file()
     report_text = report_path.read_text(encoding="utf-8")
     assert str(source) not in report_text
+    json.loads(report_text)
+    assert "Infinity" not in report_text
+    assert "NaN" not in report_text

@@ -29,6 +29,8 @@ class AdvancedDiscoveryService:
         regime_low_quantile: float = 0.20,
         regime_high_quantile: float = 0.80,
         max_depth: int = 1,
+        rolling_beta_window: int = 30,
+        statistical_significance: float = 0.05,
         ranking_config: CandidateRankingConfig = DEFAULT_RANKING_CONFIG,
         output_directory: Path | None = None,
     ) -> dict[str, object]:
@@ -45,6 +47,8 @@ class AdvancedDiscoveryService:
             regime_window=regime_window,
             regime_low_quantile=regime_low_quantile,
             regime_high_quantile=regime_high_quantile,
+            rolling_beta_window=rolling_beta_window,
+            statistical_significance=statistical_significance,
         )
         ranking = RidgeCandidateRanker().rank(evaluations, ranking_config)
         regimes = {
@@ -87,6 +91,7 @@ class AdvancedDiscoveryService:
                 "ML-assisted ranking is a deterministic research ordering, not profitability "
                 "evidence.",
                 "Bar prices and formula relationships do not establish tick execution.",
+                "Cointegration, ADF, and KPSS are retrospective full-sample diagnostics.",
             ],
         }
         manifest = create_experiment_manifest(
@@ -100,6 +105,8 @@ class AdvancedDiscoveryService:
                 "regime_low_quantile": regime_low_quantile,
                 "regime_high_quantile": regime_high_quantile,
                 "max_depth": max_depth,
+                "rolling_beta_window": rolling_beta_window,
+                "statistical_significance": statistical_significance,
                 "training_fraction": ranking_config.training_fraction,
                 "ridge_alpha": ranking_config.ridge_alpha,
                 "minimum_train_rows": ranking_config.minimum_train_rows,

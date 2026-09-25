@@ -48,8 +48,8 @@
 - [x] همبستگی Pearson و Spearman
 - [x] rolling z-score
 - [x] half-life و lead/lag
-- [ ] rolling beta و پایداری
-- [ ] هم‌انباشت و ایستایی
+- [x] rolling beta و پایداری
+- [x] هم‌انباشت و ایستایی
 
 ## فاز ۶ — کشف
 

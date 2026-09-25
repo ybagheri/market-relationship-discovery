@@ -46,6 +46,7 @@
 - بارگذاری bar price panel از CSV/Parquet wide یا long
 - ارزیابی تاریخی candidate با discrepancy، correlation، persistence و regime
 - رتبه‌بندی قطعی chronological با ridge عددی و RMSE out-of-sample
+- پایداری rolling beta و diagnosticهای retrospective هم‌انباشت/ایستایی
 
 ## مدل ایمنی
 
@@ -106,7 +107,7 @@ python -m market_relationship_discovery collect --broker-profile DEMO --symbol X
 python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile BROKER_A --broker-profile BROKER_B --symbol EURUSD --data-type tick --limit 500
 python -m market_relationship_discovery symbol-specs --broker-profile DEMO --symbol EURUSD --output config/specs/demo_eurusd.json
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
-python -m market_relationship_discovery discover --input data\prices.csv --regime-window 20 --max-depth 1 --training-fraction 0.7 --ridge-alpha 1.0 --output reports\research
+python -m market_relationship_discovery discover --input data\prices.csv --regime-window 20 --rolling-beta-window 30 --statistical-significance 0.05 --max-depth 1 --training-fraction 0.7 --ridge-alpha 1.0 --output reports\research
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
