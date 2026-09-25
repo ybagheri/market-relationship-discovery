@@ -1,0 +1,67 @@
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from market_relationship_discovery.config.settings import MT5Settings
+from market_relationship_discovery.domain.errors import DemoSafetyError
+from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
+
+
+class FakeMT5:
+    ACCOUNT_TRADE_MODE_DEMO = 0
+
+    def __init__(self, trade_mode: int) -> None:
+        self.trade_mode = trade_mode
+        self.initialized = False
+        self.shutdown_called = False
+
+    def initialize(self, **_: object) -> bool:
+        self.initialized = True
+        return True
+
+    def shutdown(self) -> None:
+        self.shutdown_called = True
+        self.initialized = False
+
+    def account_info(self) -> SimpleNamespace:
+        return SimpleNamespace(
+            trade_mode=self.trade_mode,
+            server="DemoServer",
+            currency="USD",
+            leverage=100,
+        )
+
+    def last_error(self) -> tuple[int, str]:
+        return 0, "ok"
+
+
+def test_demo_account_is_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = FakeMT5(0)
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+
+    adapter.connect()
+
+    assert adapter.account_info().mode == "DEMO"
+    adapter.disconnect()
+    assert fake.shutdown_called is True
+
+
+def test_unknown_account_mode_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = FakeMT5(99)
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+
+    with pytest.raises(DemoSafetyError):
+        adapter.connect()
+
+    assert fake.shutdown_called is True
