@@ -13,6 +13,7 @@ from market_relationship_discovery.domain.errors import (
     SymbolNotFoundError,
 )
 from market_relationship_discovery.domain.market import Bar, Quote
+from market_relationship_discovery.market_data.contract import ContractSpecification
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +135,38 @@ class MT5Adapter:
             point=float(value.point),
             spread=int(value.spread) if value.spread is not None else None,
             trade_mode=int(value.trade_mode) if value.trade_mode is not None else None,
+        )
+
+    def contract_specification(self, symbol: str) -> ContractSpecification:
+        module = self._required_module()
+        value = module.symbol_info(symbol)
+        if value is None:
+            raise SymbolNotFoundError(f"MT5 symbol not found: {symbol}")
+        return ContractSpecification(
+            broker=self.account_info().server,
+            server=self.account_info().server,
+            symbol=str(value.name),
+            description=str(value.description),
+            path=str(value.path),
+            currency_base=str(value.currency_base),
+            currency_profit=str(value.currency_profit),
+            digits=int(value.digits),
+            point=float(value.point),
+            spread=int(value.spread) if value.spread is not None else None,
+            trade_mode=int(value.trade_mode) if value.trade_mode is not None else None,
+            contract_size=float(value.trade_contract_size),
+            volume_min=float(getattr(value, "volume_min", 0.01)),
+            volume_max=float(getattr(value, "volume_max", 100.0)),
+            volume_step=float(getattr(value, "volume_step", 0.01)),
+            tick_size=float(getattr(value, "trade_tick_size", value.point)),
+            tick_value=float(
+                getattr(
+                    value,
+                    "trade_tick_value_profit",
+                    getattr(value, "trade_tick_value", 0.0),
+                )
+            ),
+            margin_initial=float(getattr(value, "margin_initial", 0.0)),
         )
 
     def select_symbol(self, symbol: str) -> bool:

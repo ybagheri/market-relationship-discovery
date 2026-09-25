@@ -25,7 +25,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Timestamp alignment with tolerance
 - [x] Parquet repository and atomic dataset manifests
 - [x] Multiple broker profiles and sequential historical collection
-- [ ] Synchronized parallel multi-broker comparison
+- [x] Process-isolated parallel broker collection
+- [x] Synchronized cross-broker comparison
 
 ## Phase 3 — Synthetic Pricing
 
@@ -38,7 +39,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Theoretical and executable classification
 - [x] Configurable cost-aware net edge
 - [x] Tick bid/ask cross-broker discrepancy, delay, frequency, and duration
-- [ ] Contract specification normalization across brokers
+- [x] Contract specification capture and opportunity safety gate
+- [ ] PnL-normalized contract-aware execution simulation
 
 ## Phase 5 — Statistical Research
 
@@ -72,8 +74,9 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 ## Phase 9 — Advanced Research
 
 - [x] Broker-A anchored synchronized cross-broker comparison and two-source provenance
-- [ ] Parallel MT5 collection and symmetric event-time synchronization
-- [ ] Tick-level opportunity-duration analysis
+- [x] Process-isolated parallel MT5 collection
+- [ ] Symmetric event-time synchronization
+- [x] Tick-level opportunity-duration analysis
 - [ ] Regime detection
 - [ ] Graph-based relationship discovery
 - [ ] Machine-learning-assisted ranking

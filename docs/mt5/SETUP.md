@@ -19,7 +19,7 @@
 
 The official Python package selects the terminal through its executable path. It does not expose a safe supported argument for forcing an arbitrary data directory, so the configured data path is a diagnostic path rather than an override.
 
-Additional terminals are configured as JSON profiles under `BROKERS`. Each profile remains demo-only. Profiles are collected sequentially because the official Python module owns a process-global terminal connection; true parallel terminal collection should use isolated worker processes.
+Additional terminals are configured as JSON profiles under `BROKERS`. Each profile remains demo-only. Sequential collection is the default. `--parallel` creates one isolated worker process per profile because the official Python module owns a process-global terminal connection. See [parallel collection](PARALLEL_COLLECTION.md).
 
 ## Symbol names
 
@@ -32,7 +32,7 @@ python -m market_relationship_discovery symbols --search silver
 python -m market_relationship_discovery symbols --search jpy
 ```
 
-Store resolved mappings in `.env`. Broker suffixes and prefixes are meaningful and must not be hard-coded in the engine.
+Store resolved mappings in `.env`. Broker suffixes and prefixes are meaningful and must not be hard-coded in the engine. Export local contract metadata with `symbol-specs` before contract-gated cross-broker comparison.
 
 ## Source clock
 

@@ -8,7 +8,7 @@
 
 ## وضعیت پروژه
 
-فازهای زیرساخت تا پژوهش چند بروکری پیاده‌سازی شده‌اند. اکنون ingestion دمو از MT5، dataset تاریخی، پژوهش بدون look-ahead و walk-forward، stageهای علی، robustness با Monte Carlo و مقایسه همگام چند broker با delay و مدت opportunity وجود دارد. نرمال‌سازی قرارداد و collection موازی ترمینال‌ها هنوز در حال توسعه‌اند.
+فازهای زیرساخت تا پژوهش چند broker ایمن از نظر قرارداد پیاده‌سازی شده‌اند. اکنون ingestion دمو، collection موازی در process جدا، پژوهش بدون look-ahead و walk-forward، robustness، مقایسه همگام و safety gate مشخصات قرارداد وجود دارد. اجرای PnL نرمال‌شده و همگام‌سازی event-time متقارن هنوز در حال توسعه‌اند.
 
 ## قابلیت‌ها
 
@@ -32,6 +32,9 @@
 - همگام‌سازی نزدیک‌ترین timestamp بین brokerها با delay و تعداد unmatched صریح
 - پژوهش crossable در سطح tick فقط پس از هزینه اضافی قابل پیکربندی
 - فرکانس، مدت opportunity و provenance دو منبع در مقایسه brokerها
+- دریافت فراداده رسمی قرارداد MT5 و خروجی JSON
+- compatibility gate که در نیاز به normalization، opportunity را block می‌کند
+- collection موازی با process مستقل برای هر پروفایل broker
 - چارچوب کاتالوگ رابطه و تولید نامزد
 - داشبورد Streamlit با هشدار دائمی حالت پژوهشی/دمو
 
@@ -91,13 +94,15 @@ python -m market_relationship_discovery doctor
 python -m market_relationship_discovery mt5-info
 python -m market_relationship_discovery symbols --search gold
 python -m market_relationship_discovery collect --broker-profile DEMO --symbol XAUUSD --symbol EURUSD --symbol XAUEUR --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile BROKER_A --broker-profile BROKER_B --symbol EURUSD --data-type tick --limit 500
+python -m market_relationship_discovery symbol-specs --broker-profile DEMO --symbol EURUSD --output config/specs/demo_eurusd.json
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
 python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 python -m market_relationship_discovery robustness examples\walk_forward_signals.csv --simulations 1000 --seed 42 --block-size 3
-python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001
+python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001 --contract-a examples\broker_a_contract.json --contract-b examples\broker_b_contract.json
 ```
 
 روابط اولیه شامل `EURGBP = EURUSD / GBPUSD`، `EURJPY = EURUSD * USDJPY`، `GBPJPY = GBPUSD * USDJPY`، `XAUEUR = XAUUSD / EURUSD` و نسبت طلا به نقره است.
@@ -129,6 +134,8 @@ mypy
 - [اعتبارسنجی walk-forward](docs/research/WALK_FORWARD.fa.md)
 - [پایداری Monte Carlo](docs/research/MONTE_CARLO.fa.md)
 - [مقایسه چند بروکر](docs/research/CROSS_BROKER.fa.md)
+- [مشخصات قرارداد](docs/research/CONTRACT_SPECIFICATION.fa.md)
+- [collection موازی MT5](docs/mt5/PARALLEL_COLLECTION.fa.md)
 - [نقشه راه](docs/roadmap/ROADMAP.fa.md)
 - [سیاست امنیت](SECURITY.md)
 

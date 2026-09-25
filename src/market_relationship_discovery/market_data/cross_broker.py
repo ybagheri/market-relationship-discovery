@@ -8,6 +8,11 @@ import numpy as np
 import pandas as pd
 
 from market_relationship_discovery.domain.errors import DataQualityError, InsufficientDataError
+from market_relationship_discovery.market_data.contract import (
+    ContractCompatibilityStatus,
+    ContractSpecification,
+    ContractSpecificationAnalyzer,
+)
 
 
 class ComparisonKind(StrEnum):
@@ -28,6 +33,8 @@ class CrossBrokerRequest:
     comparison_kind: ComparisonKind
     max_alignment_delay_ms: int
     additional_cost: float = 0.0
+    contract_a: ContractSpecification | None = None
+    contract_b: ContractSpecification | None = None
 
     def __post_init__(self) -> None:
         if not self.broker_a or not self.broker_b or not self.symbol:
@@ -38,6 +45,8 @@ class CrossBrokerRequest:
             raise ValueError("max_alignment_delay_ms cannot be negative")
         if not isfinite(self.additional_cost) or self.additional_cost < 0:
             raise ValueError("additional_cost must be finite and non-negative")
+        if (self.contract_a is None) != (self.contract_b is None):
+            raise ValueError("both contract specifications must be provided together")
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +88,9 @@ class CrossBrokerSummary:
     median_opportunity_duration_ms: float
     maximum_opportunity_duration_ms: float
     additional_cost: float
+    contract_status: ContractCompatibilityStatus
+    contract_issues: tuple[str, ...]
+    contract_blocked_observations: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,17 +194,34 @@ class CrossBrokerComparisonEngine:
             buy_b_gross,
         )
         aligned["net_crossable_edge"] = np.where(buy_a_wins, buy_a_net, buy_b_net)
-        aligned["is_crossable"] = aligned["net_crossable_edge"] > 0
+        compatibility = ContractSpecificationAnalyzer().compare(
+            request.contract_a,
+            request.contract_b,
+        )
+        contract_blocks = compatibility.status in {
+            ContractCompatibilityStatus.NORMALIZATION_REQUIRED,
+            ContractCompatibilityStatus.INCOMPATIBLE,
+            ContractCompatibilityStatus.REVIEW_REQUIRED,
+        }
+        potential = aligned["net_crossable_edge"] > 0
+        blocked_count = int((potential & contract_blocks).sum())
+        aligned["is_crossable"] = potential if not contract_blocks else False
         opportunities = self._episodes(aligned)
         crossable = aligned[aligned["is_crossable"]]
         period_hours = self._period_hours(aligned)
         durations = [opportunity.duration_ms for opportunity in opportunities]
+        if contract_blocks:
+            classification = "blocked_by_contract_specification"
+        elif compatibility.status is ContractCompatibilityStatus.UNVERIFIED:
+            classification = "crossable_research_contract_unverified"
+        else:
+            classification = "crossable_after_cost_contract_validated_research"
         summary = CrossBrokerSummary(
             broker_a=request.broker_a,
             broker_b=request.broker_b,
             symbol=request.symbol,
             comparison_kind=request.comparison_kind,
-            classification="crossable_after_additional_cost_research",
+            classification=classification,
             broker_a_rows=len(left),
             broker_b_rows=len(right),
             aligned_observations=len(aligned),
@@ -206,10 +235,14 @@ class CrossBrokerComparisonEngine:
             crossable_observations=len(crossable),
             crossable_observation_fraction=len(crossable) / len(aligned),
             maximum_gross_crossable_edge=(
-                float(aligned["gross_crossable_edge"].max()) if len(aligned) else None
+                float(aligned["gross_crossable_edge"].max())
+                if len(aligned) and not contract_blocks
+                else None
             ),
             maximum_net_crossable_edge=(
-                float(aligned["net_crossable_edge"].max()) if len(aligned) else None
+                float(aligned["net_crossable_edge"].max())
+                if len(aligned) and not contract_blocks
+                else None
             ),
             opportunity_count=len(opportunities),
             opportunity_observations=len(crossable),
@@ -217,6 +250,9 @@ class CrossBrokerComparisonEngine:
             median_opportunity_duration_ms=float(np.median(durations)) if durations else 0.0,
             maximum_opportunity_duration_ms=max(durations, default=0.0),
             additional_cost=request.additional_cost,
+            contract_status=compatibility.status,
+            contract_issues=compatibility.issues,
+            contract_blocked_observations=blocked_count,
         )
         return CrossBrokerAnalysis(summary, opportunities, aligned)
 
@@ -227,6 +263,10 @@ class CrossBrokerComparisonEngine:
         right: pd.DataFrame,
         request: CrossBrokerRequest,
     ) -> CrossBrokerAnalysis:
+        compatibility = ContractSpecificationAnalyzer().compare(
+            request.contract_a,
+            request.contract_b,
+        )
         summary = CrossBrokerSummary(
             broker_a=request.broker_a,
             broker_b=request.broker_b,
@@ -253,6 +293,9 @@ class CrossBrokerComparisonEngine:
             median_opportunity_duration_ms=0.0,
             maximum_opportunity_duration_ms=0.0,
             additional_cost=request.additional_cost,
+            contract_status=compatibility.status,
+            contract_issues=compatibility.issues,
+            contract_blocked_observations=0,
         )
         return CrossBrokerAnalysis(summary, (), aligned)
 

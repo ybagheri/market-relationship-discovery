@@ -16,7 +16,7 @@
 - `discovery`: تولید فرمول و وضعیت نامزدها
 - `backtesting`: اجرا در observation بعدی، walk-forward، stageهای علی و پایداری Monte Carlo
 - `infrastructure`: اتصال رسمی MT5 و ذخیره اتمیک Parquet/manifest
-- `application`: تشخیص، انتخاب پروفایل، collection و هماهنگی پژوهش
+- `application`: تشخیص، collection ترتیبی/جدا‌process و هماهنگی پژوهش
 - `cli`: تجزیه آرگومان و dispatch فرمان‌ها
 - `dashboard`: نمایش پژوهشی فقط‌خواندنی
 

@@ -124,3 +124,50 @@ def test_compare_brokers_command_exposes_alignment_and_cost_controls() -> None:
     assert arguments.max_delay_ms == 50
     assert arguments.additional_cost == 0.0002
     assert arguments.kind == "tick"
+
+
+def test_contract_commands_are_available() -> None:
+    parser = build_parser()
+    compare = parser.parse_args(
+        [
+            "compare-brokers",
+            "a.csv",
+            "b.csv",
+            "--broker-a",
+            "A",
+            "--broker-b",
+            "B",
+            "--symbol",
+            "EURUSD",
+            "--contract-a",
+            "a.json",
+            "--contract-b",
+            "b.json",
+        ]
+    )
+    specs = parser.parse_args(["symbol-specs", "--symbol", "EURUSD"])
+
+    assert compare.contract_a == Path("a.json")
+    assert compare.contract_b == Path("b.json")
+    assert specs.symbol == ["EURUSD"]
+
+
+def test_collect_command_exposes_parallel_worker_controls() -> None:
+    arguments = build_parser().parse_args(
+        [
+            "collect",
+            "--broker-profile",
+            "A",
+            "--broker-profile",
+            "B",
+            "--symbol",
+            "EURUSD",
+            "--parallel",
+            "--max-workers",
+            "2",
+        ]
+    )
+
+    assert arguments.parallel is True
+    assert arguments.max_workers == 2
+    assert arguments.broker_profile == ["A", "B"]

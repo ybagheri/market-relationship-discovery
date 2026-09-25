@@ -6,17 +6,17 @@ from pathlib import Path
 
 import pandas as pd
 
-from market_relationship_discovery.application.collector import (
-    CollectionRequest,
-    HistoricalCollector,
-)
 from market_relationship_discovery.application.experiments import ResearchExperimentService
+from market_relationship_discovery.application.parallel_collection import (
+    CollectionJob,
+    ParallelCollectionCoordinator,
+    collect_broker_job,
+)
 from market_relationship_discovery.config.settings import MT5Settings, Settings
 from market_relationship_discovery.discovery.engine import CandidateDiscoveryEngine
 from market_relationship_discovery.domain.dataset import CollectionBatch, DataType
 from market_relationship_discovery.domain.errors import MarketRelationshipError
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
-from market_relationship_discovery.infrastructure.storage.quotes import ParquetQuoteRepository
 from market_relationship_discovery.market_data.symbols import SymbolMapper
 from market_relationship_discovery.relationships.catalog import RelationshipCatalog
 from market_relationship_discovery.research.service import HistoricalRelationshipResearcher
@@ -31,28 +31,98 @@ def collect_historical_data(
     start: datetime | None,
     end: datetime | None,
     limit: int | None,
+    parallel: bool = False,
+    max_workers: int | None = None,
 ) -> dict[str, object]:
-    batches: list[CollectionBatch] = []
-    for profile_name in broker_profiles:
-        profile, mapping = resolve_profile(settings, profile_name)
-        with MT5Adapter(profile) as adapter:
-            available = adapter.symbols(visible_only=False)
-            mapper = SymbolMapper(mapping)
-            broker_symbols = tuple(
-                mapper.resolve(symbol, available).broker_symbol for symbol in canonical_symbols
+    if parallel:
+        jobs = tuple(
+            _build_collection_job(
+                settings,
+                order,
+                profile_name,
+                canonical_symbols,
+                data_type,
+                timeframe,
+                start,
+                end,
+                limit,
             )
-            request = CollectionRequest(
-                broker_profile=profile_name,
-                symbols=broker_symbols,
-                data_type=data_type,
-                timeframe=timeframe,
-                start=start,
-                end=end,
-                limit=limit,
-                source_utc_offset_minutes=profile.source_utc_offset_minutes,
+            for order, profile_name in enumerate(broker_profiles)
+        )
+        batches = ParallelCollectionCoordinator().run(
+            jobs,
+            max_workers or settings.data.collection_max_workers,
+        )
+    else:
+        batches = tuple(
+            _collect_broker_job(
+                settings,
+                profile_name,
+                canonical_symbols,
+                data_type,
+                timeframe,
+                start,
+                end,
+                limit,
             )
-            repository = ParquetQuoteRepository(settings.data.raw_directory)
-            batches.append(HistoricalCollector(adapter, repository).collect(request))
+            for profile_name in broker_profiles
+        )
+    return _collection_payload(batches)
+
+
+def _build_collection_job(
+    settings: Settings,
+    order: int,
+    profile_name: str,
+    canonical_symbols: list[str],
+    data_type: DataType,
+    timeframe: str | None,
+    start: datetime | None,
+    end: datetime | None,
+    limit: int | None,
+) -> CollectionJob:
+    profile, mapping = resolve_profile(settings, profile_name)
+    return CollectionJob(
+        order,
+        profile_name,
+        profile,
+        mapping,
+        tuple(canonical_symbols),
+        data_type,
+        timeframe,
+        start,
+        end,
+        limit,
+        settings.data.raw_directory,
+    )
+
+
+def _collect_broker_job(
+    settings: Settings,
+    profile_name: str,
+    canonical_symbols: list[str],
+    data_type: DataType,
+    timeframe: str | None,
+    start: datetime | None,
+    end: datetime | None,
+    limit: int | None,
+) -> CollectionBatch:
+    return collect_broker_job(
+        _build_collection_job(
+            settings,
+            0,
+            profile_name,
+            canonical_symbols,
+            data_type,
+            timeframe,
+            start,
+            end,
+            limit,
+        )
+    )
+
+
+def _collection_payload(batches: tuple[CollectionBatch, ...]) -> dict[str, object]:
     return {
         "batches": [
             {

@@ -16,7 +16,7 @@ The platform separates data acquisition, relationship mathematics, statistical r
 - `discovery`: formula generation and candidate-state filtering
 - `backtesting`: next-observation execution, walk-forward, causal stages, and Monte Carlo robustness
 - `infrastructure`: official MT5 integration and atomic Parquet/manifest storage
-- `application`: diagnostics, profile resolution, collection, and research orchestration
+- `application`: diagnostics, sequential/process-isolated collection, and research orchestration
 - `cli`: argument parsing and command dispatch
 - `dashboard`: read-only research presentation
 

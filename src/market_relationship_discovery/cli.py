@@ -13,6 +13,7 @@ from typing import Any
 from market_relationship_discovery.application.commands import (
     collect_historical_data,
     discover_relationships,
+    resolve_profile,
     run_historical_research,
     run_no_lookahead_backtest,
 )
@@ -32,6 +33,7 @@ from market_relationship_discovery.domain.dataset import DataType
 from market_relationship_discovery.infrastructure.logging.config import configure_logging
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
 from market_relationship_discovery.market_data.cross_broker import ComparisonKind
+from market_relationship_discovery.market_data.symbols import SymbolMapper
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,6 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     collect_parser.add_argument("--start", help="ISO-8601 timestamp with timezone")
     collect_parser.add_argument("--end", help="ISO-8601 timestamp with timezone")
     collect_parser.add_argument("--limit", type=int)
+    collect_parser.add_argument("--parallel", action="store_true")
+    collect_parser.add_argument("--max-workers", type=int)
     discover_parser = subparsers.add_parser("discover")
     discover_parser.add_argument("--symbol", nargs="+", action="append", required=True)
     discover_parser.add_argument("--minimum-observations", type=int, default=100)
@@ -111,7 +115,13 @@ def build_parser() -> argparse.ArgumentParser:
     comparison_parser.add_argument("--kind", choices=["tick", "bar"], default="tick")
     comparison_parser.add_argument("--max-delay-ms", type=int, default=100)
     comparison_parser.add_argument("--additional-cost", type=float, default=0.0)
+    comparison_parser.add_argument("--contract-a", type=Path)
+    comparison_parser.add_argument("--contract-b", type=Path)
     comparison_parser.add_argument("--output", type=Path)
+    specifications_parser = subparsers.add_parser("symbol-specs")
+    specifications_parser.add_argument("--broker-profile", default="default")
+    specifications_parser.add_argument("--symbol", action="append", required=True)
+    specifications_parser.add_argument("--output", type=Path)
     subparsers.add_parser("dashboard")
     return parser
 
@@ -142,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
             return _robustness(arguments)
         if arguments.command == "compare-brokers":
             return _compare_brokers(arguments)
+        if arguments.command == "symbol-specs":
+            return _symbol_specs(arguments)
         if arguments.command == "dashboard":
             return _dashboard()
     except Exception as exc:
@@ -193,6 +205,8 @@ def _collect(arguments: argparse.Namespace) -> int:
         _parse_datetime(arguments.start),
         _parse_datetime(arguments.end),
         arguments.limit,
+        arguments.parallel,
+        arguments.max_workers,
     )
     print(_serializable(result))
     return 0
@@ -305,8 +319,30 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
         arguments.max_delay_ms,
         arguments.additional_cost,
         arguments.output or get_settings().data.reports_directory,
+        arguments.contract_a,
+        arguments.contract_b,
     )
     print(_serializable(result))
+    return 0
+
+
+def _symbol_specs(arguments: argparse.Namespace) -> int:
+    settings = get_settings()
+    profile, mapping = resolve_profile(settings, arguments.broker_profile)
+    with MT5Adapter(profile) as adapter:
+        available = adapter.symbols(visible_only=False)
+        mapper = SymbolMapper(mapping)
+        specifications = [
+            adapter.contract_specification(
+                mapper.resolve(symbol, available).broker_symbol
+            ).to_dict()
+            for symbol in arguments.symbol
+        ]
+    output = _serializable(specifications)
+    print(output)
+    if arguments.output is not None:
+        arguments.output.parent.mkdir(parents=True, exist_ok=True)
+        arguments.output.write_text(output, encoding="utf-8")
     return 0
 
 

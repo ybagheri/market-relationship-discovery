@@ -23,6 +23,10 @@
 
 مقایسه bar از close استفاده می‌کند و همیشه `theoretical_bar_price_comparison` است. حتی با اختلاف زیاد هیچ opportunity crossable نمی‌سازد. bar نمی‌تواند اجرای tick-level را اثبات کند.
 
+## safety gate قرارداد
+
+مقایسه tick می‌تواند دو فایل JSON از `ContractSpecification` دریافت کند. نبود spec برچسب unverified می‌دهد. قرارداد ناسازگار، trade mode مفقود و اختلاف contract size یا tick value که نیازمند normalization است، episode opportunity را block می‌کنند. طبقه validated فقط با تطابق ارز، point/digits، محدودیت volume، trade mode، contract size و tick value ممکن است.
+
 ## بازتولیدپذیری
 
 فرمان `compare-brokers` فایل CSV یا Parquet می‌گیرد و نام و SHA-256 هر دو منبع، symbol، برچسب broker، نوع observation، tolerance، هزینه اضافی، بازه و preview ردیف‌های همگام‌شده را در گزارش JSON با شناسه `EXP-*` ثبت می‌کند.

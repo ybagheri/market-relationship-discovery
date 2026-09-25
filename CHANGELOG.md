@@ -2,6 +2,19 @@
 
 All notable changes follow semantic versioning.
 
+## [0.6.0] - 2026-09-25
+
+### Added
+
+- Official MT5 contract specification capture and JSON export
+- Currency, point, volume, trade-mode, contract-size, and tick-value compatibility analysis
+- Cross-broker opportunity safety gate for incompatible or normalization-required contracts
+- Process-isolated parallel collection with one worker per broker profile
+- `symbol-specs` command and optional contract inputs for `compare-brokers`
+- Bounded collection worker configuration and duplicate-profile protection
+- Deterministic contract, blocked-opportunity, worker-planning, failure, and CLI tests
+- Bilingual contract and parallel-collection documentation
+
 ## [0.5.0] - 2026-09-25
 
 ### Added

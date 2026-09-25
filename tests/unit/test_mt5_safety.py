@@ -51,6 +51,26 @@ class FakeMT5:
             for index in range(count)
         ]
 
+    def symbol_info(self, symbol: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            name=symbol,
+            description="EURUSD",
+            path="Forex\\EURUSD",
+            currency_base="EUR",
+            currency_profit="USD",
+            digits=5,
+            point=0.00001,
+            spread=10,
+            trade_mode=4,
+            trade_contract_size=100000.0,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
+            trade_tick_size=0.00001,
+            trade_tick_value_profit=1.0,
+            margin_initial=0.0,
+        )
+
     def last_error(self) -> tuple[int, str]:
         return 0, "ok"
 
@@ -88,6 +108,27 @@ def test_recent_ticks_are_normalized_to_utc(
 
     assert len(quotes) == 3
     assert all(quote.timestamp.utcoffset() == UTC.utcoffset(quote.timestamp) for quote in quotes)
+    adapter.disconnect()
+
+
+def test_contract_specification_reads_official_mt5_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = FakeMT5(0)
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+    adapter.connect()
+
+    specification = adapter.contract_specification("EURUSD")
+
+    assert specification.contract_size == 100000.0
+    assert specification.tick_value == 1.0
+    assert specification.volume_step == 0.01
     adapter.disconnect()
 
 

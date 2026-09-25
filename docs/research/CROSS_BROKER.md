@@ -23,6 +23,10 @@ Each edge is reduced by `additional_cost`. Positive net observations are grouped
 
 Bar comparison uses close prices and is always classified as `theoretical_bar_price_comparison`. It never creates crossable opportunities, even when the price difference is large. Bar data cannot establish tick-level execution.
 
+## Contract safety gate
+
+Tick comparisons can receive two `ContractSpecification` JSON files. Missing specs are labeled unverified. Incompatible contracts, missing trade modes, and contract-size or tick-value differences requiring normalization block opportunity episodes. A validated classification requires compatible currency, point/digits, volume constraints, trade mode, contract size, and tick value.
+
 ## Reproducibility
 
 The `compare-brokers` CLI accepts CSV or Parquet files and records both source filenames and SHA-256 hashes, symbol, broker labels, observation type, alignment tolerance, additional cost, period, and aligned preview rows in an `EXP-*` JSON report.

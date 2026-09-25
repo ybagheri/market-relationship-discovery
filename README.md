@@ -8,7 +8,7 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Foundation through cross-broker research phases implemented. The platform now includes demo-only MT5 ingestion, historical datasets, no-look-ahead and walk-forward research, multi-stage signals, Monte Carlo robustness, and synchronized cross-broker comparison with delay and opportunity-duration metrics. Contract normalization and parallel terminal collection remain in progress.
+Foundation through contract-safe multi-broker research phases implemented. The platform now includes demo-only MT5 ingestion, process-isolated parallel collection, no-look-ahead and walk-forward research, Monte Carlo robustness, synchronized cross-broker comparison, and contract specification safety gates. PnL-normalized execution and symmetric event-time synchronization remain in progress.
 
 ## Capabilities
 
@@ -32,6 +32,9 @@ Foundation through cross-broker research phases implemented. The platform now in
 - Nearest-timestamp cross-broker synchronization with explicit delay and unmatched counts
 - Tick-only bid/ask crossable research after configurable additional cost
 - Cross-broker opportunity frequency, duration, and two-source provenance
+- Official MT5 contract metadata capture and JSON export
+- Compatibility gate that blocks opportunities when contract normalization is required
+- Process-isolated parallel collection with one worker process per broker profile
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 
@@ -91,13 +94,15 @@ python -m market_relationship_discovery doctor
 python -m market_relationship_discovery mt5-info
 python -m market_relationship_discovery symbols --search gold
 python -m market_relationship_discovery collect --broker-profile DEMO --symbol XAUUSD --symbol EURUSD --symbol XAUEUR --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile BROKER_A --broker-profile BROKER_B --symbol EURUSD --data-type tick --limit 500
+python -m market_relationship_discovery symbol-specs --broker-profile DEMO --symbol EURUSD --output config/specs/demo_eurusd.json
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
 python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 python -m market_relationship_discovery robustness examples\walk_forward_signals.csv --simulations 1000 --seed 42 --block-size 3
-python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001
+python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001 --contract-a examples\broker_a_contract.json --contract-b examples\broker_b_contract.json
 ```
 
 The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY = EURUSD * USDJPY`, `GBPJPY = GBPUSD * USDJPY`, `XAUEUR = XAUUSD / EURUSD`, and the Gold/Silver ratio.
@@ -129,6 +134,8 @@ mypy
 - [Walk-forward validation](docs/research/WALK_FORWARD.md)
 - [Monte Carlo robustness](docs/research/MONTE_CARLO.md)
 - [Cross-broker comparison](docs/research/CROSS_BROKER.md)
+- [Contract specifications](docs/research/CONTRACT_SPECIFICATION.md)
+- [Parallel MT5 collection](docs/mt5/PARALLEL_COLLECTION.md)
 - [Roadmap](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 

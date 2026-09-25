@@ -8,6 +8,7 @@ import pandas as pd
 
 from market_relationship_discovery.domain.errors import DataQualityError
 from market_relationship_discovery.domain.experiment import create_experiment_manifest
+from market_relationship_discovery.market_data.contract import ContractSpecification
 from market_relationship_discovery.market_data.cross_broker import (
     ComparisonKind,
     CrossBrokerComparisonEngine,
@@ -28,6 +29,8 @@ class CrossBrokerExperimentService:
         max_alignment_delay_ms: int,
         additional_cost: float,
         output_directory: Path | None = None,
+        contract_a_path: Path | None = None,
+        contract_b_path: Path | None = None,
     ) -> dict[str, object]:
         frame_a = self._load(source_a, symbol)
         frame_b = self._load(source_b, symbol)
@@ -38,6 +41,8 @@ class CrossBrokerExperimentService:
             comparison_kind,
             max_alignment_delay_ms,
             additional_cost,
+            self._load_contract(contract_a_path),
+            self._load_contract(contract_b_path),
         )
         analysis = CrossBrokerComparisonEngine().compare(frame_a, frame_b, request)
         start = min(frame_a["timestamp"].min(), frame_b["timestamp"].min()).to_pydatetime()
@@ -55,6 +60,8 @@ class CrossBrokerExperimentService:
                 "comparison_kind": comparison_kind.value,
                 "max_alignment_delay_ms": max_alignment_delay_ms,
                 "additional_cost": additional_cost,
+                "contract_a_file_name": (contract_a_path.name if contract_a_path else None),
+                "contract_b_file_name": (contract_b_path.name if contract_b_path else None),
             },
             (source_b,),
         )
@@ -78,6 +85,14 @@ class CrossBrokerExperimentService:
                 ExperimentReportWriter(output_directory).write(payload, manifest)
             )
         return response
+
+    @staticmethod
+    def _load_contract(path: Path | None) -> ContractSpecification | None:
+        if path is None:
+            return None
+        import json
+
+        return ContractSpecification.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
     @staticmethod
     def _load(path: Path, symbol: str) -> pd.DataFrame:

@@ -35,6 +35,7 @@ class DataSettings(BaseModel):
     processed_directory: Path = Path("data/processed")
     cache_directory: Path = Path("data/cache")
     reports_directory: Path = Path("reports/research")
+    collection_max_workers: int = Field(default=2, ge=1, le=8)
 
 
 class ResearchSettings(BaseModel):

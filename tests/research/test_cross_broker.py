@@ -1,7 +1,15 @@
+import json
+from dataclasses import replace
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
 from market_relationship_discovery.domain.errors import DataQualityError, InsufficientDataError
+from market_relationship_discovery.market_data.contract import (
+    ContractCompatibilityStatus,
+    ContractSpecification,
+)
 from market_relationship_discovery.market_data.cross_broker import (
     ComparisonKind,
     CrossBrokerComparisonEngine,
@@ -101,6 +109,31 @@ def test_bar_difference_is_never_classified_as_crossable() -> None:
     assert analysis.summary.maximum_absolute_price_difference == 10.0
     assert analysis.summary.opportunity_count == 0
     assert analysis.summary.maximum_net_crossable_edge is None
+
+
+def test_incompatible_contracts_block_crossable_episodes() -> None:
+    contract_a = ContractSpecification.from_dict(
+        json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
+    )
+    contract_b = replace(
+        ContractSpecification.from_dict(
+            json.loads(Path("examples/broker_b_contract.json").read_text(encoding="utf-8"))
+        ),
+        contract_size=50000.0,
+    )
+    broker_a = tick_frame([(1.1000, 1.1002), (1.1001, 1.1003)])
+    broker_b = tick_frame([(1.1006, 1.1008), (1.1007, 1.1009)])
+
+    analysis = CrossBrokerComparisonEngine().compare(
+        broker_a,
+        broker_b,
+        replace(request(), contract_a=contract_a, contract_b=contract_b),
+    )
+
+    assert analysis.summary.contract_status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
+    assert analysis.summary.classification == "blocked_by_contract_specification"
+    assert analysis.summary.contract_blocked_observations == 2
+    assert analysis.opportunities == ()
 
 
 def test_alignment_rejects_duplicate_and_unmatched_data() -> None:
