@@ -9,6 +9,12 @@ from market_relationship_discovery import __version__
 
 
 @dataclass(frozen=True, slots=True)
+class SourceFingerprint:
+    file_name: str
+    sha256: str
+
+
+@dataclass(frozen=True, slots=True)
 class ExperimentManifest:
     experiment_id: str
     created_at: datetime
@@ -20,6 +26,7 @@ class ExperimentManifest:
     data_end: datetime
     parameters: dict[str, object] = field(default_factory=dict)
     limitations: tuple[str, ...] = ()
+    related_sources: tuple[SourceFingerprint, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         result = asdict(self)
@@ -27,6 +34,7 @@ class ExperimentManifest:
         result["data_start"] = self.data_start.isoformat()
         result["data_end"] = self.data_end.isoformat()
         result["limitations"] = list(self.limitations)
+        result["related_sources"] = [asdict(source) for source in self.related_sources]
         return result
 
 
@@ -36,6 +44,7 @@ def create_experiment_manifest(
     data_start: datetime,
     data_end: datetime,
     parameters: dict[str, object],
+    related_paths: tuple[Path, ...] = (),
 ) -> ExperimentManifest:
     return ExperimentManifest(
         experiment_id=f"EXP-{datetime.now(UTC):%Y%m%d}-{uuid4().hex[:8]}",
@@ -50,6 +59,9 @@ def create_experiment_manifest(
         limitations=(
             "Research simulation only; no order execution was performed.",
             "Historical results do not guarantee future returns or executable arbitrage.",
+        ),
+        related_sources=tuple(
+            SourceFingerprint(path.name, _sha256(path)) for path in related_paths
         ),
     )
 

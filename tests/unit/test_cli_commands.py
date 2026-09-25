@@ -98,3 +98,29 @@ def test_robustness_command_exposes_reproducibility_parameters() -> None:
     assert arguments.seed == 9
     assert arguments.block_size == 4
     assert arguments.scenario == ["combined_stress"]
+
+
+def test_compare_brokers_command_exposes_alignment_and_cost_controls() -> None:
+    arguments = build_parser().parse_args(
+        [
+            "compare-brokers",
+            "a.parquet",
+            "b.parquet",
+            "--broker-a",
+            "A",
+            "--broker-b",
+            "B",
+            "--symbol",
+            "EURUSD",
+            "--kind",
+            "tick",
+            "--max-delay-ms",
+            "50",
+            "--additional-cost",
+            "0.0002",
+        ]
+    )
+
+    assert arguments.max_delay_ms == 50
+    assert arguments.additional_cost == 0.0002
+    assert arguments.kind == "tick"

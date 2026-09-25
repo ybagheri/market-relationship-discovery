@@ -8,7 +8,7 @@
 
 ## وضعیت پروژه
 
-فاز زیرساخت، داده، اعتبارسنجی و robustness پیاده‌سازی شده است. اکنون دسترسی دمو به MT5، پروفایل broker، dataset پارکت، پژوهش تاریخی، اجرای بدون look-ahead، stageهای علی، foldهای walk-forward، گزارش experiment و تست stress با Monte Carlo وجود دارد. پژوهش همگام چند بروکری هنوز در حال توسعه است.
+فازهای زیرساخت تا پژوهش چند بروکری پیاده‌سازی شده‌اند. اکنون ingestion دمو از MT5، dataset تاریخی، پژوهش بدون look-ahead و walk-forward، stageهای علی، robustness با Monte Carlo و مقایسه همگام چند broker با delay و مدت opportunity وجود دارد. نرمال‌سازی قرارداد و collection موازی ترمینال‌ها هنوز در حال توسعه‌اند.
 
 ## قابلیت‌ها
 
@@ -29,6 +29,9 @@
 - شناسه experiment، hash منبع، پارامترها و گزارش JSON بازتولیدپذیر
 - شبیه‌سازی Monte Carlo با circular block-bootstrap و seed بازتولیدپذیر
 - سناریوهای spread، slippage، latency و stress ترکیبی
+- همگام‌سازی نزدیک‌ترین timestamp بین brokerها با delay و تعداد unmatched صریح
+- پژوهش crossable در سطح tick فقط پس از هزینه اضافی قابل پیکربندی
+- فرکانس، مدت opportunity و provenance دو منبع در مقایسه brokerها
 - چارچوب کاتالوگ رابطه و تولید نامزد
 - داشبورد Streamlit با هشدار دائمی حالت پژوهشی/دمو
 
@@ -94,6 +97,7 @@ python -m market_relationship_discovery backtest examples\no_lookahead_signals.c
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 python -m market_relationship_discovery robustness examples\walk_forward_signals.csv --simulations 1000 --seed 42 --block-size 3
+python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001
 ```
 
 روابط اولیه شامل `EURGBP = EURUSD / GBPUSD`، `EURJPY = EURUSD * USDJPY`، `GBPJPY = GBPUSD * USDJPY`، `XAUEUR = XAUUSD / EURUSD` و نسبت طلا به نقره است.
@@ -124,6 +128,7 @@ mypy
 - [بک‌تست](docs/research/BACKTESTING.fa.md)
 - [اعتبارسنجی walk-forward](docs/research/WALK_FORWARD.fa.md)
 - [پایداری Monte Carlo](docs/research/MONTE_CARLO.fa.md)
+- [مقایسه چند بروکر](docs/research/CROSS_BROKER.fa.md)
 - [نقشه راه](docs/roadmap/ROADMAP.fa.md)
 - [سیاست امنیت](SECURITY.md)
 

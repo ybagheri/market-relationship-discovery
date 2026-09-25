@@ -16,6 +16,7 @@ from market_relationship_discovery.application.commands import (
     run_historical_research,
     run_no_lookahead_backtest,
 )
+from market_relationship_discovery.application.comparison import CrossBrokerExperimentService
 from market_relationship_discovery.application.doctor import doctor_exit_code, run_doctor
 from market_relationship_discovery.application.experiments import (
     ResearchExperimentService,
@@ -30,6 +31,7 @@ from market_relationship_discovery.config import get_settings
 from market_relationship_discovery.domain.dataset import DataType
 from market_relationship_discovery.infrastructure.logging.config import configure_logging
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
+from market_relationship_discovery.market_data.cross_broker import ComparisonKind
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -100,6 +102,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     robustness_parser.add_argument("--return-shock-std", type=float, default=0.0)
     robustness_parser.add_argument("--output", type=Path)
+    comparison_parser = subparsers.add_parser("compare-brokers")
+    comparison_parser.add_argument("source_a", type=Path)
+    comparison_parser.add_argument("source_b", type=Path)
+    comparison_parser.add_argument("--broker-a", required=True)
+    comparison_parser.add_argument("--broker-b", required=True)
+    comparison_parser.add_argument("--symbol", required=True)
+    comparison_parser.add_argument("--kind", choices=["tick", "bar"], default="tick")
+    comparison_parser.add_argument("--max-delay-ms", type=int, default=100)
+    comparison_parser.add_argument("--additional-cost", type=float, default=0.0)
+    comparison_parser.add_argument("--output", type=Path)
     subparsers.add_parser("dashboard")
     return parser
 
@@ -128,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
             return _walk_forward(arguments)
         if arguments.command == "robustness":
             return _robustness(arguments)
+        if arguments.command == "compare-brokers":
+            return _compare_brokers(arguments)
         if arguments.command == "dashboard":
             return _dashboard()
     except Exception as exc:
@@ -274,6 +288,22 @@ def _robustness(arguments: argparse.Namespace) -> int:
         config,
         arguments.scenario or [],
         arguments.return_shock_std,
+        arguments.output or get_settings().data.reports_directory,
+    )
+    print(_serializable(result))
+    return 0
+
+
+def _compare_brokers(arguments: argparse.Namespace) -> int:
+    result = CrossBrokerExperimentService().run(
+        arguments.source_a,
+        arguments.source_b,
+        arguments.broker_a,
+        arguments.broker_b,
+        arguments.symbol,
+        ComparisonKind(arguments.kind),
+        arguments.max_delay_ms,
+        arguments.additional_cost,
         arguments.output or get_settings().data.reports_directory,
     )
     print(_serializable(result))

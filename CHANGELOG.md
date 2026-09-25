@@ -2,6 +2,20 @@
 
 All notable changes follow semantic versioning.
 
+## [0.5.0] - 2026-09-25
+
+### Added
+
+- Nearest-timestamp Broker-A anchored cross-broker synchronization
+- Explicit signed delay, unmatched observation, and source preview metrics
+- Bid, ask, mid, gross directional, and net cross-broker differences
+- Crossable opportunity episodes with frequency and duration
+- Theoretical-only bar comparison safety classification
+- Two-source SHA-256 provenance in experiment manifests
+- `compare-brokers` CLI for CSV and Parquet inputs
+- Deterministic synchronization, cost, duration, bar-safety, and report tests
+- Bilingual cross-broker comparison documentation
+
 ## [0.4.0] - 2026-09-25
 
 ### Added

@@ -37,7 +37,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 
 - [x] Theoretical and executable classification
 - [x] Configurable cost-aware net edge
-- [~] Contract-aware cross-broker discrepancy engine
+- [x] Tick bid/ask cross-broker discrepancy, delay, frequency, and duration
+- [ ] Contract specification normalization across brokers
 
 ## Phase 5 — Statistical Research
 
@@ -70,7 +71,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 
 ## Phase 9 — Advanced Research
 
-- [ ] Multi-broker synchronized datasets
+- [x] Broker-A anchored synchronized cross-broker comparison and two-source provenance
+- [ ] Parallel MT5 collection and symmetric event-time synchronization
 - [ ] Tick-level opportunity-duration analysis
 - [ ] Regime detection
 - [ ] Graph-based relationship discovery

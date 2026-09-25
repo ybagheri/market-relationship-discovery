@@ -12,7 +12,7 @@ The platform separates data acquisition, relationship mathematics, statistical r
 - `synthetic`: interval-aware formula evaluation from bid/ask quotes
 - `costs`: gross-to-net edge calculations
 - `statistics`: correlation, normalization, persistence, and lag research
-- `validation` and `market_data`: data quality, symbol discovery, and time alignment
+- `validation` and `market_data`: quality, symbols, alignment, and cross-broker comparison
 - `discovery`: formula generation and candidate-state filtering
 - `backtesting`: next-observation execution, walk-forward, causal stages, and Monte Carlo robustness
 - `infrastructure`: official MT5 integration and atomic Parquet/manifest storage
@@ -34,4 +34,4 @@ A new broker should implement a provider protocol returning normalized `Quote` a
 
 ## Limitations
 
-The initial graph is a formula catalog rather than a full currency graph. Multiple profiles can be collected sequentially, but synchronized cross-broker comparison, true parallel terminal processes, historical persistence, and contract-aware execution simulation are not yet complete.
+The initial graph is a formula catalog rather than a full currency graph. Broker-A anchored synchronized comparison is implemented, but true parallel terminal processes, symmetric event-time synchronization, contract normalization, and execution simulation are not complete.

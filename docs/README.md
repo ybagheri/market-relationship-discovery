@@ -8,6 +8,7 @@
 - [Backtesting](research/BACKTESTING.md)
 - [Walk-forward validation](research/WALK_FORWARD.md)
 - [Monte Carlo robustness](research/MONTE_CARLO.md)
+- [Cross-broker comparison](research/CROSS_BROKER.md)
 - [Data quality](research/DATA_QUALITY.md)
 - [Roadmap](roadmap/ROADMAP.md)
 

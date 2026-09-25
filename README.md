@@ -8,7 +8,7 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Foundation, data, validation, and robustness phases implemented. The platform now includes demo-only MT5 access, broker profiles, Parquet datasets, historical research, no-look-ahead execution, causal multi-stage signals, walk-forward folds, reproducible experiment reports, and Monte Carlo stress testing. Synchronized cross-broker research remains in progress.
+Foundation through cross-broker research phases implemented. The platform now includes demo-only MT5 ingestion, historical datasets, no-look-ahead and walk-forward research, multi-stage signals, Monte Carlo robustness, and synchronized cross-broker comparison with delay and opportunity-duration metrics. Contract normalization and parallel terminal collection remain in progress.
 
 ## Capabilities
 
@@ -29,6 +29,9 @@ Foundation, data, validation, and robustness phases implemented. The platform no
 - Experiment IDs, source hashes, parameters, and JSON provenance reports
 - Circular block-bootstrap Monte Carlo with reproducible random seeds
 - Wider-spread, slippage, latency, and combined stress scenarios
+- Nearest-timestamp cross-broker synchronization with explicit delay and unmatched counts
+- Tick-only bid/ask crossable research after configurable additional cost
+- Cross-broker opportunity frequency, duration, and two-source provenance
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 
@@ -94,6 +97,7 @@ python -m market_relationship_discovery backtest examples\no_lookahead_signals.c
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 python -m market_relationship_discovery robustness examples\walk_forward_signals.csv --simulations 1000 --seed 42 --block-size 3
+python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001
 ```
 
 The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY = EURUSD * USDJPY`, `GBPJPY = GBPUSD * USDJPY`, `XAUEUR = XAUUSD / EURUSD`, and the Gold/Silver ratio.
@@ -124,6 +128,7 @@ mypy
 - [Backtesting](docs/research/BACKTESTING.md)
 - [Walk-forward validation](docs/research/WALK_FORWARD.md)
 - [Monte Carlo robustness](docs/research/MONTE_CARLO.md)
+- [Cross-broker comparison](docs/research/CROSS_BROKER.md)
 - [Roadmap](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 
