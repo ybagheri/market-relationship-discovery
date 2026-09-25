@@ -76,3 +76,25 @@ def test_walk_forward_and_multi_stage_commands_are_available() -> None:
 
     assert walk.command == "walk-forward"
     assert multi.stage_column == ["momentum", "confirmation"]
+
+
+def test_robustness_command_exposes_reproducibility_parameters() -> None:
+    arguments = build_parser().parse_args(
+        [
+            "robustness",
+            "signals.csv",
+            "--simulations",
+            "500",
+            "--seed",
+            "9",
+            "--block-size",
+            "4",
+            "--scenario",
+            "combined_stress",
+        ]
+    )
+
+    assert arguments.simulations == 500
+    assert arguments.seed == 9
+    assert arguments.block_size == 4
+    assert arguments.scenario == ["combined_stress"]

@@ -21,6 +21,10 @@ from market_relationship_discovery.application.experiments import (
     ResearchExperimentService,
     build_signal_stages,
 )
+from market_relationship_discovery.backtesting.monte_carlo import (
+    STRESS_SCENARIOS,
+    MonteCarloConfig,
+)
 from market_relationship_discovery.backtesting.walk_forward import WalkForwardConfig
 from market_relationship_discovery.config import get_settings
 from market_relationship_discovery.domain.dataset import DataType
@@ -80,6 +84,22 @@ def build_parser() -> argparse.ArgumentParser:
     walk_parser.add_argument("--threshold", action="append", type=float)
     walk_parser.add_argument("--minimum-train-observations", type=int, default=20)
     walk_parser.add_argument("--output", type=Path)
+    robustness_parser = subparsers.add_parser("robustness")
+    robustness_parser.add_argument("file", type=Path)
+    robustness_parser.add_argument("--signal-column", default="signal")
+    robustness_parser.add_argument("--gross-edge-column", default="gross_edge")
+    robustness_parser.add_argument("--cost-column", default="cost")
+    robustness_parser.add_argument("--simulations", type=int, default=1000)
+    robustness_parser.add_argument("--confidence-level", type=float, default=0.95)
+    robustness_parser.add_argument("--seed", type=int, default=42)
+    robustness_parser.add_argument("--block-size", type=int, default=1)
+    robustness_parser.add_argument(
+        "--scenario",
+        action="append",
+        choices=sorted(STRESS_SCENARIOS),
+    )
+    robustness_parser.add_argument("--return-shock-std", type=float, default=0.0)
+    robustness_parser.add_argument("--output", type=Path)
     subparsers.add_parser("dashboard")
     return parser
 
@@ -106,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
             return _multi_backtest(arguments)
         if arguments.command == "walk-forward":
             return _walk_forward(arguments)
+        if arguments.command == "robustness":
+            return _robustness(arguments)
         if arguments.command == "dashboard":
             return _dashboard()
     except Exception as exc:
@@ -231,6 +253,27 @@ def _walk_forward(arguments: argparse.Namespace) -> int:
         arguments.gross_edge_column,
         arguments.cost_column,
         config,
+        arguments.output or get_settings().data.reports_directory,
+    )
+    print(_serializable(result))
+    return 0
+
+
+def _robustness(arguments: argparse.Namespace) -> int:
+    config = MonteCarloConfig(
+        simulations=arguments.simulations,
+        confidence_level=arguments.confidence_level,
+        random_seed=arguments.seed,
+        block_size=arguments.block_size,
+    )
+    result = ResearchExperimentService().run_robustness(
+        arguments.file,
+        arguments.signal_column,
+        arguments.gross_edge_column,
+        arguments.cost_column,
+        config,
+        arguments.scenario or [],
+        arguments.return_shock_std,
         arguments.output or get_settings().data.reports_directory,
     )
     print(_serializable(result))

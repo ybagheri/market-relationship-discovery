@@ -8,7 +8,7 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Foundation, historical data, and validation phases implemented. The platform now includes demo-only MT5 access, broker profiles, Parquet datasets, historical research, next-observation execution, causal multi-stage signals, train-only threshold selection, walk-forward folds, and reproducible experiment reports. Synchronized cross-broker research and Monte Carlo remain in progress.
+Foundation, data, validation, and robustness phases implemented. The platform now includes demo-only MT5 access, broker profiles, Parquet datasets, historical research, no-look-ahead execution, causal multi-stage signals, walk-forward folds, reproducible experiment reports, and Monte Carlo stress testing. Synchronized cross-broker research remains in progress.
 
 ## Capabilities
 
@@ -27,6 +27,8 @@ Foundation, historical data, and validation phases implemented. The platform now
 - Walk-forward train/validation/test folds with train-only threshold selection
 - Causal multi-stage signals, feature builders, and stage-level reporting
 - Experiment IDs, source hashes, parameters, and JSON provenance reports
+- Circular block-bootstrap Monte Carlo with reproducible random seeds
+- Wider-spread, slippage, latency, and combined stress scenarios
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 
@@ -91,6 +93,7 @@ python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
+python -m market_relationship_discovery robustness examples\walk_forward_signals.csv --simulations 1000 --seed 42 --block-size 3
 ```
 
 The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY = EURUSD * USDJPY`, `GBPJPY = GBPUSD * USDJPY`, `XAUEUR = XAUUSD / EURUSD`, and the Gold/Silver ratio.
@@ -120,6 +123,7 @@ mypy
 - [Research methodology](docs/research/METHODOLOGY.md)
 - [Backtesting](docs/research/BACKTESTING.md)
 - [Walk-forward validation](docs/research/WALK_FORWARD.md)
+- [Monte Carlo robustness](docs/research/MONTE_CARLO.md)
 - [Roadmap](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 

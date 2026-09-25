@@ -14,7 +14,7 @@ The platform separates data acquisition, relationship mathematics, statistical r
 - `statistics`: correlation, normalization, persistence, and lag research
 - `validation` and `market_data`: data quality, symbol discovery, and time alignment
 - `discovery`: formula generation and candidate-state filtering
-- `backtesting`: next-observation execution, walk-forward folds, and causal multi-stage signals
+- `backtesting`: next-observation execution, walk-forward, causal stages, and Monte Carlo robustness
 - `infrastructure`: official MT5 integration and atomic Parquet/manifest storage
 - `application`: diagnostics, profile resolution, collection, and research orchestration
 - `cli`: argument parsing and command dispatch

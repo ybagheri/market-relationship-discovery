@@ -59,7 +59,8 @@
 - [x] foldهای walk-forward و انتخاب threshold فقط با train
 - [x] ensemble سیگنال چندمرحله‌ای علی
 - [x] شناسه experiment، hash منبع و گزارش JSON
-- [ ] پایداری Monte Carlo
+- [x] پایداری Monte Carlo با circular block-bootstrap
+- [x] سناریوهای spread، slippage، latency و stress ترکیبی
 
 ## فاز ۸ — داشبورد
 

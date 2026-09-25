@@ -2,6 +2,18 @@
 
 All notable changes follow semantic versioning.
 
+## [0.4.0] - 2026-09-25
+
+### Added
+
+- Circular block-bootstrap Monte Carlo trade-sequence resampling
+- Common random numbers across stress scenarios
+- Confidence quantiles, expected shortfall, probability positive, and drawdown distributions
+- Wider-spread, slippage, latency, and combined stress presets
+- Reproducible `robustness` CLI and `EXP-*` JSON reports
+- Deterministic seed, stress, and distribution tests
+- Bilingual Monte Carlo robustness documentation
+
 ## [0.3.0] - 2026-09-25
 
 ### Added

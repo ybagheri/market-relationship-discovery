@@ -59,7 +59,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Walk-forward train/validation/test folds and train-only threshold selection
 - [x] Causal multi-stage signal ensemble
 - [x] Experiment IDs, source hashes, and JSON reports
-- [ ] Monte Carlo robustness
+- [x] Circular block-bootstrap Monte Carlo robustness
+- [x] Wider-spread, slippage, latency, and combined stress scenarios
 
 ## Phase 8 — Dashboard
 

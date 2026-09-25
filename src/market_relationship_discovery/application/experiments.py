@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 import pandas as pd
 
 from market_relationship_discovery.backtesting.engine import ResearchBacktester
+from market_relationship_discovery.backtesting.monte_carlo import (
+    MonteCarloConfig,
+    MonteCarloRobustnessSimulator,
+    build_stress_scenarios,
+)
 from market_relationship_discovery.backtesting.multi_stage import (
     MultiStageBacktester,
     SignalStage,
@@ -157,6 +162,75 @@ class ResearchExperimentService:
                 "step_observations": config.step_observations,
                 "thresholds": list(config.thresholds),
                 "minimum_train_observations": config.minimum_train_observations,
+            },
+            payload,
+            output_directory,
+        )
+
+    def run_robustness(
+        self,
+        path: Path,
+        signal_column: str,
+        gross_edge_column: str,
+        cost_column: str,
+        config: MonteCarloConfig,
+        scenario_names: list[str],
+        return_shock_std: float = 0.0,
+        output_directory: Path | None = None,
+    ) -> dict[str, object]:
+        dataset = ResearchDataset.load(
+            path,
+            {signal_column, gross_edge_column, cost_column},
+        )
+        baseline = ResearchBacktester().run_next_observation(
+            pd.to_numeric(dataset.frame[signal_column], errors="raise"),
+            pd.to_numeric(dataset.frame[gross_edge_column], errors="raise"),
+            pd.to_numeric(dataset.frame[cost_column], errors="raise"),
+        )
+        scenarios = build_stress_scenarios(scenario_names)
+        if return_shock_std:
+            scenarios = tuple(
+                (
+                    replace(scenario, return_shock_std=return_shock_std)
+                    if scenario.name != "baseline"
+                    else scenario
+                )
+                for scenario in scenarios
+            )
+        simulations = MonteCarloRobustnessSimulator().run(
+            baseline.trades,
+            scenarios,
+            config,
+        )
+        payload: dict[str, object] = {
+            "execution_model": "next_observation_trades_with_block_bootstrap",
+            "baseline_metrics": asdict(baseline.metrics),
+            "trade_count": len(baseline.trades),
+            "scenarios": {
+                simulation.scenario.name: {
+                    "scenario": asdict(simulation.scenario),
+                    "metrics": asdict(simulation.metrics),
+                }
+                for simulation in simulations
+            },
+            "interpretation": [
+                "Simulation distributions are sensitivity tests, not forecasts.",
+                "They cannot guarantee future returns or executable arbitrage.",
+            ],
+        }
+        return self._finalize(
+            "monte_carlo_robustness",
+            dataset,
+            {
+                "signal_column": signal_column,
+                "gross_edge_column": gross_edge_column,
+                "cost_column": cost_column,
+                "simulations": config.simulations,
+                "confidence_level": config.confidence_level,
+                "random_seed": config.random_seed,
+                "block_size": config.block_size,
+                "scenarios": [scenario.name for scenario in scenarios],
+                "return_shock_std": return_shock_std,
             },
             payload,
             output_directory,

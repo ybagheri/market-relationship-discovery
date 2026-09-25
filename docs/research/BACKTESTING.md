@@ -8,14 +8,14 @@
 
 ## Reproducibility
 
-CLI experiments generate an `EXP-*` identifier and JSON report containing software version, source filename and SHA-256, UTC data period, parameters, fold windows, metrics, trades, and limitations.
+CLI experiments generate an `EXP-*` identifier and JSON report containing software version, source filename and SHA-256, UTC data period, parameters, fold windows, metrics, trades, and limitations. The `robustness` command adds reproducible block-bootstrap simulations and named stress scenarios.
 
 ## Required future controls
 
 - Arbitrary model fitting must receive training data only.
 - Combinatorial optimization requires multiple-testing controls.
 - Slippage, spread widening, latency, and session gaps require scenario tests.
-- Walk-forward does not replace Monte Carlo robustness testing.
+- Monte Carlo block bootstrap does not capture every regime change or cross-trade dependency.
 - Externally supplied stage columns must be audited for causality.
 
 ## Interpretation

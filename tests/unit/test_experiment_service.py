@@ -6,6 +6,7 @@ from market_relationship_discovery.application.experiments import (
     ResearchExperimentService,
     build_signal_stages,
 )
+from market_relationship_discovery.backtesting.monte_carlo import MonteCarloConfig
 from market_relationship_discovery.backtesting.walk_forward import WalkForwardConfig
 
 
@@ -63,3 +64,32 @@ def test_experiment_service_runs_multi_stage_ensemble(tmp_path: Path) -> None:
     assert result["experiment"]["experiment_type"] == "multi_stage_backtest"
     assert result["results"]["stage_weights"] == {"momentum": 0.5, "confirmation": 0.5}
     assert result["results"]["ensemble_metrics"]["observations"] == 4
+
+
+def test_experiment_service_runs_monte_carlo_robustness(tmp_path: Path) -> None:
+    index = pd.date_range("2026-09-25", periods=20, freq="min", tz="UTC")
+    frame = pd.DataFrame(
+        {
+            "timestamp": index,
+            "signal": 1.0,
+            "gross_edge": 0.01,
+            "cost": 0.001,
+        }
+    )
+    path = tmp_path / "robustness.csv"
+    frame.to_csv(path, index=False)
+
+    result = ResearchExperimentService().run_robustness(
+        path,
+        "signal",
+        "gross_edge",
+        "cost",
+        MonteCarloConfig(simulations=100, random_seed=5, block_size=2),
+        ["baseline", "combined_stress"],
+        output_directory=tmp_path / "reports",
+    )
+
+    assert result["experiment"]["experiment_type"] == "monte_carlo_robustness"
+    assert result["results"]["trade_count"] == 19
+    assert set(result["results"]["scenarios"]) == {"baseline", "combined_stress"}
+    assert Path(result["report_path"]).is_file()
