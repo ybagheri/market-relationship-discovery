@@ -56,8 +56,10 @@
 
 - [x] معیارهای پایه و قطعی هزینه‌آگاه
 - [x] اجرای سیگنال در observation بعدی بدون نشت هم‌زمان
-- [ ] walk-forward
-- [ ] Monte Carlo
+- [x] foldهای walk-forward و انتخاب threshold فقط با train
+- [x] ensemble سیگنال چندمرحله‌ای علی
+- [x] شناسه experiment، hash منبع و گزارش JSON
+- [ ] پایداری Monte Carlo
 
 ## فاز ۸ — داشبورد
 

@@ -2,6 +2,19 @@
 
 All notable changes follow semantic versioning.
 
+## [0.3.0] - 2026-09-25
+
+### Added
+
+- Strict chronological walk-forward train/validation/test windows
+- Train-only activation-threshold selection and fold-level metrics
+- Causal rolling z-score, momentum, and volatility feature builders
+- Weighted multi-stage signal ensemble with individual-stage reporting
+- Experiment IDs, source SHA-256 hashes, parameters, and JSON provenance reports
+- `multi-backtest` and `walk-forward` CLI commands
+- Deterministic leakage, boundary, multi-stage, and report tests
+- Bilingual walk-forward and backtesting documentation
+
 ## [0.2.0] - 2026-09-25
 
 ### Added

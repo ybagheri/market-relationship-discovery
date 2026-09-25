@@ -14,7 +14,7 @@
 - `statistics`: همبستگی، نرمال‌سازی، ماندگاری و lag
 - `validation` و `market_data`: کیفیت داده، کشف symbol و هم‌ترازی زمان
 - `discovery`: تولید فرمول و وضعیت نامزدها
-- `backtesting`: معیارهای قطعی، هزینه‌آگاه و اجرا در observation بعدی
+- `backtesting`: اجرا در observation بعدی، foldهای walk-forward و سیگنال چندمرحله‌ای علی
 - `infrastructure`: اتصال رسمی MT5 و ذخیره اتمیک Parquet/manifest
 - `application`: تشخیص، انتخاب پروفایل، collection و هماهنگی پژوهش
 - `cli`: تجزیه آرگومان و dispatch فرمان‌ها

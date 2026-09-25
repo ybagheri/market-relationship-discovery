@@ -10,7 +10,7 @@ from market_relationship_discovery.application.collector import (
     CollectionRequest,
     HistoricalCollector,
 )
-from market_relationship_discovery.backtesting.engine import ResearchBacktester
+from market_relationship_discovery.application.experiments import ResearchExperimentService
 from market_relationship_discovery.config.settings import MT5Settings, Settings
 from market_relationship_discovery.discovery.engine import CandidateDiscoveryEngine
 from market_relationship_discovery.domain.dataset import CollectionBatch, DataType
@@ -143,27 +143,15 @@ def run_no_lookahead_backtest(
     signal_column: str,
     gross_edge_column: str,
     cost_column: str,
+    output_directory: Path | None = None,
 ) -> dict[str, object]:
-    frame = pd.read_csv(path)
-    required = {signal_column, gross_edge_column, cost_column}
-    missing = required - set(frame.columns)
-    if missing:
-        raise ValueError(f"backtest CSV is missing columns: {sorted(missing)}")
-    timestamps = pd.to_datetime(frame["timestamp"], utc=True, errors="raise")
-    if timestamps.duplicated().any():
-        raise ValueError("backtest timestamps must be unique")
-    indexed = frame.assign(timestamp=timestamps).set_index("timestamp").sort_index()
-    signals = pd.to_numeric(indexed[signal_column], errors="raise")
-    gross_edges = pd.to_numeric(indexed[gross_edge_column], errors="raise")
-    costs = pd.to_numeric(indexed[cost_column], errors="raise")
-    if (costs.dropna() < 0).any():
-        raise ValueError("costs cannot be negative")
-    result = ResearchBacktester().run_next_observation(signals, gross_edges, costs)
-    return {
-        "execution_model": "signal_at_t_evaluated_at_next_observation",
-        "metrics": asdict(result.metrics),
-        "trades": [asdict(trade) for trade in result.trades],
-    }
+    return ResearchExperimentService().run_no_lookahead(
+        path,
+        signal_column,
+        gross_edge_column,
+        cost_column,
+        output_directory,
+    )
 
 
 def resolve_profile(settings: Settings, name: str) -> tuple[MT5Settings, dict[str, str]]:

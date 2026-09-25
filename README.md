@@ -8,7 +8,7 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Foundation and historical data phases implemented. The platform now includes demo-only MT5 access, multiple broker profiles, tick/bar collection, Parquet datasets with provenance manifests, historical bar research, candidate generation, and next-observation backtesting. Cross-broker synchronization, walk-forward, and Monte Carlo remain in progress.
+Foundation, historical data, and validation phases implemented. The platform now includes demo-only MT5 access, broker profiles, Parquet datasets, historical research, next-observation execution, causal multi-stage signals, train-only threshold selection, walk-forward folds, and reproducible experiment reports. Synchronized cross-broker research and Monte Carlo remain in progress.
 
 ## Capabilities
 
@@ -24,6 +24,9 @@ Foundation and historical data phases implemented. The platform now includes dem
 - Parquet tick/bar datasets with reproducibility manifests
 - Historical bar relationship research that never claims tick execution
 - Next-observation backtesting that excludes same-timestamp edge leakage
+- Walk-forward train/validation/test folds with train-only threshold selection
+- Causal multi-stage signals, feature builders, and stage-level reporting
+- Experiment IDs, source hashes, parameters, and JSON provenance reports
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 
@@ -86,6 +89,8 @@ python -m market_relationship_discovery collect --broker-profile DEMO --symbol X
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
 python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
+python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
+python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 ```
 
 The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY = EURUSD * USDJPY`, `GBPJPY = GBPUSD * USDJPY`, `XAUEUR = XAUUSD / EURUSD`, and the Gold/Silver ratio.
@@ -114,6 +119,7 @@ mypy
 - [Quickstart tutorial](docs/tutorials/QUICKSTART.md)
 - [Research methodology](docs/research/METHODOLOGY.md)
 - [Backtesting](docs/research/BACKTESTING.md)
+- [Walk-forward validation](docs/research/WALK_FORWARD.md)
 - [Roadmap](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 

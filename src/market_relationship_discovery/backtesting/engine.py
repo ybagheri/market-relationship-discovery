@@ -98,13 +98,15 @@ class ResearchBacktester:
             and pd.notna(next_gross.at[timestamp])
             and pd.notna(next_cost.at[timestamp])
         )
+        return NoLookAheadResult(self.summarize_trades(trades), trades)
+
+    def summarize_trades(self, trades: tuple[NoLookAheadTrade, ...]) -> BacktestMetrics:
         trade_frame = pd.DataFrame(
             [(trade.gross_edge, trade.cost) for trade in trades],
             index=pd.RangeIndex(len(trades)),
             columns=["gross_edge", "cost"],
         )
-        metrics = self.run(trade_frame["gross_edge"], trade_frame["cost"])
-        return NoLookAheadResult(metrics, trades)
+        return self.run(trade_frame["gross_edge"], trade_frame["cost"])
 
 
 def quotes_to_frame(quotes: list[Quote]) -> pd.DataFrame:

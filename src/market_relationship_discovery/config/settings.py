@@ -34,6 +34,7 @@ class DataSettings(BaseModel):
     raw_directory: Path = Path("data/raw")
     processed_directory: Path = Path("data/processed")
     cache_directory: Path = Path("data/cache")
+    reports_directory: Path = Path("reports/research")
 
 
 class ResearchSettings(BaseModel):

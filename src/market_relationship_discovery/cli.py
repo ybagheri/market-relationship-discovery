@@ -17,6 +17,11 @@ from market_relationship_discovery.application.commands import (
     run_no_lookahead_backtest,
 )
 from market_relationship_discovery.application.doctor import doctor_exit_code, run_doctor
+from market_relationship_discovery.application.experiments import (
+    ResearchExperimentService,
+    build_signal_stages,
+)
+from market_relationship_discovery.backtesting.walk_forward import WalkForwardConfig
 from market_relationship_discovery.config import get_settings
 from market_relationship_discovery.domain.dataset import DataType
 from market_relationship_discovery.infrastructure.logging.config import configure_logging
@@ -53,6 +58,28 @@ def build_parser() -> argparse.ArgumentParser:
     backtest_parser.add_argument("--signal-column", default="signal")
     backtest_parser.add_argument("--gross-edge-column", default="gross_edge")
     backtest_parser.add_argument("--cost-column", default="cost")
+    backtest_parser.add_argument("--output", type=Path)
+    multi_parser = subparsers.add_parser("multi-backtest")
+    multi_parser.add_argument("file", type=Path)
+    multi_parser.add_argument("--stage-column", action="append", required=True)
+    multi_parser.add_argument("--stage-weight", action="append", type=float)
+    multi_parser.add_argument("--stage-threshold", action="append", type=float)
+    multi_parser.add_argument("--ensemble-threshold", type=float, default=0.0)
+    multi_parser.add_argument("--gross-edge-column", default="gross_edge")
+    multi_parser.add_argument("--cost-column", default="cost")
+    multi_parser.add_argument("--output", type=Path)
+    walk_parser = subparsers.add_parser("walk-forward")
+    walk_parser.add_argument("file", type=Path)
+    walk_parser.add_argument("--signal-column", default="signal")
+    walk_parser.add_argument("--gross-edge-column", default="gross_edge")
+    walk_parser.add_argument("--cost-column", default="cost")
+    walk_parser.add_argument("--train-size", type=int, default=252)
+    walk_parser.add_argument("--validation-size", type=int, default=63)
+    walk_parser.add_argument("--test-size", type=int, default=63)
+    walk_parser.add_argument("--step", type=int)
+    walk_parser.add_argument("--threshold", action="append", type=float)
+    walk_parser.add_argument("--minimum-train-observations", type=int, default=20)
+    walk_parser.add_argument("--output", type=Path)
     subparsers.add_parser("dashboard")
     return parser
 
@@ -75,6 +102,10 @@ def main(argv: list[str] | None = None) -> int:
             return _research(arguments)
         if arguments.command == "backtest":
             return _backtest(arguments)
+        if arguments.command == "multi-backtest":
+            return _multi_backtest(arguments)
+        if arguments.command == "walk-forward":
+            return _walk_forward(arguments)
         if arguments.command == "dashboard":
             return _dashboard()
     except Exception as exc:
@@ -160,9 +191,49 @@ def _backtest(arguments: argparse.Namespace) -> int:
                 arguments.signal_column,
                 arguments.gross_edge_column,
                 arguments.cost_column,
+                arguments.output or get_settings().data.reports_directory,
             )
         )
     )
+    return 0
+
+
+def _multi_backtest(arguments: argparse.Namespace) -> int:
+    stages = build_signal_stages(
+        arguments.stage_column,
+        arguments.stage_weight,
+        arguments.stage_threshold,
+    )
+    result = ResearchExperimentService().run_multi_stage(
+        arguments.file,
+        stages,
+        arguments.gross_edge_column,
+        arguments.cost_column,
+        arguments.ensemble_threshold,
+        arguments.output or get_settings().data.reports_directory,
+    )
+    print(_serializable(result))
+    return 0
+
+
+def _walk_forward(arguments: argparse.Namespace) -> int:
+    config = WalkForwardConfig(
+        train_observations=arguments.train_size,
+        validation_observations=arguments.validation_size,
+        test_observations=arguments.test_size,
+        step_observations=arguments.step,
+        thresholds=tuple(arguments.threshold or [0.0]),
+        minimum_train_observations=arguments.minimum_train_observations,
+    )
+    result = ResearchExperimentService().run_walk_forward(
+        arguments.file,
+        arguments.signal_column,
+        arguments.gross_edge_column,
+        arguments.cost_column,
+        config,
+        arguments.output or get_settings().data.reports_directory,
+    )
+    print(_serializable(result))
     return 0
 
 

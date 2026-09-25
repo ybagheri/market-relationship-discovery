@@ -23,10 +23,18 @@ def test_backtest_command_uses_next_observation(tmp_path: Path) -> None:
     path = tmp_path / "signals.csv"
     source.to_csv(path, index=False)
 
-    result = run_no_lookahead_backtest(path, "signal", "gross_edge", "cost")
+    result = run_no_lookahead_backtest(
+        path,
+        "signal",
+        "gross_edge",
+        "cost",
+        tmp_path / "reports",
+    )
 
-    assert result["execution_model"] == "signal_at_t_evaluated_at_next_observation"
-    assert result["metrics"]["gross_edge"] == 0.01
+    assert result["results"]["execution_model"] == "signal_at_t_evaluated_at_next_observation"
+    assert result["results"]["metrics"]["gross_edge"] == 0.01
+    assert result["experiment"]["source_sha256"]
+    assert Path(result["report_path"]).is_file()
 
 
 def test_backtest_command_rejects_duplicate_timestamps(tmp_path: Path) -> None:
@@ -49,3 +57,22 @@ def test_discover_accepts_repeated_symbol_options() -> None:
     arguments = build_parser().parse_args(["discover", "--symbol", "EURUSD", "--symbol", "GBPUSD"])
 
     assert arguments.symbol == [["EURUSD"], ["GBPUSD"]]
+
+
+def test_walk_forward_and_multi_stage_commands_are_available() -> None:
+    parser = build_parser()
+
+    walk = parser.parse_args(["walk-forward", "signals.csv"])
+    multi = parser.parse_args(
+        [
+            "multi-backtest",
+            "signals.csv",
+            "--stage-column",
+            "momentum",
+            "--stage-column",
+            "confirmation",
+        ]
+    )
+
+    assert walk.command == "walk-forward"
+    assert multi.stage_column == ["momentum", "confirmation"]

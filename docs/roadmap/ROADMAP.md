@@ -56,7 +56,9 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 
 - [x] Basic deterministic cost-aware metrics
 - [x] Next-observation signal execution without same-timestamp leakage
-- [ ] Walk-forward validation
+- [x] Walk-forward train/validation/test folds and train-only threshold selection
+- [x] Causal multi-stage signal ensemble
+- [x] Experiment IDs, source hashes, and JSON reports
 - [ ] Monte Carlo robustness
 
 ## Phase 8 — Dashboard

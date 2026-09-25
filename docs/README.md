@@ -6,6 +6,7 @@
 - [Quickstart](tutorials/QUICKSTART.md)
 - [Methodology](research/METHODOLOGY.md)
 - [Backtesting](research/BACKTESTING.md)
+- [Walk-forward validation](research/WALK_FORWARD.md)
 - [Data quality](research/DATA_QUALITY.md)
 - [Roadmap](roadmap/ROADMAP.md)
 

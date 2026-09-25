@@ -8,7 +8,7 @@
 
 ## وضعیت پروژه
 
-فاز زیرساخت و داده تاریخی پیاده‌سازی شده است. اکنون دسترسی فقط‌خواندنی و دمو به MT5، پروفایل چند broker، collection تیک و bar، datasetهای Parquet با manifest، پژوهش تاریخی bar، تولید candidate و بک‌تست observation بعدی وجود دارد. همگام‌سازی چند بروکری، walk-forward و Monte Carlo هنوز در حال توسعه‌اند.
+فاز زیرساخت، داده تاریخی و اعتبارسنجی پیاده‌سازی شده است. اکنون دسترسی دمو به MT5، پروفایل broker، dataset پارکت، پژوهش تاریخی، اجرای observation بعدی، سیگنال چندمرحله‌ای علی، انتخاب threshold فقط با train، foldهای walk-forward و گزارش experiment وجود دارد. پژوهش همگام چند بروکری و Monte Carlo هنوز در حال توسعه‌اند.
 
 ## قابلیت‌ها
 
@@ -24,6 +24,9 @@
 - datasetهای tick و bar در Parquet همراه manifest بازتولیدپذیری
 - پژوهش تاریخی bar بدون ادعای اجرای tick-level
 - بک‌تست observation بعدی بدون استفاده از edge هم‌زمان سیگنال
+- foldهای walk-forward با انتخاب threshold فقط روی train
+- سیگنال چندمرحله‌ای علی، feature builder و گزارش هر stage
+- شناسه experiment، hash منبع، پارامترها و گزارش JSON بازتولیدپذیر
 - چارچوب کاتالوگ رابطه و تولید نامزد
 - داشبورد Streamlit با هشدار دائمی حالت پژوهشی/دمو
 
@@ -86,6 +89,8 @@ python -m market_relationship_discovery collect --broker-profile DEMO --symbol X
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
 python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
+python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
+python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 ```
 
 روابط اولیه شامل `EURGBP = EURUSD / GBPUSD`، `EURJPY = EURUSD * USDJPY`، `GBPJPY = GBPUSD * USDJPY`، `XAUEUR = XAUUSD / EURUSD` و نسبت طلا به نقره است.
@@ -114,6 +119,7 @@ mypy
 - [آموزش شروع سریع](docs/tutorials/QUICKSTART.fa.md)
 - [روش‌شناسی پژوهش](docs/research/METHODOLOGY.fa.md)
 - [بک‌تست](docs/research/BACKTESTING.fa.md)
+- [اعتبارسنجی walk-forward](docs/research/WALK_FORWARD.fa.md)
 - [نقشه راه](docs/roadmap/ROADMAP.fa.md)
 - [سیاست امنیت](SECURITY.md)
 
