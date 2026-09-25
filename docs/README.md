@@ -14,6 +14,7 @@
 - [PnL normalization](research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](research/EVENT_TIME.md)
 - [Data quality](research/DATA_QUALITY.md)
+- [Dashboard](dashboard/DASHBOARD.md)
 - [Roadmap](roadmap/ROADMAP.md)
 
 Each major English document has a Persian counterpart ending in `.fa.md`.

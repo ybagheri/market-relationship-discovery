@@ -18,7 +18,7 @@ The platform separates data acquisition, relationship mathematics, statistical r
 - `infrastructure`: official MT5 integration and atomic Parquet/manifest storage
 - `application`: diagnostics, sequential/process-isolated collection, and research orchestration
 - `cli`: argument parsing and command dispatch
-- `dashboard`: read-only research presentation
+- `dashboard`: read-only research presentation, persisted report loading, and Plotly figures
 
 ## Dependency direction
 
@@ -34,4 +34,4 @@ A new broker should implement a provider protocol returning normalized `Quote` a
 
 ## Limitations
 
-The initial graph is a formula catalog rather than a full currency graph. Broker-A anchored synchronized comparison is implemented, but true parallel terminal processes, symmetric event-time synchronization, contract normalization, and execution simulation are not complete.
+The initial graph is a formula catalog rather than a full currency graph. The dashboard reads persisted comparison previews and presents descriptive Plotly figures; it does not recompute full-resolution research or execute trades.

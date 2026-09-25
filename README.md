@@ -40,6 +40,7 @@ Foundation through PnL-normalized multi-broker research phases implemented. The 
 - Explicit raw tick preservation and configurable timestamp aggregation
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
+- Interactive discrepancy and broker comparison charts from persisted experiment reports
 
 ## Safety model
 
@@ -116,7 +117,7 @@ The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY =
 python -m market_relationship_discovery dashboard
 ```
 
-The dashboard always displays `DEMO / RESEARCH MODE — NO LIVE TRADING`.
+The dashboard always displays `DEMO / RESEARCH MODE — NO LIVE TRADING`. It includes read-only interactive charts for discrepancy metrics and aligned broker mid prices, using persisted `EXP-*.json` reports from `DATA__REPORTS_DIRECTORY`. The report preview contains at most 20 aligned observations; rerun `compare-brokers` to refresh it.
 
 ## Quality checks
 
@@ -141,6 +142,7 @@ mypy
 - [Parallel MT5 collection](docs/mt5/PARALLEL_COLLECTION.md)
 - [PnL normalization](docs/research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](docs/research/EVENT_TIME.md)
+- [Dashboard](docs/dashboard/DASHBOARD.md)
 - [Roadmap](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 

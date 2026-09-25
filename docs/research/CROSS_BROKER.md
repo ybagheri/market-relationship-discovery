@@ -8,7 +8,7 @@ Cross-broker comparison distinguishes theoretical price differences from bid/ask
 
 `CrossBrokerComparisonEngine` supports `anchor_a` and one-to-one mutual-nearest `symmetric` synchronization. Signed source delay and unmatched counts are retained. Tick duplicate timestamp updates are preserved in raw storage and explicitly aggregated as `last` by default; `none` rejects them.
 
-The current implementation is not symmetric around both feeds and does not create a union timeline. A future event-time synchronization layer may improve this, but any alternative must preserve delay and avoid silently reusing stale quotes.
+The dashboard visualizes persisted comparison previews. It does not replace the full-resolution engine or establish an executable timeline.
 
 ## Tick comparison
 
@@ -31,6 +31,10 @@ Tick comparisons can receive two `ContractSpecification` JSON files. Missing spe
 
 The `compare-brokers` CLI accepts CSV or Parquet files and records both source filenames and SHA-256 hashes, symbol, broker labels, observation type, alignment tolerance, additional cost, period, and aligned preview rows in an `EXP-*` JSON report.
 
+## Visualization
+
+Persisted `EXP-*.json` comparison reports are available in the dashboard. The discrepancy explorer plots selectable bid/ask/mid, net-edge, PnL, and delay metrics with the configured cost reference and crossable observations. The broker comparison view plots aligned mid prices for both broker labels. These are read-only descriptive views over the report preview, not execution evidence.
+
 ## Limitations
 
-The engine does not yet normalize contract size, currency, digits, point value, trading sessions, symbol construction, funding, rebates, or broker-specific execution rules. Additional cost is a single fixed research assumption. A positive crossable episode is only a candidate for deeper execution research.
+The engine normalizes compatible contract size and tick-value differences, but does not model currency conversion, funding, rebates, trading sessions, symbol construction, or broker-specific execution rules. Additional cost is a single fixed research assumption. A positive crossable episode is only a candidate for deeper execution research.

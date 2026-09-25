@@ -40,6 +40,7 @@
 - حفظ raw tick و aggregation صریح timestamp
 - چارچوب کاتالوگ رابطه و تولید نامزد
 - داشبورد Streamlit با هشدار دائمی حالت پژوهشی/دمو
+- نمودارهای تعاملی اختلاف و مقایسه broker از گزارش‌های ذخیره‌شده experiment
 
 ## مدل ایمنی
 
@@ -116,7 +117,7 @@ python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.
 python -m market_relationship_discovery dashboard
 ```
 
-داشبورد همیشه عبارت `DEMO / RESEARCH MODE — NO LIVE TRADING` را نمایش می‌دهد.
+داشبورد همیشه عبارت `DEMO / RESEARCH MODE — NO LIVE TRADING` را نمایش می‌دهد. این داشبورد نمودارهای تعاملی فقط‌خواندنی برای اختلاف و mid price همگام brokerها دارد که از گزارش‌های `EXP-*.json` در `DATA__REPORTS_DIRECTORY` خوانده می‌شوند. preview گزارش حداکثر ۲۰ observation همگام دارد؛ برای refresh دوباره `compare-brokers` را اجرا کنید.
 
 ## کنترل کیفیت
 
@@ -141,6 +142,7 @@ mypy
 - [collection موازی MT5](docs/mt5/PARALLEL_COLLECTION.fa.md)
 - [نرمال‌سازی PnL](docs/research/PNL_NORMALIZATION.fa.md)
 - [همگام‌سازی event-time](docs/research/EVENT_TIME.fa.md)
+- [داشبورد](docs/dashboard/DASHBOARD.fa.md)
 - [نقشه راه](docs/roadmap/ROADMAP.fa.md)
 - [سیاست امنیت](SECURITY.md)
 

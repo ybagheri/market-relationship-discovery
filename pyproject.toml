@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "market-relationship-discovery"
-version = "0.7.0"
+version = "0.8.0"
 description = "Demo-only quantitative research platform for market relationship discovery"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -62,5 +62,5 @@ packages = ["market_relationship_discovery"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["MetaTrader5", "streamlit.*", "pandas", "pandas.*", "scipy", "scipy.*"]
+module = ["MetaTrader5", "streamlit.*", "plotly", "plotly.*", "pandas", "pandas.*", "scipy", "scipy.*"]
 ignore_missing_imports = true

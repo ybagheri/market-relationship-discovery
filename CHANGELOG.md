@@ -2,6 +2,16 @@
 
 All notable changes follow semantic versioning.
 
+## [0.8.0] - 2026-09-25
+
+### Added
+
+- Read-only report loader for persisted cross-broker experiment previews
+- Interactive Plotly discrepancy charts with cost reference and crossable markers
+- Interactive broker mid-price comparison charts
+- Bilingual dashboard documentation
+- Dashboard loader, chart, and safety tests
+
 ## [0.7.0] - 2026-09-25
 
 ### Added

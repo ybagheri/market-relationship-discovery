@@ -70,7 +70,7 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 
 - [x] Persistent demo/research warning
 - [x] Overview, monitor, catalog, and limitations views
-- [ ] Interactive discrepancy and broker charts
+- [x] Interactive discrepancy and broker charts
 
 ## Phase 9 — Advanced Research
 

@@ -8,7 +8,7 @@
 
 `CrossBrokerComparisonEngine` هم `anchor_a` و هم همگام‌سازی متقارن mutual-nearest یک‌به‌یک را پشتیبانی می‌کند. delay منبع با علامت و تعداد unmatched حفظ می‌شود. updateهای tick با timestamp تکراری در storage خام حفظ و به‌صورت پیش‌فرض با policy صریح `last` aggregate می‌شوند؛ `none` آن‌ها را رد می‌کند.
 
-پیاده‌سازی فعلی حول هر دو feed متقارن نیست و union timeline نمی‌سازد. لایه event-time آینده می‌تواند بهتر شود، اما هر روش جایگزین باید delay را حفظ و quote stale را خودکار reuse نکند.
+داشبورد previewهای ذخیره‌شده مقایسه را نمایش می‌دهد. این نما جایگزین موتور full-resolution یا timeline اجرایی نیست.
 
 ## مقایسه tick
 
@@ -31,6 +31,10 @@
 
 فرمان `compare-brokers` فایل CSV یا Parquet می‌گیرد و نام و SHA-256 هر دو منبع، symbol، برچسب broker، نوع observation، tolerance، هزینه اضافی، بازه و preview ردیف‌های همگام‌شده را در گزارش JSON با شناسه `EXP-*` ثبت می‌کند.
 
+## visualization
+
+گزارش‌های ذخیره‌شده `EXP-*.json` در داشبورد در دسترس‌اند. discrepancy explorer معیارهای bid/ask/mid، net edge، PnL و delay را همراه با مرجع هزینه و observationهای crossable نمایش می‌دهد. broker comparison قیمت mid همگام‌شده هر دو broker را رسم می‌کند. این نماها فقط‌خواندنی و توصیفی‌اند، نه شاهد اجرا.
+
 ## محدودیت‌ها
 
-موتور هنوز contract size، ارز، digits، point value، session، ساخت symbol، funding، rebate و قوانین اجرای broker-specific را نرمال نمی‌کند. هزینه اضافی یک فرض ثابت پژوهشی است. episode مثبت فقط نامزد پژوهش اجرایی عمیق‌تر است.
+موتور اختلاف سازگار contract size و tick value را نرمال می‌کند، اما currency conversion، funding، rebate، session، ساخت symbol و قوانین اجرای broker-specific را مدل نمی‌کند. هزینه اضافی یک فرض ثابت پژوهشی است. episode مثبت فقط نامزد پژوهش اجرایی عمیق‌تر است.
