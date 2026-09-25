@@ -2,7 +2,7 @@
 
 ## Collection checks
 
-Every stored dataset is rejected before writing when required columns are missing, values are absent, timestamps are duplicated, quotes contain invalid bid/ask values, or OHLC/volume invariants fail. The system does not silently repair or drop rows.
+Every stored dataset is rejected before writing when required columns, values, quote invariants, or OHLC/volume invariants fail. Duplicate bar timestamps are rejected. Tick feeds may contain multiple legitimate quote updates at one timestamp; these raw rows are preserved and counted in the manifest. Comparison applies an explicit `last` or `none` tick-aggregation policy. No row is silently repaired or dropped.
 
 A manifest records dataset ID, broker profile, server, symbol, data type, timeframe, source period, row count, software version, collection parameters, offset, and quality counters. Parquet and JSON files are written through temporary files and then atomically renamed.
 

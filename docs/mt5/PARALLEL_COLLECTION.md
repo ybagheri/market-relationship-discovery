@@ -22,4 +22,4 @@ A failed worker raises a profile-specific `ParallelCollectionError`; other resul
 
 ## Validation boundary
 
-The implementation was integration-tested on Windows with one configured demo terminal and one spawned worker. Simultaneous two-terminal collection was not executed because a second demo terminal is not configured. The architecture supports it, but real multi-terminal concurrency requires an environment-level validation with at least two authorized demo terminals.
+The implementation was integration-tested on Windows with two configured demo terminals and two spawned workers. EURUSD tick collection completed for both profiles. Empty or transient MT5 data results trigger bounded retry with backoff; demo-safety failures are not retried. Multi-terminal results still require substantially denser synchronized samples before research conclusions.

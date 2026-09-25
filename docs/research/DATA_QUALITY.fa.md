@@ -2,7 +2,7 @@
 
 ## بررسی collection
 
-هر dataset پیش از ذخیره رد می‌شود اگر ستون لازم، مقدار، timestamp تکراری، bid/ask نامعتبر یا نقض OHLC/volume داشته باشد. سیستم هیچ ردیفی را خودکار repair یا حذف نمی‌کند.
+هر dataset پیش از ذخیره در صورت نبود ستون یا مقدار لازم، quote نامعتبر یا نقض OHLC/volume رد می‌شود. timestamp تکراری bar ممنوع است. feed tick ممکن است چند quote update معتبر در timestamp یکسان داشته باشد؛ ردیف خام حفظ و در manifest شمرده می‌شود. comparison طبق policy صریح `last` یا `none` آن را aggregate می‌کند. هیچ ردیفی خودکار repair یا حذف نمی‌شود.
 
 manifest شناسه dataset، پروفایل broker، سرور، symbol، نوع داده، timeframe، بازه منبع، تعداد ردیف، نسخه نرم‌افزار، پارامترهای collection، offset و شمارنده‌های کیفیت را ثبت می‌کند. فایل Parquet و JSON ابتدا در فایل موقت نوشته و سپس به‌صورت اتمیک rename می‌شوند.
 

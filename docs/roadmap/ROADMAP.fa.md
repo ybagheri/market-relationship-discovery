@@ -40,7 +40,8 @@
 - [x] edge خالص با هزینه قابل پیکربندی
 - [x] اختلاف bid/ask بین brokerها، delay، فرکانس و مدت
 - [x] دریافت specification قرارداد و safety gate فرصت
-- [ ] شبیه‌سازی اجرای قراردادمحور با PnL نرمال‌شده
+- [x] edge پژوهشی با PnL نرمال‌شده و قرارداد
+- [ ] شبیه‌سازی funding، کمیسیون، margin و partial fill
 
 ## فاز ۵ — پژوهش آماری
 
@@ -75,7 +76,8 @@
 
 - [x] مقایسه همگام anchor‌شده روی Broker A و provenance دو منبع
 - [x] collection موازی MT5 در processهای جدا
-- [ ] همگام‌سازی event-time متقارن
+- [x] همگام‌سازی event-time متقارن mutual-nearest
+- [x] aggregate صریح duplicate tick و نرمال‌سازی PnL
 - [x] تحلیل مدت opportunity در سطح tick
 - [ ] تشخیص regime
 - [ ] کشف رابطه با گراف

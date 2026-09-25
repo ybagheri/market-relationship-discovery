@@ -15,6 +15,8 @@ from market_relationship_discovery.market_data.cross_broker import (
     CrossBrokerComparisonEngine,
     CrossBrokerRequest,
     OpportunityDirection,
+    SynchronizationMode,
+    TickAggregation,
 )
 
 
@@ -111,7 +113,7 @@ def test_bar_difference_is_never_classified_as_crossable() -> None:
     assert analysis.summary.maximum_net_crossable_edge is None
 
 
-def test_incompatible_contracts_block_crossable_episodes() -> None:
+def test_contract_size_difference_is_volume_and_pnl_normalized() -> None:
     contract_a = ContractSpecification.from_dict(
         json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
     )
@@ -131,9 +133,66 @@ def test_incompatible_contracts_block_crossable_episodes() -> None:
     )
 
     assert analysis.summary.contract_status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
+    assert analysis.summary.classification == "crossable_after_cost_pnl_normalized_research"
+    assert analysis.summary.contract_normalization_applied is True
+    assert analysis.summary.broker_b_volume_per_broker_a_volume == 2.0
+    assert analysis.summary.maximum_normalized_net_pnl is not None
+    assert analysis.opportunities
+
+
+def test_symmetric_synchronization_keeps_only_mutual_nearest_matches() -> None:
+    broker_a = tick_frame([(1.1, 1.2), (1.2, 1.3)], [0, 10])
+    broker_b = tick_frame([(1.3, 1.4), (1.4, 1.5)], [10, 20])
+
+    analysis = CrossBrokerComparisonEngine().compare(
+        broker_a,
+        broker_b,
+        replace(request(), synchronization_mode=SynchronizationMode.SYMMETRIC),
+    )
+
+    assert analysis.summary.synchronization_mode is SynchronizationMode.SYMMETRIC
+    assert analysis.summary.aligned_observations == 1
+    assert analysis.summary.unmatched_broker_a_rows == 1
+    assert analysis.summary.unmatched_broker_b_rows == 1
+    assert analysis.aligned_observations["timestamp"].iloc[0] == pd.Timestamp(
+        "2026-09-25T00:00:00.010Z"
+    )
+
+
+def test_incompatible_contracts_block_crossable_episodes() -> None:
+    contract_a = ContractSpecification.from_dict(
+        json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
+    )
+    contract_b = replace(
+        ContractSpecification.from_dict(
+            json.loads(Path("examples/broker_b_contract.json").read_text(encoding="utf-8"))
+        ),
+        currency_profit="GBP",
+    )
+    broker_a = tick_frame([(1.1000, 1.1002), (1.1001, 1.1003)])
+    broker_b = tick_frame([(1.1006, 1.1008), (1.1007, 1.1009)])
+
+    analysis = CrossBrokerComparisonEngine().compare(
+        broker_a,
+        broker_b,
+        replace(request(), contract_a=contract_a, contract_b=contract_b),
+    )
+
+    assert analysis.summary.contract_status is ContractCompatibilityStatus.INCOMPATIBLE
     assert analysis.summary.classification == "blocked_by_contract_specification"
     assert analysis.summary.contract_blocked_observations == 2
     assert analysis.opportunities == ()
+
+
+def test_tick_duplicate_updates_are_explicitly_aggregated() -> None:
+    broker_a = tick_frame([(1.1000, 1.1002), (1.1001, 1.1003)], [0, 0])
+    broker_b = tick_frame([(1.1005, 1.1007), (1.1006, 1.1008)])
+
+    analysis = CrossBrokerComparisonEngine().compare(broker_a, broker_b, request())
+
+    assert analysis.summary.broker_a_duplicate_timestamps == 1
+    assert analysis.summary.tick_aggregation is TickAggregation.LAST
+    assert analysis.aligned_observations["a_bid"].iloc[0] == 1.1001
 
 
 def test_alignment_rejects_duplicate_and_unmatched_data() -> None:
@@ -142,7 +201,11 @@ def test_alignment_rejects_duplicate_and_unmatched_data() -> None:
     engine = CrossBrokerComparisonEngine()
 
     with pytest.raises(DataQualityError):
-        engine.compare(duplicate, valid, request())
+        engine.compare(
+            duplicate,
+            valid,
+            replace(request(), tick_aggregation=TickAggregation.NONE),
+        )
     far = tick_frame([(1.1, 1.2)], [1000])
     with pytest.raises(InsufficientDataError):
         engine.compare(valid, far, request())

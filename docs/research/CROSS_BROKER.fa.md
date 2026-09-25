@@ -6,7 +6,7 @@
 
 ## همگام‌سازی
 
-`CrossBrokerComparisonEngine` observationهای Broker A را anchor می‌کند و نزدیک‌ترین observation Broker B را در محدوده `max_alignment_delay_ms` انتخاب می‌کند. delay منبع با علامت در `alignment_delay_ms` حفظ می‌شود. observationهای بدون match شمارش می‌شوند و forward-fill نمی‌شوند.
+`CrossBrokerComparisonEngine` هم `anchor_a` و هم همگام‌سازی متقارن mutual-nearest یک‌به‌یک را پشتیبانی می‌کند. delay منبع با علامت و تعداد unmatched حفظ می‌شود. updateهای tick با timestamp تکراری در storage خام حفظ و به‌صورت پیش‌فرض با policy صریح `last` aggregate می‌شوند؛ `none` آن‌ها را رد می‌کند.
 
 پیاده‌سازی فعلی حول هر دو feed متقارن نیست و union timeline نمی‌سازد. لایه event-time آینده می‌تواند بهتر شود، اما هر روش جایگزین باید delay را حفظ و quote stale را خودکار reuse نکند.
 

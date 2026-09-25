@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,7 +12,11 @@ from market_relationship_discovery.application.collector import (
 )
 from market_relationship_discovery.config.settings import MT5Settings
 from market_relationship_discovery.domain.dataset import CollectionBatch, DataType
-from market_relationship_discovery.domain.errors import MarketRelationshipError
+from market_relationship_discovery.domain.errors import (
+    DataQualityError,
+    MarketRelationshipError,
+    MT5ConnectionError,
+)
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
 from market_relationship_discovery.infrastructure.storage.quotes import ParquetQuoteRepository
 from market_relationship_discovery.market_data.symbols import SymbolMapper
@@ -30,6 +35,7 @@ class CollectionJob:
     end: datetime | None
     limit: int | None
     raw_directory: Path
+    collection_attempts: int = 3
 
 
 class ParallelCollectionError(MarketRelationshipError):
@@ -66,21 +72,32 @@ class ParallelCollectionCoordinator:
 
 
 def collect_broker_job(job: CollectionJob) -> CollectionBatch:
-    with MT5Adapter(job.mt5_settings) as adapter:
-        available = adapter.symbols(visible_only=False)
-        mapper = SymbolMapper(job.symbol_mapping)
-        broker_symbols = tuple(
-            mapper.resolve(symbol, available).broker_symbol for symbol in job.canonical_symbols
-        )
-        request = CollectionRequest(
-            broker_profile=job.broker_profile,
-            symbols=broker_symbols,
-            data_type=job.data_type,
-            timeframe=job.timeframe,
-            start=job.start,
-            end=job.end,
-            limit=job.limit,
-            source_utc_offset_minutes=job.mt5_settings.source_utc_offset_minutes,
-        )
-        repository = ParquetQuoteRepository(job.raw_directory)
-        return HistoricalCollector(adapter, repository).collect(request)
+    last_error: MT5ConnectionError | DataQualityError | None = None
+    for attempt in range(1, job.collection_attempts + 1):
+        try:
+            with MT5Adapter(job.mt5_settings) as adapter:
+                available = adapter.symbols(visible_only=False)
+                mapper = SymbolMapper(job.symbol_mapping)
+                broker_symbols = tuple(
+                    mapper.resolve(symbol, available).broker_symbol
+                    for symbol in job.canonical_symbols
+                )
+                request = CollectionRequest(
+                    broker_profile=job.broker_profile,
+                    symbols=broker_symbols,
+                    data_type=job.data_type,
+                    timeframe=job.timeframe,
+                    start=job.start,
+                    end=job.end,
+                    limit=job.limit,
+                    source_utc_offset_minutes=job.mt5_settings.source_utc_offset_minutes,
+                )
+                repository = ParquetQuoteRepository(job.raw_directory)
+                return HistoricalCollector(adapter, repository).collect(request)
+        except (MT5ConnectionError, DataQualityError) as exc:
+            last_error = exc
+            if attempt < job.collection_attempts:
+                time.sleep(0.5 * attempt)
+    if last_error is not None:
+        raise last_error
+    raise ParallelCollectionError(f"collection did not run for {job.broker_profile}")

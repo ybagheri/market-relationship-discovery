@@ -149,6 +149,8 @@ def test_contract_commands_are_available() -> None:
 
     assert compare.contract_a == Path("a.json")
     assert compare.contract_b == Path("b.json")
+    assert compare.sync_mode == "anchor_a"
+    assert compare.tick_aggregation == "last"
     assert specs.symbol == ["EURUSD"]
 
 

@@ -2,6 +2,20 @@
 
 All notable changes follow semantic versioning.
 
+## [0.7.0] - 2026-09-25
+
+### Added
+
+- Contract-aware broker volume and PnL normalization
+- Normalized opportunity and summary metrics
+- One-to-one mutual-nearest symmetric event-time synchronization
+- Signed delay and unmatched counts for both broker feeds
+- Explicit tick aggregation policies for duplicate timestamp updates
+- Bounded parallel worker retry for transient empty MT5 data
+- Two configured demo terminals and live parallel tick collection
+- PnL, volume, mutual-match, duplicate-policy, and synchronization tests
+- Bilingual PnL and event-time documentation
+
 ## [0.6.0] - 2026-09-25
 
 ### Added

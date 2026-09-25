@@ -8,7 +8,7 @@
 
 ## وضعیت پروژه
 
-فازهای زیرساخت تا پژوهش چند broker ایمن از نظر قرارداد پیاده‌سازی شده‌اند. اکنون ingestion دمو، collection موازی در process جدا، پژوهش بدون look-ahead و walk-forward، robustness، مقایسه همگام و safety gate مشخصات قرارداد وجود دارد. اجرای PnL نرمال‌شده و همگام‌سازی event-time متقارن هنوز در حال توسعه‌اند.
+فازهای زیرساخت تا پژوهش چند broker با PnL نرمال‌شده پیاده‌سازی شده‌اند. اکنون collection دو ترمینال در processهای جدا، تطبیق event-time متقارن یک‌به‌یک، aggregate صریح tick، نرمال‌سازی volume/PnL، پژوهش بدون look-ahead، walk-forward و Monte Carlo وجود دارد. اجرای زنده همچنان غیرفعال است.
 
 ## قابلیت‌ها
 
@@ -35,6 +35,9 @@
 - دریافت فراداده رسمی قرارداد MT5 و خروجی JSON
 - compatibility gate که در نیاز به normalization، opportunity را block می‌کند
 - collection موازی با process مستقل برای هر پروفایل broker
+- نرمال‌سازی volume و PnL آگاه به قرارداد
+- تطبیق متقارن mutual-nearest با عدم reuse تکراری quote
+- حفظ raw tick و aggregation صریح timestamp
 - چارچوب کاتالوگ رابطه و تولید نامزد
 - داشبورد Streamlit با هشدار دائمی حالت پژوهشی/دمو
 
@@ -102,7 +105,7 @@ python -m market_relationship_discovery backtest examples\no_lookahead_signals.c
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 python -m market_relationship_discovery robustness examples\walk_forward_signals.csv --simulations 1000 --seed 42 --block-size 3
-python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001 --contract-a examples\broker_a_contract.json --contract-b examples\broker_b_contract.json
+python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001 --sync-mode symmetric --tick-aggregation last --contract-a examples\broker_a_contract.json --contract-b examples\broker_b_contract.json
 ```
 
 روابط اولیه شامل `EURGBP = EURUSD / GBPUSD`، `EURJPY = EURUSD * USDJPY`، `GBPJPY = GBPUSD * USDJPY`، `XAUEUR = XAUUSD / EURUSD` و نسبت طلا به نقره است.
@@ -136,6 +139,8 @@ mypy
 - [مقایسه چند بروکر](docs/research/CROSS_BROKER.fa.md)
 - [مشخصات قرارداد](docs/research/CONTRACT_SPECIFICATION.fa.md)
 - [collection موازی MT5](docs/mt5/PARALLEL_COLLECTION.fa.md)
+- [نرمال‌سازی PnL](docs/research/PNL_NORMALIZATION.fa.md)
+- [همگام‌سازی event-time](docs/research/EVENT_TIME.fa.md)
 - [نقشه راه](docs/roadmap/ROADMAP.fa.md)
 - [سیاست امنیت](SECURITY.md)
 

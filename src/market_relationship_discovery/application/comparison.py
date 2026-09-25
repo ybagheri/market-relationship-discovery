@@ -13,6 +13,8 @@ from market_relationship_discovery.market_data.cross_broker import (
     ComparisonKind,
     CrossBrokerComparisonEngine,
     CrossBrokerRequest,
+    SynchronizationMode,
+    TickAggregation,
 )
 from market_relationship_discovery.reporting.experiment import ExperimentReportWriter
 
@@ -31,6 +33,8 @@ class CrossBrokerExperimentService:
         output_directory: Path | None = None,
         contract_a_path: Path | None = None,
         contract_b_path: Path | None = None,
+        synchronization_mode: SynchronizationMode = SynchronizationMode.ANCHOR_A,
+        tick_aggregation: TickAggregation = TickAggregation.LAST,
     ) -> dict[str, object]:
         frame_a = self._load(source_a, symbol)
         frame_b = self._load(source_b, symbol)
@@ -43,6 +47,8 @@ class CrossBrokerExperimentService:
             additional_cost,
             self._load_contract(contract_a_path),
             self._load_contract(contract_b_path),
+            synchronization_mode,
+            tick_aggregation,
         )
         analysis = CrossBrokerComparisonEngine().compare(frame_a, frame_b, request)
         start = min(frame_a["timestamp"].min(), frame_b["timestamp"].min()).to_pydatetime()
@@ -62,6 +68,8 @@ class CrossBrokerExperimentService:
                 "additional_cost": additional_cost,
                 "contract_a_file_name": (contract_a_path.name if contract_a_path else None),
                 "contract_b_file_name": (contract_b_path.name if contract_b_path else None),
+                "synchronization_mode": synchronization_mode.value,
+                "tick_aggregation": tick_aggregation.value,
             },
             (source_b,),
         )
@@ -92,7 +100,14 @@ class CrossBrokerExperimentService:
             return None
         import json
 
-        return ContractSpecification.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, list):
+            if len(payload) != 1 or not isinstance(payload[0], dict):
+                raise ValueError("contract file must contain exactly one specification")
+            payload = payload[0]
+        if not isinstance(payload, dict):
+            raise ValueError("contract file must contain a specification object")
+        return ContractSpecification.from_dict(payload)
 
     @staticmethod
     def _load(path: Path, symbol: str) -> pd.DataFrame:

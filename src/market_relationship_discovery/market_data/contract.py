@@ -80,6 +80,47 @@ class ContractCompatibilityReport:
     tick_value_ratio: float | None
 
 
+@dataclass(frozen=True, slots=True)
+class NormalizedContractEdge:
+    broker_a_volume: float
+    broker_b_volume: float
+    net_edge: float
+    net_pnl: float
+    broker_a_pnl: float
+    broker_b_pnl: float
+
+
+class ContractEdgeNormalizer:
+    def normalize(
+        self,
+        net_edge: float,
+        specification_a: ContractSpecification,
+        specification_b: ContractSpecification,
+        broker_a_volume: float = 1.0,
+    ) -> NormalizedContractEdge:
+        if broker_a_volume <= 0:
+            raise ValueError("broker_a_volume must be positive")
+        if specification_a.currency_profit.upper() != specification_b.currency_profit.upper():
+            raise ValueError("PnL normalization requires matching profit currencies")
+        broker_b_volume = (
+            broker_a_volume * specification_a.contract_size / specification_b.contract_size
+        )
+        broker_a_pnl = (
+            net_edge * broker_a_volume * specification_a.tick_value / specification_a.tick_size
+        )
+        broker_b_pnl = (
+            net_edge * broker_b_volume * specification_b.tick_value / specification_b.tick_size
+        )
+        return NormalizedContractEdge(
+            broker_a_volume=broker_a_volume,
+            broker_b_volume=broker_b_volume,
+            net_edge=net_edge,
+            net_pnl=broker_a_pnl + broker_b_pnl,
+            broker_a_pnl=broker_a_pnl,
+            broker_b_pnl=broker_b_pnl,
+        )
+
+
 class ContractSpecificationAnalyzer:
     def compare(
         self,
@@ -107,6 +148,8 @@ class ContractSpecificationAnalyzer:
             issues.append("profit currencies differ")
         if not self._same(specification_a.point, specification_b.point):
             issues.append("point sizes differ")
+        if not self._same(specification_a.tick_size, specification_b.tick_size):
+            issues.append("tick sizes differ")
         if not self._digits_match_point(specification_a) or not self._digits_match_point(
             specification_b
         ):

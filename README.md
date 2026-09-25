@@ -8,7 +8,7 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Foundation through contract-safe multi-broker research phases implemented. The platform now includes demo-only MT5 ingestion, process-isolated parallel collection, no-look-ahead and walk-forward research, Monte Carlo robustness, synchronized cross-broker comparison, and contract specification safety gates. PnL-normalized execution and symmetric event-time synchronization remain in progress.
+Foundation through PnL-normalized multi-broker research phases implemented. The platform now includes two-terminal process-isolated collection, symmetric one-to-one event-time matching, explicit tick aggregation, contract-aware volume/PnL normalization, no-look-ahead research, walk-forward, and Monte Carlo robustness. Live execution remains disabled.
 
 ## Capabilities
 
@@ -35,6 +35,9 @@ Foundation through contract-safe multi-broker research phases implemented. The p
 - Official MT5 contract metadata capture and JSON export
 - Compatibility gate that blocks opportunities when contract normalization is required
 - Process-isolated parallel collection with one worker process per broker profile
+- Contract-aware volume and PnL normalization for cross-broker edges
+- Symmetric mutual-nearest event-time matching with no duplicate quote reuse
+- Explicit raw tick preservation and configurable timestamp aggregation
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 
@@ -102,7 +105,7 @@ python -m market_relationship_discovery backtest examples\no_lookahead_signals.c
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
 python -m market_relationship_discovery robustness examples\walk_forward_signals.csv --simulations 1000 --seed 42 --block-size 3
-python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001 --contract-a examples\broker_a_contract.json --contract-b examples\broker_b_contract.json
+python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.csv examples\broker_b_ticks.csv --broker-a BrokerA --broker-b BrokerB --symbol EURUSD --kind tick --max-delay-ms 100 --additional-cost 0.0001 --sync-mode symmetric --tick-aggregation last --contract-a examples\broker_a_contract.json --contract-b examples\broker_b_contract.json
 ```
 
 The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY = EURUSD * USDJPY`, `GBPJPY = GBPUSD * USDJPY`, `XAUEUR = XAUUSD / EURUSD`, and the Gold/Silver ratio.
@@ -136,6 +139,8 @@ mypy
 - [Cross-broker comparison](docs/research/CROSS_BROKER.md)
 - [Contract specifications](docs/research/CONTRACT_SPECIFICATION.md)
 - [Parallel MT5 collection](docs/mt5/PARALLEL_COLLECTION.md)
+- [PnL normalization](docs/research/PNL_NORMALIZATION.md)
+- [Event-time synchronization](docs/research/EVENT_TIME.md)
 - [Roadmap](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 

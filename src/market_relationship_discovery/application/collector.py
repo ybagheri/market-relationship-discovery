@@ -86,15 +86,27 @@ class HistoricalCollector:
     def _collect_symbol(self, request: CollectionRequest, symbol: str) -> StoredDataset:
         if request.data_type is DataType.TICK:
             quotes = self._collect_ticks(request, symbol)
+            if not quotes:
+                raise MT5ConnectionError(f"MT5 returned no tick data for {symbol}")
             frame = self._quotes_to_frame(quotes)
             report = self._validator.validate(frame)
         else:
             if request.timeframe is None:
                 raise ValueError("timeframe is required")
             bars = self._collect_bars(request, symbol, request.timeframe)
+            if not bars:
+                raise MT5ConnectionError(f"MT5 returned no bar data for {symbol}")
             frame = self._bars_to_frame(bars)
             report = self._validator.validate_bars(frame)
-        if not report.is_valid:
+        tick_duplicates_only = (
+            request.data_type is DataType.TICK
+            and report.duplicate_timestamps > 0
+            and report.invalid_quotes == 0
+            and report.invalid_bars == 0
+            and report.missing_values == 0
+            and not report.issues
+        )
+        if not report.is_valid and not tick_duplicates_only:
             raise DataQualityError(f"Collection quality check failed: {report}")
         if frame.empty:
             raise MT5ConnectionError(f"MT5 returned no {request.data_type.value} data for {symbol}")

@@ -94,6 +94,7 @@ def _build_collection_job(
         end,
         limit,
         settings.data.raw_directory,
+        settings.data.collection_attempts,
     )
 
 

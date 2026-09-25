@@ -6,7 +6,7 @@ Cross-broker comparison distinguishes theoretical price differences from bid/ask
 
 ## Synchronization
 
-`CrossBrokerComparisonEngine` anchors observations on Broker A and selects the nearest Broker B observation within `max_alignment_delay_ms`. Signed source delay is retained as `alignment_delay_ms`. Unmatched Broker A observations are counted rather than forward-filled.
+`CrossBrokerComparisonEngine` supports `anchor_a` and one-to-one mutual-nearest `symmetric` synchronization. Signed source delay and unmatched counts are retained. Tick duplicate timestamp updates are preserved in raw storage and explicitly aggregated as `last` by default; `none` rejects them.
 
 The current implementation is not symmetric around both feeds and does not create a union timeline. A future event-time synchronization layer may improve this, but any alternative must preserve delay and avoid silently reusing stale quotes.
 

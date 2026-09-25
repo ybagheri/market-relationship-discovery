@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from market_relationship_discovery.market_data.contract import (
     ContractCompatibilityStatus,
+    ContractEdgeNormalizer,
     ContractSpecification,
     ContractSpecificationAnalyzer,
 )
@@ -58,6 +59,23 @@ def test_contract_size_difference_requires_normalization() -> None:
 
     assert report.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
     assert report.contract_size_ratio == 0.5
+
+
+def test_contract_edge_normalizer_scales_volume_and_pnl() -> None:
+    contract_a = specification()
+    contract_b = replace(
+        specification(),
+        broker="BrokerB",
+        contract_size=50000.0,
+    )
+
+    normalized = ContractEdgeNormalizer().normalize(0.0001, contract_a, contract_b)
+
+    assert normalized.broker_a_volume == 1.0
+    assert normalized.broker_b_volume == 2.0
+    assert normalized.broker_a_pnl == 10.0
+    assert normalized.broker_b_pnl == 20.0
+    assert normalized.net_pnl == 30.0
 
 
 def test_currency_difference_is_incompatible() -> None:

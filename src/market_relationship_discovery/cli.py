@@ -32,7 +32,11 @@ from market_relationship_discovery.config import get_settings
 from market_relationship_discovery.domain.dataset import DataType
 from market_relationship_discovery.infrastructure.logging.config import configure_logging
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
-from market_relationship_discovery.market_data.cross_broker import ComparisonKind
+from market_relationship_discovery.market_data.cross_broker import (
+    ComparisonKind,
+    SynchronizationMode,
+    TickAggregation,
+)
 from market_relationship_discovery.market_data.symbols import SymbolMapper
 
 
@@ -43,6 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("doctor")
     subparsers.add_parser("mt5-info")
     symbols_parser = subparsers.add_parser("symbols")
+    symbols_parser.add_argument("--broker-profile", default="default")
     symbols_parser.add_argument("--search", default=None)
     symbols_parser.add_argument("--all", action="store_true", help="include hidden symbols")
     collect_parser = subparsers.add_parser("collect")
@@ -117,6 +122,16 @@ def build_parser() -> argparse.ArgumentParser:
     comparison_parser.add_argument("--additional-cost", type=float, default=0.0)
     comparison_parser.add_argument("--contract-a", type=Path)
     comparison_parser.add_argument("--contract-b", type=Path)
+    comparison_parser.add_argument(
+        "--sync-mode",
+        choices=["anchor_a", "symmetric"],
+        default="anchor_a",
+    )
+    comparison_parser.add_argument(
+        "--tick-aggregation",
+        choices=["last", "none"],
+        default="last",
+    )
     comparison_parser.add_argument("--output", type=Path)
     specifications_parser = subparsers.add_parser("symbol-specs")
     specifications_parser.add_argument("--broker-profile", default="default")
@@ -135,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "mt5-info":
             return _mt5_info()
         if arguments.command == "symbols":
-            return _symbols(arguments.search, arguments.all)
+            return _symbols(arguments.broker_profile, arguments.search, arguments.all)
         if arguments.command == "collect":
             return _collect(arguments)
         if arguments.command == "discover":
@@ -180,9 +195,14 @@ def _mt5_info() -> int:
     return 0
 
 
-def _symbols(search: str | None, include_hidden: bool) -> int:
+def _symbols(
+    broker_profile: str,
+    search: str | None,
+    include_hidden: bool,
+) -> int:
     settings = get_settings()
-    with MT5Adapter(settings.mt5) as adapter:
+    profile, _ = resolve_profile(settings, broker_profile)
+    with MT5Adapter(profile) as adapter:
         symbols = adapter.symbols(visible_only=not include_hidden)
         if search:
             query = search.casefold()
@@ -321,6 +341,8 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
         arguments.output or get_settings().data.reports_directory,
         arguments.contract_a,
         arguments.contract_b,
+        SynchronizationMode(arguments.sync_mode),
+        TickAggregation(arguments.tick_aggregation),
     )
     print(_serializable(result))
     return 0

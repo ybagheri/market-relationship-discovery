@@ -40,7 +40,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Configurable cost-aware net edge
 - [x] Tick bid/ask cross-broker discrepancy, delay, frequency, and duration
 - [x] Contract specification capture and opportunity safety gate
-- [ ] PnL-normalized contract-aware execution simulation
+- [x] PnL-normalized contract-aware research edge
+- [ ] Funding, commission, margin, and partial-fill execution simulation
 
 ## Phase 5 — Statistical Research
 
@@ -75,7 +76,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 
 - [x] Broker-A anchored synchronized cross-broker comparison and two-source provenance
 - [x] Process-isolated parallel MT5 collection
-- [ ] Symmetric event-time synchronization
+- [x] Symmetric mutual-nearest event-time synchronization
+- [x] Explicit tick duplicate aggregation and PnL normalization
 - [x] Tick-level opportunity-duration analysis
 - [ ] Regime detection
 - [ ] Graph-based relationship discovery

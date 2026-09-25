@@ -10,6 +10,7 @@ import pandas as pd
 from market_relationship_discovery.domain.errors import DataQualityError, InsufficientDataError
 from market_relationship_discovery.market_data.contract import (
     ContractCompatibilityStatus,
+    ContractEdgeNormalizer,
     ContractSpecification,
     ContractSpecificationAnalyzer,
 )
@@ -18,6 +19,16 @@ from market_relationship_discovery.market_data.contract import (
 class ComparisonKind(StrEnum):
     TICK = "tick"
     BAR = "bar"
+
+
+class TickAggregation(StrEnum):
+    LAST = "last"
+    NONE = "none"
+
+
+class SynchronizationMode(StrEnum):
+    ANCHOR_A = "anchor_a"
+    SYMMETRIC = "symmetric"
 
 
 class OpportunityDirection(StrEnum):
@@ -35,6 +46,8 @@ class CrossBrokerRequest:
     additional_cost: float = 0.0
     contract_a: ContractSpecification | None = None
     contract_b: ContractSpecification | None = None
+    synchronization_mode: SynchronizationMode = SynchronizationMode.ANCHOR_A
+    tick_aggregation: TickAggregation = TickAggregation.LAST
 
     def __post_init__(self) -> None:
         if not self.broker_a or not self.broker_b or not self.symbol:
@@ -59,6 +72,8 @@ class CrossBrokerOpportunity:
     maximum_gross_edge: float
     maximum_net_edge: float
     mean_net_edge: float
+    maximum_normalized_net_pnl: float | None
+    mean_normalized_net_pnl: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,11 +82,16 @@ class CrossBrokerSummary:
     broker_b: str
     symbol: str
     comparison_kind: ComparisonKind
+    synchronization_mode: SynchronizationMode
+    tick_aggregation: TickAggregation
     classification: str
     broker_a_rows: int
     broker_b_rows: int
+    broker_a_duplicate_timestamps: int
+    broker_b_duplicate_timestamps: int
     aligned_observations: int
     unmatched_broker_a_rows: int
+    unmatched_broker_b_rows: int
     mean_alignment_delay_ms: float
     p95_alignment_delay_ms: float
     mean_absolute_price_difference: float
@@ -91,6 +111,10 @@ class CrossBrokerSummary:
     contract_status: ContractCompatibilityStatus
     contract_issues: tuple[str, ...]
     contract_blocked_observations: int
+    contract_normalization_applied: bool
+    broker_b_volume_per_broker_a_volume: float | None
+    mean_normalized_net_pnl: float | None
+    maximum_normalized_net_pnl: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,18 +131,38 @@ class CrossBrokerComparisonEngine:
         broker_b: pd.DataFrame,
         request: CrossBrokerRequest,
     ) -> CrossBrokerAnalysis:
-        left = self._prepare(broker_a, request.comparison_kind, "a", request.symbol)
-        right = self._prepare(broker_b, request.comparison_kind, "b", request.symbol)
-        right = right.assign(_right_timestamp=right["timestamp"])
-        aligned = pd.merge_asof(
-            left.sort_values("timestamp"),
-            right.sort_values("timestamp"),
-            left_on="timestamp",
-            right_on="timestamp",
-            direction="nearest",
-            tolerance=pd.Timedelta(milliseconds=request.max_alignment_delay_ms),
+        left_duplicates = self._duplicate_count(broker_a, request.comparison_kind)
+        right_duplicates = self._duplicate_count(broker_b, request.comparison_kind)
+        left = self._prepare(
+            broker_a,
+            request.comparison_kind,
+            "a",
+            request.symbol,
+            request.tick_aggregation,
         )
-        aligned = aligned.rename(columns={"_right_timestamp": "broker_b_timestamp"})
+        right = self._prepare(
+            broker_b,
+            request.comparison_kind,
+            "b",
+            request.symbol,
+            request.tick_aggregation,
+        )
+        if request.synchronization_mode is SynchronizationMode.ANCHOR_A:
+            right = right.assign(_right_timestamp=right["timestamp"])
+            aligned = pd.merge_asof(
+                left.sort_values("timestamp"),
+                right.sort_values("timestamp"),
+                left_on="timestamp",
+                right_on="timestamp",
+                direction="nearest",
+                tolerance=pd.Timedelta(milliseconds=request.max_alignment_delay_ms),
+            ).rename(columns={"_right_timestamp": "broker_b_timestamp"})
+        else:
+            aligned = self._symmetric_align(
+                left,
+                right,
+                request.max_alignment_delay_ms,
+            )
         match_column = "b_bid" if request.comparison_kind is ComparisonKind.TICK else "b_close"
         aligned = aligned[aligned[match_column].notna()].copy()
         if aligned.empty:
@@ -128,9 +172,29 @@ class CrossBrokerComparisonEngine:
         ).dt.total_seconds() * 1000.0
         if request.comparison_kind is ComparisonKind.BAR:
             aligned["price_difference"] = aligned["a_close"] - aligned["b_close"]
-            return self._bar_summary(aligned, left, right, request)
-        analysis = self._tick_summary(aligned, left, right, request)
+            return self._bar_summary(
+                aligned,
+                left,
+                right,
+                request,
+                left_duplicates,
+                right_duplicates,
+            )
+        analysis = self._tick_summary(
+            aligned,
+            left,
+            right,
+            request,
+            left_duplicates,
+            right_duplicates,
+        )
         return analysis
+
+    @staticmethod
+    def _duplicate_count(frame: pd.DataFrame, kind: ComparisonKind) -> int:
+        if kind is not ComparisonKind.TICK:
+            return 0
+        return int(pd.to_datetime(frame["timestamp"], utc=True, errors="raise").duplicated().sum())
 
     @staticmethod
     def _prepare(
@@ -138,6 +202,7 @@ class CrossBrokerComparisonEngine:
         kind: ComparisonKind,
         side: str,
         symbol: str,
+        tick_aggregation: TickAggregation,
     ) -> pd.DataFrame:
         required = {"timestamp", "symbol"}
         price_columns = {"bid", "ask"} if kind is ComparisonKind.TICK else {"close"}
@@ -146,8 +211,15 @@ class CrossBrokerComparisonEngine:
             raise DataQualityError(f"broker {side} data is missing columns: {sorted(missing)}")
         result = frame.copy()
         result["timestamp"] = pd.to_datetime(result["timestamp"], utc=True, errors="raise")
-        if result["timestamp"].isna().any() or result["timestamp"].duplicated().any():
-            raise DataQualityError(f"broker {side} timestamps must be valid and unique")
+        if result["timestamp"].isna().any():
+            raise DataQualityError(f"broker {side} timestamps must be valid")
+        duplicate_timestamps = int(result["timestamp"].duplicated().sum())
+        if duplicate_timestamps and (
+            kind is ComparisonKind.BAR or tick_aggregation is TickAggregation.NONE
+        ):
+            raise DataQualityError(f"broker {side} timestamps must be unique")
+        if duplicate_timestamps and tick_aggregation is TickAggregation.LAST:
+            result = result.drop_duplicates("timestamp", keep="last")
         symbols = set(result["symbol"].astype(str))
         if symbols != {symbol}:
             raise DataQualityError(f"broker {side} data must contain only symbol {symbol}")
@@ -160,7 +232,42 @@ class CrossBrokerComparisonEngine:
             result["close"] = pd.to_numeric(result["close"], errors="raise")
             if (result["close"] <= 0).any():
                 raise DataQualityError(f"broker {side} close prices are invalid")
+        result = result[["timestamp", "symbol", *price_columns]]
         return result.rename(columns={column: f"{side}_{column}" for column in price_columns})
+
+    @staticmethod
+    def _symmetric_align(
+        left: pd.DataFrame,
+        right: pd.DataFrame,
+        tolerance_ms: int,
+    ) -> pd.DataFrame:
+        left_ns = left["timestamp"].astype("int64").to_numpy()
+        right_ns = right["timestamp"].astype("int64").to_numpy()
+        a_to_b = CrossBrokerComparisonEngine._nearest_indices(left_ns, right_ns)
+        b_to_a = CrossBrokerComparisonEngine._nearest_indices(right_ns, left_ns)
+        tolerance_ns = tolerance_ms * 1_000_000
+        candidate_b = np.clip(a_to_b, 0, len(right) - 1)
+        valid = (a_to_b >= 0) & (np.abs(right_ns[candidate_b] - left_ns) <= tolerance_ns)
+        a_indices = np.arange(len(left))
+        valid &= b_to_a[candidate_b] == a_indices
+        matched_a = np.flatnonzero(valid)
+        matched_b = a_to_b[matched_a]
+        left_selected = left.iloc[matched_a].reset_index(drop=True)
+        right_selected = (
+            right.iloc[matched_b].drop(columns=["timestamp", "symbol"]).reset_index(drop=True)
+        )
+        right_selected["broker_b_timestamp"] = right.iloc[matched_b]["timestamp"].to_numpy()
+        return pd.concat([left_selected, right_selected], axis=1)
+
+    @staticmethod
+    def _nearest_indices(source_ns: np.ndarray, target_ns: np.ndarray) -> np.ndarray:
+        positions = np.searchsorted(target_ns, source_ns, side="left")
+        right_positions = np.clip(positions, 0, len(target_ns) - 1)
+        left_positions = np.clip(positions - 1, 0, len(target_ns) - 1)
+        right_distance = np.abs(target_ns[right_positions] - source_ns)
+        left_distance = np.abs(target_ns[left_positions] - source_ns)
+        choose_left = left_distance < right_distance
+        return np.where(choose_left, left_positions, right_positions).astype(int)
 
     def _tick_summary(
         self,
@@ -168,6 +275,8 @@ class CrossBrokerComparisonEngine:
         left: pd.DataFrame,
         right: pd.DataFrame,
         request: CrossBrokerRequest,
+        left_duplicates: int,
+        right_duplicates: int,
     ) -> CrossBrokerAnalysis:
         aligned["a_mid"] = (aligned["a_bid"] + aligned["a_ask"]) / 2.0
         aligned["b_mid"] = (aligned["b_bid"] + aligned["b_ask"]) / 2.0
@@ -199,10 +308,28 @@ class CrossBrokerComparisonEngine:
             request.contract_b,
         )
         contract_blocks = compatibility.status in {
-            ContractCompatibilityStatus.NORMALIZATION_REQUIRED,
             ContractCompatibilityStatus.INCOMPATIBLE,
             ContractCompatibilityStatus.REVIEW_REQUIRED,
         }
+        normalization_available = compatibility.status in {
+            ContractCompatibilityStatus.COMPATIBLE,
+            ContractCompatibilityStatus.NORMALIZATION_REQUIRED,
+        }
+        if normalization_available and request.contract_a and request.contract_b:
+            normalizer = ContractEdgeNormalizer()
+            normalized = [
+                normalizer.normalize(
+                    float(edge),
+                    request.contract_a,
+                    request.contract_b,
+                )
+                for edge in aligned["net_crossable_edge"]
+            ]
+            aligned["normalized_net_pnl"] = [item.net_pnl for item in normalized]
+            volume_ratio = normalized[0].broker_b_volume if normalized else None
+        else:
+            aligned["normalized_net_pnl"] = np.nan
+            volume_ratio = None
         potential = aligned["net_crossable_edge"] > 0
         blocked_count = int((potential & contract_blocks).sum())
         aligned["is_crossable"] = potential if not contract_blocks else False
@@ -214,6 +341,8 @@ class CrossBrokerComparisonEngine:
             classification = "blocked_by_contract_specification"
         elif compatibility.status is ContractCompatibilityStatus.UNVERIFIED:
             classification = "crossable_research_contract_unverified"
+        elif compatibility.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED:
+            classification = "crossable_after_cost_pnl_normalized_research"
         else:
             classification = "crossable_after_cost_contract_validated_research"
         summary = CrossBrokerSummary(
@@ -221,11 +350,16 @@ class CrossBrokerComparisonEngine:
             broker_b=request.broker_b,
             symbol=request.symbol,
             comparison_kind=request.comparison_kind,
+            synchronization_mode=request.synchronization_mode,
+            tick_aggregation=request.tick_aggregation,
             classification=classification,
             broker_a_rows=len(left),
             broker_b_rows=len(right),
+            broker_a_duplicate_timestamps=left_duplicates,
+            broker_b_duplicate_timestamps=right_duplicates,
             aligned_observations=len(aligned),
             unmatched_broker_a_rows=len(left) - len(aligned),
+            unmatched_broker_b_rows=(len(right) - aligned["broker_b_timestamp"].nunique()),
             mean_alignment_delay_ms=float(aligned["alignment_delay_ms"].mean()),
             p95_alignment_delay_ms=float(aligned["alignment_delay_ms"].quantile(0.95)),
             mean_absolute_price_difference=float(aligned["mid_difference"].abs().mean()),
@@ -253,6 +387,17 @@ class CrossBrokerComparisonEngine:
             contract_status=compatibility.status,
             contract_issues=compatibility.issues,
             contract_blocked_observations=blocked_count,
+            contract_normalization_applied=(
+                compatibility.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
+                and not contract_blocks
+            ),
+            broker_b_volume_per_broker_a_volume=volume_ratio,
+            mean_normalized_net_pnl=(
+                float(aligned["normalized_net_pnl"].mean()) if normalization_available else None
+            ),
+            maximum_normalized_net_pnl=(
+                float(aligned["normalized_net_pnl"].max()) if normalization_available else None
+            ),
         )
         return CrossBrokerAnalysis(summary, opportunities, aligned)
 
@@ -262,6 +407,8 @@ class CrossBrokerComparisonEngine:
         left: pd.DataFrame,
         right: pd.DataFrame,
         request: CrossBrokerRequest,
+        left_duplicates: int,
+        right_duplicates: int,
     ) -> CrossBrokerAnalysis:
         compatibility = ContractSpecificationAnalyzer().compare(
             request.contract_a,
@@ -272,11 +419,16 @@ class CrossBrokerComparisonEngine:
             broker_b=request.broker_b,
             symbol=request.symbol,
             comparison_kind=request.comparison_kind,
+            synchronization_mode=request.synchronization_mode,
+            tick_aggregation=request.tick_aggregation,
             classification="theoretical_bar_price_comparison",
             broker_a_rows=len(left),
             broker_b_rows=len(right),
+            broker_a_duplicate_timestamps=left_duplicates,
+            broker_b_duplicate_timestamps=right_duplicates,
             aligned_observations=len(aligned),
             unmatched_broker_a_rows=len(left) - len(aligned),
+            unmatched_broker_b_rows=(len(right) - aligned["broker_b_timestamp"].nunique()),
             mean_alignment_delay_ms=float(aligned["alignment_delay_ms"].mean()),
             p95_alignment_delay_ms=float(aligned["alignment_delay_ms"].quantile(0.95)),
             mean_absolute_price_difference=float(aligned["price_difference"].abs().mean()),
@@ -296,6 +448,10 @@ class CrossBrokerComparisonEngine:
             contract_status=compatibility.status,
             contract_issues=compatibility.issues,
             contract_blocked_observations=0,
+            contract_normalization_applied=False,
+            broker_b_volume_per_broker_a_volume=None,
+            mean_normalized_net_pnl=None,
+            maximum_normalized_net_pnl=None,
         )
         return CrossBrokerAnalysis(summary, (), aligned)
 
@@ -323,6 +479,16 @@ class CrossBrokerComparisonEngine:
                     maximum_gross_edge=float(maximum["gross_crossable_edge"]),
                     maximum_net_edge=float(maximum["net_crossable_edge"]),
                     mean_net_edge=float(episode["net_crossable_edge"].mean()),
+                    maximum_normalized_net_pnl=(
+                        float(episode["normalized_net_pnl"].max())
+                        if pd.notna(episode["normalized_net_pnl"].max())
+                        else None
+                    ),
+                    mean_normalized_net_pnl=(
+                        float(episode["normalized_net_pnl"].mean())
+                        if pd.notna(episode["normalized_net_pnl"].max())
+                        else None
+                    ),
                 )
             )
         return tuple(opportunities)
