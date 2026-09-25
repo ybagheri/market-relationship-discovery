@@ -8,7 +8,7 @@
 
 ## وضعیت پروژه
 
-فازهای زیرساخت تا پژوهش چند broker با PnL نرمال‌شده پیاده‌سازی شده‌اند. اکنون collection دو ترمینال در processهای جدا، تطبیق event-time متقارن یک‌به‌یک، aggregate صریح tick، نرمال‌سازی volume/PnL، پژوهش بدون look-ahead، walk-forward و Monte Carlo وجود دارد. اجرای زنده همچنان غیرفعال است.
+فازهای زیرساخت تا پژوهش پیشرفته قطعی پیاده‌سازی شده‌اند. اکنون regime نوسان علی، کشف رابطه با گراف وابستگی، ارزیابی candidate روی bar panel، رتبه‌بندی chronological با ridge عددی، collection دو ترمینال و پژوهش چند broker وجود دارد. اجرای زنده همچنان غیرفعال است.
 
 ## قابلیت‌ها
 
@@ -41,6 +41,11 @@
 - چارچوب کاتالوگ رابطه و تولید نامزد
 - داشبورد Streamlit با هشدار دائمی حالت پژوهشی/دمو
 - نمودارهای تعاملی اختلاف و مقایسه broker از گزارش‌های ذخیره‌شده experiment
+- تشخیص علی regime نوسان کم، عادی و زیاد
+- گراف جهت‌دار وابستگی فرمول با عمق محدود
+- بارگذاری bar price panel از CSV/Parquet wide یا long
+- ارزیابی تاریخی candidate با discrepancy، correlation، persistence و regime
+- رتبه‌بندی قطعی chronological با ridge عددی و RMSE out-of-sample
 
 ## مدل ایمنی
 
@@ -101,7 +106,7 @@ python -m market_relationship_discovery collect --broker-profile DEMO --symbol X
 python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile BROKER_A --broker-profile BROKER_B --symbol EURUSD --data-type tick --limit 500
 python -m market_relationship_discovery symbol-specs --broker-profile DEMO --symbol EURUSD --output config/specs/demo_eurusd.json
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
-python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
+python -m market_relationship_discovery discover --input data\prices.csv --regime-window 20 --max-depth 1 --training-fraction 0.7 --ridge-alpha 1.0 --output reports\research
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
@@ -143,6 +148,7 @@ mypy
 - [نرمال‌سازی PnL](docs/research/PNL_NORMALIZATION.fa.md)
 - [همگام‌سازی event-time](docs/research/EVENT_TIME.fa.md)
 - [داشبورد](docs/dashboard/DASHBOARD.fa.md)
+- [کشف پیشرفته](docs/research/ADVANCED_DISCOVERY.fa.md)
 - [نقشه راه](docs/roadmap/ROADMAP.fa.md)
 - [سیاست امنیت](SECURITY.md)
 

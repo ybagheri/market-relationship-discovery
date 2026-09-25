@@ -53,6 +53,34 @@ def test_backtest_command_rejects_duplicate_timestamps(tmp_path: Path) -> None:
         run_no_lookahead_backtest(path, "signal", "gross_edge", "cost")
 
 
+def test_discover_accepts_advanced_price_panel_options() -> None:
+    arguments = build_parser().parse_args(
+        [
+            "discover",
+            "--input",
+            "prices.csv",
+            "--regime-window",
+            "15",
+            "--regime-low-quantile",
+            "0.1",
+            "--regime-high-quantile",
+            "0.9",
+            "--max-depth",
+            "2",
+            "--training-fraction",
+            "0.8",
+            "--ridge-alpha",
+            "2.5",
+        ]
+    )
+
+    assert arguments.input == Path("prices.csv")
+    assert arguments.regime_window == 15
+    assert arguments.max_depth == 2
+    assert arguments.training_fraction == 0.8
+    assert arguments.ridge_alpha == 2.5
+
+
 def test_discover_accepts_repeated_symbol_options() -> None:
     arguments = build_parser().parse_args(["discover", "--symbol", "EURUSD", "--symbol", "GBPUSD"])
 

@@ -2,6 +2,18 @@
 
 All notable changes follow semantic versioning.
 
+## [0.9.0] - 2026-09-25
+
+### Added
+
+- Causal low, normal, and high volatility regime detection
+- Directed relationship dependency hypergraph with bounded expansion
+- Price-panel loader for wide and long CSV/Parquet inputs
+- Historical candidate evaluation with correlation, discrepancy, persistence, and regime metrics
+- Deterministic NumPy ridge ranking with chronological train/evaluation split
+- `discover --input` advanced research workflow and provenance reports
+- Bilingual advanced-discovery documentation and deterministic tests
+
 ## [0.8.0] - 2026-09-25
 
 ### Added

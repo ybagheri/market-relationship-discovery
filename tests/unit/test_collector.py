@@ -76,7 +76,7 @@ def test_collector_writes_parquet_and_reproducible_manifest(tmp_path: Path) -> N
     manifest = repository.read_manifest(stored.manifest_path)
     assert len(frame) == 3
     assert manifest["broker_profile"] == "broker_a"
-    assert manifest["software_version"] == "0.8.0"
+    assert manifest["software_version"] == "0.9.0"
     assert manifest["quality"]["invalid_bars"] == 0
     assert manifest["file_name"] == stored.data_path.name
     assert str(tmp_path) not in str(manifest)

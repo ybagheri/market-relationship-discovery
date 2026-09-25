@@ -54,7 +54,7 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 ## Phase 6 — Discovery Engine
 
 - [x] Candidate generation framework
-- [ ] Data-driven ranking and robustness filters
+- [x] Data-driven ranking and robustness filters
 
 ## Phase 7 — Backtesting
 
@@ -79,9 +79,9 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Symmetric mutual-nearest event-time synchronization
 - [x] Explicit tick duplicate aggregation and PnL normalization
 - [x] Tick-level opportunity-duration analysis
-- [ ] Regime detection
-- [ ] Graph-based relationship discovery
-- [ ] Machine-learning-assisted ranking
+- [x] Regime detection
+- [x] Graph-based relationship discovery
+- [x] Machine-learning-assisted ranking
 
 ## Phase 10 — Optional Execution
 

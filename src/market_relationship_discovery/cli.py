@@ -14,6 +14,7 @@ from market_relationship_discovery.application.commands import (
     collect_historical_data,
     discover_relationships,
     resolve_profile,
+    run_advanced_research,
     run_historical_research,
     run_no_lookahead_backtest,
 )
@@ -61,8 +62,16 @@ def build_parser() -> argparse.ArgumentParser:
     collect_parser.add_argument("--parallel", action="store_true")
     collect_parser.add_argument("--max-workers", type=int)
     discover_parser = subparsers.add_parser("discover")
-    discover_parser.add_argument("--symbol", nargs="+", action="append", required=True)
+    discover_parser.add_argument("--symbol", nargs="+", action="append")
     discover_parser.add_argument("--minimum-observations", type=int, default=100)
+    discover_parser.add_argument("--input", type=Path)
+    discover_parser.add_argument("--output", type=Path)
+    discover_parser.add_argument("--regime-window", type=int, default=20)
+    discover_parser.add_argument("--regime-low-quantile", type=float, default=0.20)
+    discover_parser.add_argument("--regime-high-quantile", type=float, default=0.80)
+    discover_parser.add_argument("--max-depth", type=int, default=1)
+    discover_parser.add_argument("--training-fraction", type=float, default=0.70)
+    discover_parser.add_argument("--ridge-alpha", type=float, default=1.0)
     research_parser = subparsers.add_parser("research")
     research_parser.add_argument("--broker-profile", default="default")
     research_parser.add_argument("--relationship", default="XAUEUR_SYNTHETIC")
@@ -233,8 +242,24 @@ def _collect(arguments: argparse.Namespace) -> int:
 
 
 def _discover(arguments: argparse.Namespace) -> int:
-    symbols = [symbol for group in arguments.symbol for symbol in group]
-    print(_serializable(discover_relationships(symbols, arguments.minimum_observations)))
+    if arguments.input is not None:
+        result = run_advanced_research(
+            arguments.input,
+            arguments.minimum_observations,
+            arguments.regime_window,
+            arguments.regime_low_quantile,
+            arguments.regime_high_quantile,
+            arguments.max_depth,
+            arguments.training_fraction,
+            arguments.ridge_alpha,
+            arguments.output or get_settings().data.reports_directory,
+        )
+    else:
+        if not arguments.symbol:
+            raise ValueError("discover requires --input or at least one --symbol")
+        symbols = [symbol for group in arguments.symbol for symbol in group]
+        result = discover_relationships(symbols, arguments.minimum_observations)
+    print(_serializable(result))
     return 0
 
 

@@ -13,6 +13,7 @@
 - [Contract specifications](research/CONTRACT_SPECIFICATION.md)
 - [PnL normalization](research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](research/EVENT_TIME.md)
+- [Advanced discovery](research/ADVANCED_DISCOVERY.md)
 - [Data quality](research/DATA_QUALITY.md)
 - [Dashboard](dashboard/DASHBOARD.md)
 - [Roadmap](roadmap/ROADMAP.md)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from market_relationship_discovery.application.advanced_research import AdvancedDiscoveryService
 from market_relationship_discovery.application.experiments import ResearchExperimentService
 from market_relationship_discovery.application.parallel_collection import (
     CollectionJob,
@@ -152,6 +153,34 @@ def discover_relationships(
         "candidates": [asdict(candidate) for candidate in candidates],
         "disclaimer": "Research candidates are not guaranteed profitable or executable.",
     }
+
+
+def run_advanced_research(
+    source_path: Path,
+    minimum_observations: int,
+    regime_window: int,
+    regime_low_quantile: float,
+    regime_high_quantile: float,
+    max_depth: int,
+    training_fraction: float,
+    ridge_alpha: float,
+    output_directory: Path | None = None,
+) -> dict[str, object]:
+    from market_relationship_discovery.discovery.ranker import CandidateRankingConfig
+
+    return AdvancedDiscoveryService().run(
+        source_path,
+        minimum_observations=minimum_observations,
+        regime_window=regime_window,
+        regime_low_quantile=regime_low_quantile,
+        regime_high_quantile=regime_high_quantile,
+        max_depth=max_depth,
+        ranking_config=CandidateRankingConfig(
+            training_fraction=training_fraction,
+            ridge_alpha=ridge_alpha,
+        ),
+        output_directory=output_directory,
+    )
 
 
 def run_historical_research(

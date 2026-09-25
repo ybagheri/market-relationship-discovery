@@ -11,9 +11,9 @@
 - `relationships`: parser فرمول، تعریف روابط و کاتالوگ اولیه
 - `synthetic`: محاسبه بازه قیمت مصنوعی از bid/ask
 - `costs`: تبدیل اختلاف ناخالص به خالص
-- `statistics`: همبستگی، نرمال‌سازی، ماندگاری و lag
+- `statistics`: همبستگی، نرمال‌سازی، ماندگاری، lag و regime علی
 - `validation` و `market_data`: کیفیت، symbol، alignment و مقایسه چند broker
-- `discovery`: تولید فرمول و وضعیت نامزدها
+- `discovery`: تولید فرمول، گراف، ارزیابی تاریخی و رتبه‌بندی قطعی ridge
 - `backtesting`: اجرا در observation بعدی، walk-forward، stageهای علی و پایداری Monte Carlo
 - `infrastructure`: اتصال رسمی MT5 و ذخیره اتمیک Parquet/manifest
 - `application`: تشخیص، collection ترتیبی/جدا‌process و هماهنگی پژوهش
@@ -27,6 +27,8 @@
 ## مرز ایمنی
 
 هیچ execution interface وجود ندارد. `MT5Adapter` هنگام اتصال mode حساب را بررسی می‌کند و اگر دمو قابل اثبات نباشد اتصال را قطع می‌کند. اجرای سفارش آینده نیازمند تصمیم جداگانه پروژه، safety gateهای مستقل، audit و package جدا خواهد بود.
+
+گراف روابط یک hypergraph قطعی برای وابستگی فرمول‌هاست، نه مدل یادگیری شبکه. رتبه‌بندی پیشرفته از ridge عددی با fit فقط روی timestampهای قبل استفاده می‌کند و معیارهای out-of-sample پژوهشی را گزارش می‌دهد.
 
 ## محدودیت‌ها
 

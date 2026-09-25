@@ -19,7 +19,7 @@ Research classifies observations into theoretical discrepancy, executable discre
 
 Pearson correlation measures linear co-movement; Spearman measures rank co-movement. Neither establishes causality, cointegration, or arbitrage. Rolling z-score depends on its window and regime. Half-life is descriptive and unstable in non-stationary or sparse data. Lead/lag results can change with resampling and timestamp tolerance.
 
-A complete cointegration workflow, stationarity tests, multiple-testing correction, and out-of-sample ranking are planned but are not claimed as implemented in this foundation.
+A complete cointegration workflow, stationarity tests, and multiple-testing correction remain planned. Advanced research now supports causal volatility regimes, dependency-graph expansion, and deterministic chronological ridge ranking over bar-price panels.
 
 ## Data requirements
 

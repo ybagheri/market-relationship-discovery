@@ -8,7 +8,7 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Foundation through PnL-normalized multi-broker research phases implemented. The platform now includes two-terminal process-isolated collection, symmetric one-to-one event-time matching, explicit tick aggregation, contract-aware volume/PnL normalization, no-look-ahead research, walk-forward, and Monte Carlo robustness. Live execution remains disabled.
+Foundation through advanced deterministic research phases implemented. The platform now includes causal volatility regimes, formula dependency-graph discovery, bar-panel candidate evaluation, chronological NumPy ridge ranking, two-terminal process-isolated collection, symmetric event-time matching, contract-aware PnL normalization, walk-forward, and Monte Carlo robustness. Live execution remains disabled.
 
 ## Capabilities
 
@@ -41,6 +41,11 @@ Foundation through PnL-normalized multi-broker research phases implemented. The 
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 - Interactive discrepancy and broker comparison charts from persisted experiment reports
+- Causal low, normal, and high volatility regime detection
+- Directed formula dependency-graph expansion with bounded depth
+- Bar price-panel loading from wide or long CSV/Parquet
+- Historical candidate evaluation with discrepancy, correlation, persistence, and regime metrics
+- Deterministic chronological NumPy ridge ranking with out-of-sample RMSE
 
 ## Safety model
 
@@ -101,7 +106,7 @@ python -m market_relationship_discovery collect --broker-profile DEMO --symbol X
 python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile BROKER_A --broker-profile BROKER_B --symbol EURUSD --data-type tick --limit 500
 python -m market_relationship_discovery symbol-specs --broker-profile DEMO --symbol EURUSD --output config/specs/demo_eurusd.json
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
-python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
+python -m market_relationship_discovery discover --input data\prices.csv --regime-window 20 --max-depth 1 --training-fraction 0.7 --ridge-alpha 1.0 --output reports\research
 python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 python -m market_relationship_discovery multi-backtest examples\walk_forward_signals.csv --stage-column momentum_score --stage-column confirmation_score --stage-weight 0.5 --stage-weight 0.5
 python -m market_relationship_discovery walk-forward examples\walk_forward_signals.csv --train-size 12 --validation-size 8 --test-size 8 --step 8 --threshold 0 --threshold 0.5 --threshold 0.9
@@ -143,6 +148,7 @@ mypy
 - [PnL normalization](docs/research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](docs/research/EVENT_TIME.md)
 - [Dashboard](docs/dashboard/DASHBOARD.md)
+- [Advanced discovery](docs/research/ADVANCED_DISCOVERY.md)
 - [Roadmap](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 
