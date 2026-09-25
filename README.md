@@ -8,7 +8,7 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Initial foundation implemented. MT5 connectivity, demo verification, normalized quotes, a formula-based synthetic pricing engine, discrepancy and cost layers, basic statistics, tests, CLI diagnostics, and a dashboard foundation are available. Advanced backtesting and multi-broker ingestion remain in progress.
+Foundation and historical data phases implemented. The platform now includes demo-only MT5 access, multiple broker profiles, tick/bar collection, Parquet datasets with provenance manifests, historical bar research, candidate generation, and next-observation backtesting. Cross-broker synchronization, walk-forward, and Monte Carlo remain in progress.
 
 ## Capabilities
 
@@ -20,6 +20,10 @@ Initial foundation implemented. MT5 connectivity, demo verification, normalized 
 - Configurable spread-independent cost assumptions
 - Pearson, Spearman, rolling z-score, half-life, and lead/lag analysis
 - Data quality and timestamp-alignment utilities
+- Multiple broker profiles with sequential read-only collection
+- Parquet tick/bar datasets with reproducibility manifests
+- Historical bar relationship research that never claims tick execution
+- Next-observation backtesting that excludes same-timestamp edge leakage
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 
@@ -64,11 +68,13 @@ Copy `.env.example` to `.env`. Keep all terminal paths, local directories, and b
 MT5__TERMINAL_PATH=C:\\path\\to\\terminal64.exe
 MT5__DATA_PATH=C:\\path\\to\\terminal\\data
 MT5__DEMO_ONLY=true
+MT5__SOURCE_UTC_OFFSET_MINUTES=0
+BROKERS={"DEMO":{"terminal_path":"C:\\\\path\\\\to\\\\demo\\\\terminal64.exe","demo_only":true}}
 DATA__TIMEZONE=UTC
 DATA__MAX_ALIGNMENT_DELAY_MS=100
 ```
 
-The research adapter deliberately rejects non-empty password configuration. MT5 authentication should be managed by the terminal, not application source.
+The research adapter deliberately rejects non-empty password configuration. MT5 authentication should be managed by the terminal, not application source. `source_utc_offset_minutes` defaults to zero and must only be changed after verifying a source clock offset; the original MT5 timestamp remains stored as `source_timestamp`.
 
 ## Quick start
 
@@ -76,6 +82,10 @@ The research adapter deliberately rejects non-empty password configuration. MT5 
 python -m market_relationship_discovery doctor
 python -m market_relationship_discovery mt5-info
 python -m market_relationship_discovery symbols --search gold
+python -m market_relationship_discovery collect --broker-profile DEMO --symbol XAUUSD --symbol EURUSD --symbol XAUEUR --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
+python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
+python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 ```
 
 The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY = EURUSD * USDJPY`, `GBPJPY = GBPUSD * USDJPY`, `XAUEUR = XAUUSD / EURUSD`, and the Gold/Silver ratio.

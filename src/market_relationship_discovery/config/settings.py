@@ -14,6 +14,8 @@ class MT5Settings(BaseModel):
     password: str = ""
     server: str = ""
     timeout_seconds: int = Field(default=60, ge=1, le=600)
+    source_utc_offset_minutes: int = Field(default=0, ge=-1440, le=1440)
+    symbol_mapping: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("password")
     @classmethod
@@ -68,6 +70,7 @@ class Settings(BaseSettings):
     )
 
     mt5: MT5Settings = Field(default_factory=MT5Settings)
+    brokers: dict[str, MT5Settings] = Field(default_factory=dict)
     data: DataSettings = Field(default_factory=DataSettings)
     research: ResearchSettings = Field(default_factory=ResearchSettings)
     costs: CostSettings = Field(default_factory=CostSettings)

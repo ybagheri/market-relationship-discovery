@@ -2,7 +2,7 @@
 
 ## Current foundation
 
-`ResearchBacktester` accepts an already-constructed historical edge series and an aligned cost series. It reports observations, opportunities, gross and net edge, win rate, average return, excursions, drawdown, and cost percentage. It does not create a trading strategy or fill orders.
+`ResearchBacktester` accepts an already-constructed historical edge series and an aligned cost series. `run_next_observation` pairs a signal at timestamp `t` only with edge and cost at `t+1`. It records both decision and execution timestamps and reports observations, opportunities, gross and net edge, win rate, average return, excursions, drawdown, and cost percentage. It does not create a trading strategy or fill orders.
 
 ## Required future controls
 

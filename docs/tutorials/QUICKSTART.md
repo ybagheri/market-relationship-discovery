@@ -12,6 +12,10 @@ Set local MT5 paths in `.env`, open the demo terminal, and run:
 ```bash
 python -m market_relationship_discovery doctor
 python -m market_relationship_discovery symbols --search gold
+python -m market_relationship_discovery collect --broker-profile DEMO --symbol XAUUSD --symbol EURUSD --symbol XAUEUR --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
+python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
+python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 python -m market_relationship_discovery dashboard
 ```
 

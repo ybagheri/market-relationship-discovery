@@ -49,6 +49,8 @@ class StatisticalAnalyzer:
         values = spread.dropna().to_numpy(dtype=float)
         if len(values) < 3:
             raise InsufficientDataError("half-life requires at least three observations")
+        if np.ptp(values) == 0:
+            return HalfLifeResult(None, False, len(values))
         lagged = values[:-1]
         deltas = np.diff(values)
         regression = stats.linregress(lagged, deltas)

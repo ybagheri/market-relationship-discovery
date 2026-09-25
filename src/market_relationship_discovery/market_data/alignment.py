@@ -46,4 +46,3 @@ def align_timeseries(
         result["timestamp"] - result["_right_timestamp"]
     ).dt.total_seconds() * 1000.0
     return result.drop(columns=["_right_timestamp"])
-    return result

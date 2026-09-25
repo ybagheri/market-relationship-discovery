@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib import import_module
 from types import ModuleType
 from typing import Any
@@ -154,6 +154,7 @@ class MT5Adapter:
             ask=float(value.ask),
             source="MetaTrader5",
             volume=int(value.volume) if value.volume else None,
+            timestamp_offset_minutes=self._settings.source_utc_offset_minutes,
         )
 
     def ticks(
@@ -163,12 +164,37 @@ class MT5Adapter:
         end: datetime,
     ) -> list[Quote]:
         module = self._required_module()
-        rows = module.copy_ticks_range(symbol, start, end, module.COPY_TICKS_ALL)
+        rows = module.copy_ticks_range(
+            symbol,
+            self._source_time(start),
+            self._source_time(end),
+            module.COPY_TICKS_ALL,
+        )
         if rows is None:
             error_code, description = module.last_error()
             raise MT5ConnectionError(
                 f"MT5 returned no ticks for {symbol}: {error_code} {description}"
             )
+        return self._quotes_from_rows(rows, symbol)
+
+    def recent_ticks(self, symbol: str, start: datetime, count: int) -> list[Quote]:
+        if count < 1:
+            raise ValueError("count must be positive")
+        module = self._required_module()
+        rows = module.copy_ticks_from(
+            symbol,
+            self._source_time(start),
+            count,
+            module.COPY_TICKS_ALL,
+        )
+        if rows is None:
+            error_code, description = module.last_error()
+            raise MT5ConnectionError(
+                f"MT5 returned no recent ticks for {symbol}: {error_code} {description}"
+            )
+        return self._quotes_from_rows(rows, symbol)
+
+    def _quotes_from_rows(self, rows: Any, symbol: str) -> list[Quote]:
         account = self.account_info()
         return [
             Quote.create(
@@ -179,6 +205,7 @@ class MT5Adapter:
                 float(row["ask"]),
                 "MetaTrader5",
                 int(row["volume"]),
+                timestamp_offset_minutes=self._settings.source_utc_offset_minutes,
             )
             for row in rows
         ]
@@ -192,7 +219,12 @@ class MT5Adapter:
     ) -> list[Bar]:
         module = self._required_module()
         timeframe_value = self.timeframe(timeframe)
-        rows = module.copy_rates_range(symbol, timeframe_value, start, end)
+        rows = module.copy_rates_range(
+            symbol,
+            timeframe_value,
+            self._source_time(start),
+            self._source_time(end),
+        )
         if rows is None:
             error_code, description = module.last_error()
             raise MT5ConnectionError(
@@ -215,7 +247,7 @@ class MT5Adapter:
     def _bars_from_rows(self, rows: Any, symbol: str, timeframe: str) -> list[Bar]:
         account = self.account_info()
         return [
-            Bar(
+            Bar.create(
                 timestamp=datetime.fromtimestamp(float(row["time"]), tz=UTC),
                 broker=account.server,
                 symbol=symbol,
@@ -226,6 +258,7 @@ class MT5Adapter:
                 close=float(row["close"]),
                 volume=int(row["tick_volume"]),
                 source="MetaTrader5",
+                timestamp_offset_minutes=self._settings.source_utc_offset_minutes,
             )
             for row in rows
         ]
@@ -272,6 +305,9 @@ class MT5Adapter:
                 "Connected account is not demonstrably DEMO; research connection refused"
             )
         return snapshot
+
+    def _source_time(self, timestamp: datetime) -> datetime:
+        return timestamp - timedelta(minutes=self._settings.source_utc_offset_minutes)
 
     def _required_module(self) -> ModuleType:
         if self._module is None:

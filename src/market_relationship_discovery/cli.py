@@ -1,13 +1,24 @@
+from __future__ import annotations
+
 import argparse
 import json
 import logging
 import sys
 from dataclasses import asdict, is_dataclass
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
+from market_relationship_discovery.application.commands import (
+    collect_historical_data,
+    discover_relationships,
+    run_historical_research,
+    run_no_lookahead_backtest,
+)
 from market_relationship_discovery.application.doctor import doctor_exit_code, run_doctor
 from market_relationship_discovery.config import get_settings
+from market_relationship_discovery.domain.dataset import DataType
 from market_relationship_discovery.infrastructure.logging.config import configure_logging
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
 
@@ -21,6 +32,27 @@ def build_parser() -> argparse.ArgumentParser:
     symbols_parser = subparsers.add_parser("symbols")
     symbols_parser.add_argument("--search", default=None)
     symbols_parser.add_argument("--all", action="store_true", help="include hidden symbols")
+    collect_parser = subparsers.add_parser("collect")
+    collect_parser.add_argument("--broker-profile", action="append")
+    collect_parser.add_argument("--symbol", action="append", required=True)
+    collect_parser.add_argument("--data-type", choices=["tick", "bar"], default="bar")
+    collect_parser.add_argument("--timeframe")
+    collect_parser.add_argument("--start", help="ISO-8601 timestamp with timezone")
+    collect_parser.add_argument("--end", help="ISO-8601 timestamp with timezone")
+    collect_parser.add_argument("--limit", type=int)
+    discover_parser = subparsers.add_parser("discover")
+    discover_parser.add_argument("--symbol", nargs="+", action="append", required=True)
+    discover_parser.add_argument("--minimum-observations", type=int, default=100)
+    research_parser = subparsers.add_parser("research")
+    research_parser.add_argument("--broker-profile", default="default")
+    research_parser.add_argument("--relationship", default="XAUEUR_SYNTHETIC")
+    research_parser.add_argument("--timeframe", default="M1")
+    research_parser.add_argument("--limit", type=int, default=500)
+    backtest_parser = subparsers.add_parser("backtest")
+    backtest_parser.add_argument("file", type=Path)
+    backtest_parser.add_argument("--signal-column", default="signal")
+    backtest_parser.add_argument("--gross-edge-column", default="gross_edge")
+    backtest_parser.add_argument("--cost-column", default="cost")
     subparsers.add_parser("dashboard")
     return parser
 
@@ -35,6 +67,14 @@ def main(argv: list[str] | None = None) -> int:
             return _mt5_info()
         if arguments.command == "symbols":
             return _symbols(arguments.search, arguments.all)
+        if arguments.command == "collect":
+            return _collect(arguments)
+        if arguments.command == "discover":
+            return _discover(arguments)
+        if arguments.command == "research":
+            return _research(arguments)
+        if arguments.command == "backtest":
+            return _backtest(arguments)
         if arguments.command == "dashboard":
             return _dashboard()
     except Exception as exc:
@@ -73,9 +113,61 @@ def _symbols(search: str | None, include_hidden: bool) -> int:
     return 0
 
 
+def _collect(arguments: argparse.Namespace) -> int:
+    settings = get_settings()
+    profiles = arguments.broker_profile or ["default"]
+    result = collect_historical_data(
+        settings,
+        profiles,
+        arguments.symbol,
+        DataType(arguments.data_type),
+        arguments.timeframe
+        or (settings.research.default_timeframe if arguments.data_type == "bar" else None),
+        _parse_datetime(arguments.start),
+        _parse_datetime(arguments.end),
+        arguments.limit,
+    )
+    print(_serializable(result))
+    return 0
+
+
+def _discover(arguments: argparse.Namespace) -> int:
+    symbols = [symbol for group in arguments.symbol for symbol in group]
+    print(_serializable(discover_relationships(symbols, arguments.minimum_observations)))
+    return 0
+
+
+def _research(arguments: argparse.Namespace) -> int:
+    print(
+        _serializable(
+            run_historical_research(
+                get_settings(),
+                arguments.broker_profile,
+                arguments.relationship,
+                arguments.timeframe,
+                arguments.limit,
+            )
+        )
+    )
+    return 0
+
+
+def _backtest(arguments: argparse.Namespace) -> int:
+    print(
+        _serializable(
+            run_no_lookahead_backtest(
+                arguments.file,
+                arguments.signal_column,
+                arguments.gross_edge_column,
+                arguments.cost_column,
+            )
+        )
+    )
+    return 0
+
+
 def _dashboard() -> int:
     import subprocess
-    from pathlib import Path
 
     settings = get_settings()
     application = Path(__file__).with_name("dashboard") / "app.py"
@@ -96,12 +188,22 @@ def _dashboard() -> int:
     )
 
 
+def _parse_datetime(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.fromisoformat(value)
+
+
 def _serializable(value: Any) -> str:
     def convert(item: Any) -> Any:
         if is_dataclass(item) and not isinstance(item, type):
             return asdict(item)
         if isinstance(item, Enum):
             return item.value
+        if isinstance(item, (datetime, Path)):
+            return str(item)
+        if hasattr(item, "isoformat"):
+            return item.isoformat()
         raise TypeError
 
     return json.dumps(value, default=convert, ensure_ascii=False, indent=2)

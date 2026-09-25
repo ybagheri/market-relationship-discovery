@@ -13,10 +13,13 @@
 2. مقدار `MT5__TERMINAL_PATH` را برابر مسیر محلی `terminal64.exe` قرار دهید.
 3. `MT5__DATA_PATH` را برای تشخیص وضعیت با پوشه داده همان ترمینال تنظیم کنید.
 4. مقدار `MT5__DEMO_ONLY=true` را حفظ کنید.
-5. ترمینال را یک‌بار باز کنید و از رابط خود MetaTrader وارد شوید.
-6. فرمان `python -m market_relationship_discovery doctor` را اجرا کنید.
+5. تا زمانی که offset ساعت منبع تأیید نشده، `MT5__SOURCE_UTC_OFFSET_MINUTES=0` را حفظ کنید.
+6. ترمینال را یک‌بار باز کنید و از رابط خود MetaTrader وارد شوید.
+7. فرمان `python -m market_relationship_discovery doctor` را اجرا کنید.
 
 package رسمی Python ترمینال را از مسیر executable انتخاب می‌کند. آرگومان امن و پشتیبانی‌شده‌ای برای اجبار به پوشه داده دلخواه ارائه نمی‌کند؛ بنابراین مسیر داده فقط برای تشخیص محلی است.
+
+ترمینال‌های دیگر به‌صورت پروفایل JSON زیر `BROKERS` تنظیم می‌شوند. همه پروفایل‌ها فقط‌دمو باقی می‌مانند. collection پروفایل‌ها ترتیبی است چون ماژول رسمی Python در هر process یک اتصال سراسری دارد؛ collection واقعاً موازی در آینده باید از worker processهای جدا استفاده کند.
 
 ## نام symbolها
 
@@ -30,6 +33,10 @@ python -m market_relationship_discovery symbols --search jpy
 ```
 
 نگاشت‌های واقعی را در `.env` ذخیره کنید. پسوند و پیشوند بروکر باید در موتور ثابت نشوند.
+
+## ساعت منبع
+
+timestamp جاری MT5 را با UTC سیستم مقایسه کنید. اگر offset تأییدشده ساعت منبع وجود دارد، `source_utc_offset_minutes` را صریح در پروفایل مربوط تنظیم کنید. collector مقدار خام را در `source_timestamp` و offset را در manifest نگه می‌دارد. offset را هرگز از قیمت استنباط یا repair نکنید.
 
 ## ایمنی
 

@@ -23,8 +23,9 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] UTC enforcement
 - [x] Data quality report
 - [x] Timestamp alignment with tolerance
-- [x] Parquet repository
-- [~] Historical multi-broker ingestion
+- [x] Parquet repository and atomic dataset manifests
+- [x] Multiple broker profiles and sequential historical collection
+- [ ] Synchronized parallel multi-broker comparison
 
 ## Phase 3 — Synthetic Pricing
 
@@ -54,7 +55,7 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 ## Phase 7 — Backtesting
 
 - [x] Basic deterministic cost-aware metrics
-- [ ] Timestamp-safe signal simulation
+- [x] Next-observation signal execution without same-timestamp leakage
 - [ ] Walk-forward validation
 - [ ] Monte Carlo robustness
 

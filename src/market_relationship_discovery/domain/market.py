@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from math import isfinite
 from typing import Self
 
@@ -20,9 +20,14 @@ class Quote:
     ask: float
     source: str
     volume: int | float | None = None
+    source_timestamp: datetime | None = None
 
     def __post_init__(self) -> None:
         _require_utc(self.timestamp)
+        if self.source_timestamp is None:
+            object.__setattr__(self, "source_timestamp", self.timestamp)
+        else:
+            _require_utc(self.source_timestamp)
         if not self.broker or not self.symbol or not self.source:
             raise ValueError("broker, symbol, and source are required")
         if not all(isfinite(value) for value in (self.bid, self.ask)):
@@ -50,12 +55,20 @@ class Quote:
         ask: float,
         source: str,
         volume: int | float | None = None,
+        timestamp_offset_minutes: int = 0,
     ) -> Self:
-        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
-            timestamp = timestamp.astimezone(UTC)
-        else:
-            timestamp = timestamp.astimezone(UTC)
-        return cls(timestamp, broker, symbol, bid, ask, source, volume)
+        source_timestamp = timestamp.astimezone(UTC)
+        normalized = source_timestamp + timedelta(minutes=timestamp_offset_minutes)
+        return cls(
+            normalized,
+            broker,
+            symbol,
+            bid,
+            ask,
+            source,
+            volume,
+            source_timestamp,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,9 +83,14 @@ class Bar:
     close: float
     volume: int
     source: str
+    source_timestamp: datetime | None = None
 
     def __post_init__(self) -> None:
         _require_utc(self.timestamp)
+        if self.source_timestamp is None:
+            object.__setattr__(self, "source_timestamp", self.timestamp)
+        else:
+            _require_utc(self.source_timestamp)
         values = (self.open, self.high, self.low, self.close)
         if not all(isfinite(value) for value in values):
             raise ValueError("bar prices must be finite")
@@ -84,3 +102,34 @@ class Bar:
             raise ValueError("invalid OHLC values")
         if self.volume < 0:
             raise ValueError("volume cannot be negative")
+
+    @classmethod
+    def create(
+        cls,
+        timestamp: datetime,
+        broker: str,
+        symbol: str,
+        timeframe: str,
+        open: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: int,
+        source: str,
+        timestamp_offset_minutes: int = 0,
+    ) -> Self:
+        source_timestamp = timestamp.astimezone(UTC)
+        normalized = source_timestamp + timedelta(minutes=timestamp_offset_minutes)
+        return cls(
+            normalized,
+            broker,
+            symbol,
+            timeframe,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            source,
+            source_timestamp,
+        )

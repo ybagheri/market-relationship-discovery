@@ -13,10 +13,13 @@
 2. Set `MT5__TERMINAL_PATH` to the local `terminal64.exe` path.
 3. Set `MT5__DATA_PATH` to the matching terminal data directory for diagnostics.
 4. Keep `MT5__DEMO_ONLY=true`.
-5. Open the terminal once and sign in through MetaTrader's own UI.
-6. Run `python -m market_relationship_discovery doctor`.
+5. Keep `MT5__SOURCE_UTC_OFFSET_MINUTES=0` unless a source clock offset has been verified.
+6. Open the terminal once and sign in through MetaTrader's own UI.
+7. Run `python -m market_relationship_discovery doctor`.
 
 The official Python package selects the terminal through its executable path. It does not expose a safe supported argument for forcing an arbitrary data directory, so the configured data path is a diagnostic path rather than an override.
+
+Additional terminals are configured as JSON profiles under `BROKERS`. Each profile remains demo-only. Profiles are collected sequentially because the official Python module owns a process-global terminal connection; true parallel terminal collection should use isolated worker processes.
 
 ## Symbol names
 
@@ -30,6 +33,10 @@ python -m market_relationship_discovery symbols --search jpy
 ```
 
 Store resolved mappings in `.env`. Broker suffixes and prefixes are meaningful and must not be hard-coded in the engine.
+
+## Source clock
+
+Compare a current MT5 timestamp with machine UTC. If a verified source clock offset exists, set `source_utc_offset_minutes` explicitly in the relevant profile. The collector preserves the raw value in `source_timestamp`, and the manifest records the configured offset. Never infer or repair this offset from prices.
 
 ## Safety diagnosis
 

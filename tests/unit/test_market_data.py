@@ -1,7 +1,10 @@
+from datetime import UTC, datetime, timedelta
+
 import pandas as pd
 import pytest
 
 from market_relationship_discovery.domain.errors import DataQualityError, SymbolNotFoundError
+from market_relationship_discovery.domain.market import Quote
 from market_relationship_discovery.market_data.symbols import SymbolMapper
 from market_relationship_discovery.validation.quality import MarketDataValidator
 
@@ -39,3 +42,20 @@ def test_quality_report_detects_invalid_quotes() -> None:
 def test_quality_report_requires_columns() -> None:
     with pytest.raises(DataQualityError):
         MarketDataValidator().validate(pd.DataFrame({"timestamp": []}))
+
+
+def test_explicit_source_timestamp_offset_preserves_raw_time() -> None:
+    source_timestamp = datetime(2026, 9, 25, 8, tzinfo=UTC)
+
+    quote = Quote.create(
+        source_timestamp,
+        "Demo",
+        "EURUSD",
+        1.1,
+        1.2,
+        "test",
+        timestamp_offset_minutes=-180,
+    )
+
+    assert quote.timestamp == source_timestamp - timedelta(minutes=180)
+    assert quote.source_timestamp == source_timestamp

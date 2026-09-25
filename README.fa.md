@@ -8,7 +8,7 @@
 
 ## وضعیت پروژه
 
-زیرساخت اولیه پیاده‌سازی شده است. اتصال خواندنی به MT5، تأیید حساب دمو، مدل نرمال‌شده quote، موتور فرمول‌محور قیمت مصنوعی، لایه اختلاف و هزینه، آمار پایه، تست‌ها، CLI و زیرساخت داشبورد موجودند. بک‌تست پیشرفته و ورود داده چند بروکری هنوز تکمیل نشده‌اند.
+فاز زیرساخت و داده تاریخی پیاده‌سازی شده است. اکنون دسترسی فقط‌خواندنی و دمو به MT5، پروفایل چند broker، collection تیک و bar، datasetهای Parquet با manifest، پژوهش تاریخی bar، تولید candidate و بک‌تست observation بعدی وجود دارد. همگام‌سازی چند بروکری، walk-forward و Monte Carlo هنوز در حال توسعه‌اند.
 
 ## قابلیت‌ها
 
@@ -20,6 +20,10 @@
 - مدل هزینه قابل پیکربندی
 - تحلیل Pearson، Spearman، rolling z-score، half-life و lead/lag
 - ابزارهای کیفیت داده و هم‌ترازی timestamp
+- چند پروفایل broker و collection ترتیبی فقط‌خواندنی
+- datasetهای tick و bar در Parquet همراه manifest بازتولیدپذیری
+- پژوهش تاریخی bar بدون ادعای اجرای tick-level
+- بک‌تست observation بعدی بدون استفاده از edge هم‌زمان سیگنال
 - چارچوب کاتالوگ رابطه و تولید نامزد
 - داشبورد Streamlit با هشدار دائمی حالت پژوهشی/دمو
 
@@ -64,11 +68,13 @@ python -m venv .venv
 MT5__TERMINAL_PATH=C:\\path\\to\\terminal64.exe
 MT5__DATA_PATH=C:\\path\\to\\terminal\\data
 MT5__DEMO_ONLY=true
+MT5__SOURCE_UTC_OFFSET_MINUTES=0
+BROKERS={"DEMO":{"terminal_path":"C:\\\\path\\\\to\\\\demo\\\\terminal64.exe","demo_only":true}}
 DATA__TIMEZONE=UTC
 DATA__MAX_ALIGNMENT_DELAY_MS=100
 ```
 
-آداپتور عمداً تنظیم password غیرخالی را نمی‌پذیرد. احراز هویت MT5 باید توسط خود ترمینال مدیریت شود.
+آداپتور عمداً تنظیم password غیرخالی را نمی‌پذیرد. احراز هویت MT5 باید توسط خود ترمینال مدیریت شود. مقدار `source_utc_offset_minutes` پیش‌فرض صفر است و فقط پس از تأیید اختلاف ساعت منبع تغییر می‌کند؛ timestamp اصلی MT5 در `source_timestamp` حفظ می‌شود.
 
 ## شروع سریع
 
@@ -76,6 +82,10 @@ DATA__MAX_ALIGNMENT_DELAY_MS=100
 python -m market_relationship_discovery doctor
 python -m market_relationship_discovery mt5-info
 python -m market_relationship_discovery symbols --search gold
+python -m market_relationship_discovery collect --broker-profile DEMO --symbol XAUUSD --symbol EURUSD --symbol XAUEUR --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
+python -m market_relationship_discovery discover --symbol EURUSD GBPUSD
+python -m market_relationship_discovery backtest examples\no_lookahead_signals.csv
 ```
 
 روابط اولیه شامل `EURGBP = EURUSD / GBPUSD`، `EURJPY = EURUSD * USDJPY`، `GBPJPY = GBPUSD * USDJPY`، `XAUEUR = XAUUSD / EURUSD` و نسبت طلا به نقره است.

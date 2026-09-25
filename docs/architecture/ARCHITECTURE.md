@@ -14,9 +14,10 @@ The platform separates data acquisition, relationship mathematics, statistical r
 - `statistics`: correlation, normalization, persistence, and lag research
 - `validation` and `market_data`: data quality, symbol discovery, and time alignment
 - `discovery`: formula generation and candidate-state filtering
-- `backtesting`: deterministic cost-aware research metrics
-- `infrastructure`: official MT5 integration and Parquet storage
-- `application` and `cli`: diagnostics and commands
+- `backtesting`: deterministic cost-aware metrics and next-observation execution
+- `infrastructure`: official MT5 integration and atomic Parquet/manifest storage
+- `application`: diagnostics, profile resolution, collection, and research orchestration
+- `cli`: argument parsing and command dispatch
 - `dashboard`: read-only research presentation
 
 ## Dependency direction
@@ -29,8 +30,8 @@ No execution interface exists. `MT5Adapter` validates the account mode during co
 
 ## Extension points
 
-A new broker should implement a provider contract returning normalized `Quote` and `Bar` objects. A new relationship should be declarative. A new cost component should be represented in `CostModel` and tested against both gross discrepancy and final net edge.
+A new broker should implement a provider protocol returning normalized `Quote` and `Bar` objects. Broker profiles are selected from local configuration. A new relationship should be declarative. A new cost component should be represented in `CostModel` and tested against both gross discrepancy and final net edge.
 
 ## Limitations
 
-The initial graph is a formula catalog rather than a full currency graph. Cross-broker alignment, historical persistence, and contract-aware execution simulation are not yet complete.
+The initial graph is a formula catalog rather than a full currency graph. Multiple profiles can be collected sequentially, but synchronized cross-broker comparison, true parallel terminal processes, historical persistence, and contract-aware execution simulation are not yet complete.
