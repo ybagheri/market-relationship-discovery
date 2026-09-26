@@ -17,12 +17,22 @@ from market_relationship_discovery.dashboard.brokers import (
 from market_relationship_discovery.dashboard.charts import (
     DISCREPANCY_COLUMNS,
     broker_price_figure,
+    candidate_significance_figure,
+    coverage_figure,
     discrepancy_figure,
 )
 from market_relationship_discovery.dashboard.reports import (
     aligned_frame,
+    as_count,
+    as_float,
+    as_records,
+    as_str_list,
+    candidate_frame,
+    coverage_frame,
     list_comparison_reports,
+    list_discovery_reports,
     load_comparison_report,
+    load_discovery_report,
     opportunity_frame,
 )
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
@@ -83,11 +93,12 @@ def _render_execution(execution: dict[str, object]) -> None:
     )
 
 
-overview, monitor, relationships, discrepancy, brokers, limitations = st.tabs(
+overview, monitor, relationships, discovery, discrepancy, brokers, limitations = st.tabs(
     [
         "Overview",
         "Market Monitor",
         "Relationship Explorer",
+        "Discovery",
         "Discrepancy Explorer",
         "Broker Comparison",
         "Limitations",
@@ -155,6 +166,10 @@ with relationships:
         ],
         width="stretch",
     )
+    st.caption(
+        "This is the declared catalog, not evidence. Use the Discovery tab for "
+        "evaluated candidates from a real run."
+    )
 
 report_directory = settings.data.reports_directory
 reports = list_comparison_reports(report_directory)
@@ -165,6 +180,120 @@ report_labels = {
     )
     for reference in reports
 }
+discovery_reports = list_discovery_reports(report_directory)
+discovery_labels = {
+    reference: (
+        f"{reference.source_file_name} | {reference.candidate_count} tested | "
+        f"{reference.retained_after_correction} retained | {reference.created_at}"
+    )
+    for reference in discovery_reports
+}
+
+with discovery:
+    st.subheader("Evaluated candidates")
+    if not discovery_reports:
+        st.info(
+            f"No advanced discovery reports found in {report_directory}. "
+            "Run `discover --input <panel.csv>` to produce one."
+        )
+    else:
+        selected = st.selectbox(
+            "Discovery report",
+            options=discovery_reports,
+            format_func=lambda reference: discovery_labels[reference],
+            key="discovery_report",
+        )
+        loaded = load_discovery_report(selected.path)
+        multiplicity = cast(dict[str, object], loaded["multiplicity"])
+        coverage = cast(dict[str, object], loaded["coverage"])
+        deduplication = cast(dict[str, object], loaded["deduplication"])
+
+        alpha = as_float(multiplicity.get("alpha"), 0.05)
+        st.write(
+            f"Method **{multiplicity.get('method')}** at alpha **{alpha}** | "
+            f"tests **{multiplicity.get('tests')}** | "
+            f"expected false positives **{multiplicity.get('expected_false_positives')}** | "
+            f"unadjusted rejections **{multiplicity.get('unadjusted_rejections')}** | "
+            f"after correction **{multiplicity.get('adjusted_rejections')}**"
+        )
+
+        candidates = candidate_frame(selected.path)
+        if candidates.empty:
+            st.warning("This report contains no candidate rows.")
+        else:
+            st.plotly_chart(
+                candidate_significance_figure(candidates, alpha),
+                width="stretch",
+            )
+            contested = as_count(multiplicity.get("contested"))
+            if contested:
+                st.warning(
+                    f"{contested} candidate(s) are **contested**: the ADF and KPSS "
+                    "stationarity tests disagreed, so the verdict rests on one of "
+                    "two conflicting tests."
+                )
+            st.dataframe(
+                candidates[
+                    [
+                        column
+                        for column in (
+                            "name",
+                            "target",
+                            "formula",
+                            "status",
+                            "raw_p_value",
+                            "adjusted_p_value",
+                            "survived_correction",
+                            "contested",
+                            "pearson",
+                            "half_life",
+                            "mean_absolute_discrepancy",
+                        )
+                        if column in candidates
+                    ]
+                ],
+                width="stretch",
+            )
+
+        st.subheader("Panel coverage")
+        st.caption(
+            "Symbols collected in one request can cover different calendar ranges. "
+            "Only symbols present throughout the analysed window take part."
+        )
+        union_rows = coverage.get("union_rows")
+        st.plotly_chart(
+            coverage_figure(
+                coverage_frame(selected.path),
+                as_count(union_rows) or None,
+            ),
+            width="stretch",
+        )
+        excluded = as_str_list(coverage.get("excluded_symbols"))
+        if excluded:
+            st.info("Excluded from analysis: " + ", ".join(excluded))
+        issues = as_str_list(coverage.get("issues"))
+        if issues:
+            st.markdown("**Coverage findings**")
+            for issue in issues:
+                st.markdown(f"- {issue}")
+
+        removed = as_records(deduplication.get("removed_duplicates"))
+        if removed:
+            st.info(
+                f"{len(removed)} duplicate candidate(s) were collapsed before testing: "
+                + ", ".join(str(item.get("removed")) for item in removed)
+            )
+        unparsable = as_str_list(deduplication.get("unparsable_formulas"))
+        if unparsable:
+            st.warning(
+                "Candidates with an unusable formula were excluded: " + ", ".join(unparsable)
+            )
+
+        recorded_limitations = as_str_list(loaded["limitations"])
+        if recorded_limitations:
+            with st.expander("Limitations recorded with this run"):
+                for limitation in recorded_limitations:
+                    st.markdown(f"- {limitation}")
 
 with discrepancy:
     st.subheader("Cross-broker discrepancy")

@@ -110,3 +110,98 @@ def broker_price_figure(
         hovermode="x unified",
     )
     return figure
+
+
+def candidate_significance_figure(candidates: pd.DataFrame, alpha: float) -> go.Figure:
+    """Raw against adjusted p-value per candidate, with the alpha threshold.
+
+    Plotting both makes the effect of the correction visible: a candidate whose
+    adjusted value crosses the line no longer survives, and the gap between the
+    two bars is exactly what multiplicity cost.
+    """
+    figure = go.Figure()
+    if candidates.empty or "adjusted_p_value" not in candidates:
+        figure.update_layout(
+            title="No candidate significance results",
+            xaxis_title="Candidate",
+            yaxis_title="p-value",
+        )
+        return figure
+    ordered = candidates.sort_values("adjusted_p_value", na_position="last")
+    names = [str(name) for name in ordered["name"]]
+    figure.add_trace(
+        go.Bar(
+            x=names,
+            y=pd.to_numeric(ordered.get("raw_p_value"), errors="coerce"),
+            name="raw p-value",
+            marker={"color": "steelblue"},
+            hovertemplate="%{x}<br>raw p=%{y}<extra></extra>",
+        )
+    )
+    figure.add_trace(
+        go.Bar(
+            x=names,
+            y=pd.to_numeric(ordered.get("adjusted_p_value"), errors="coerce"),
+            name="adjusted p-value",
+            marker={"color": "indianred"},
+            hovertemplate="%{x}<br>adjusted p=%{y}<extra></extra>",
+        )
+    )
+    figure.add_hline(
+        y=alpha,
+        line={"dash": "dash", "color": "gray"},
+        annotation_text=f"alpha={alpha}",
+        annotation_position="top left",
+    )
+    figure.update_layout(
+        title="Candidate significance after false-discovery control — not tradability",
+        xaxis_title="Candidate",
+        yaxis_title="p-value",
+        barmode="group",
+        hovermode="x unified",
+    )
+    return figure
+
+
+def coverage_figure(coverage: pd.DataFrame, union_rows: int | None) -> go.Figure:
+    """Per-symbol coverage of the analysed panel.
+
+    A symbol that covers almost none of the union window cannot be compared with
+    one that covers all of it, so this chart is the context for every candidate
+    computed from the same panel.
+    """
+    figure = go.Figure()
+    if coverage.empty or "coverage_fraction" not in coverage:
+        figure.update_layout(
+            title="No coverage information",
+            xaxis_title="Symbol",
+            yaxis_title="Coverage of union window",
+        )
+        return figure
+    ordered = coverage.sort_values("coverage_fraction", ascending=False)
+    names = [str(name) for name in ordered["symbol"]]
+    analysed = (
+        [bool(value) for value in ordered["analysed"]]
+        if "analysed" in ordered
+        else [True] * len(names)
+    )
+    figure.add_trace(
+        go.Bar(
+            x=names,
+            y=pd.to_numeric(ordered["coverage_fraction"], errors="coerce"),
+            name="analysed",
+            marker={"color": ["seagreen" if flag else "lightgray" for flag in analysed]},
+            customdata=pd.to_numeric(ordered.get("observations"), errors="coerce"),
+            hovertemplate="%{x}<br>coverage=%{y}<br>observations=%{customdata}<extra></extra>",
+        )
+    )
+    title = "Panel coverage by symbol — grey symbols were excluded from analysis"
+    if union_rows:
+        title = f"{title} (union window {int(union_rows)} rows)"
+    figure.update_layout(
+        title=title,
+        xaxis_title="Symbol",
+        yaxis_title="Fraction of union window",
+        hovermode="x unified",
+    )
+    return figure
