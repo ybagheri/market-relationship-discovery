@@ -94,6 +94,12 @@ class CostSettings(BaseModel):
     slippage: float = Field(default=0.0, ge=0)
     latency_assumption_ms: int = Field(default=0, ge=0)
     other_costs: float = Field(default=0.0, ge=0)
+    volume: float = Field(default=1.0, gt=0)
+    leverage: int | None = Field(default=None, gt=0)
+    funding_enabled: bool = True
+    funding_daily_rate: float = Field(default=0.0, ge=0)
+    minimum_fill_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    holding_days: int = Field(default=1, ge=0, le=365)
 
 
 class DashboardSettings(BaseModel):

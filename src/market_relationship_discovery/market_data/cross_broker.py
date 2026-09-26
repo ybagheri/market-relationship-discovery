@@ -7,6 +7,12 @@ from math import isfinite
 import numpy as np
 import pandas as pd
 
+from market_relationship_discovery.costs.execution import (
+    ExecutionAssessment,
+    ExecutionAssessor,
+    FillSimulator,
+    MarginModel,
+)
 from market_relationship_discovery.domain.errors import DataQualityError, InsufficientDataError
 from market_relationship_discovery.market_data.contract import (
     ContractCompatibilityStatus,
@@ -48,6 +54,9 @@ class CrossBrokerRequest:
     contract_b: ContractSpecification | None = None
     synchronization_mode: SynchronizationMode = SynchronizationMode.ANCHOR_A
     tick_aggregation: TickAggregation = TickAggregation.LAST
+    volume: float = 1.0
+    leverage: int | None = None
+    minimum_fill_ratio: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.broker_a or not self.broker_b or not self.symbol:
@@ -60,6 +69,12 @@ class CrossBrokerRequest:
             raise ValueError("additional_cost must be finite and non-negative")
         if (self.contract_a is None) != (self.contract_b is None):
             raise ValueError("both contract specifications must be provided together")
+        if not isfinite(self.volume) or self.volume <= 0:
+            raise ValueError("volume must be finite and positive")
+        if self.leverage is not None and self.leverage <= 0:
+            raise ValueError("leverage must be positive when provided")
+        if not 0.0 <= self.minimum_fill_ratio <= 1.0:
+            raise ValueError("minimum_fill_ratio must be between zero and one")
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +130,7 @@ class CrossBrokerSummary:
     broker_b_volume_per_broker_a_volume: float | None
     mean_normalized_net_pnl: float | None
     maximum_normalized_net_pnl: float | None
+    execution: ExecutionAssessment | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -333,18 +349,30 @@ class CrossBrokerComparisonEngine:
         potential = aligned["net_crossable_edge"] > 0
         blocked_count = int((potential & contract_blocks).sum())
         aligned["is_crossable"] = potential if not contract_blocks else False
+        execution = self._execution_assessment(aligned, request)
+        if execution is not None and not execution.executable:
+            aligned["is_crossable"] = False
         opportunities = self._episodes(aligned)
         crossable = aligned[aligned["is_crossable"]]
         period_hours = self._period_hours(aligned)
         durations = [opportunity.duration_ms for opportunity in opportunities]
         if contract_blocks:
             classification = "blocked_by_contract_specification"
+        elif execution is not None and not execution.executable:
+            classification = "blocked_by_execution_feasibility"
         elif compatibility.status is ContractCompatibilityStatus.UNVERIFIED:
             classification = "crossable_research_contract_unverified"
         elif compatibility.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED:
             classification = "crossable_after_cost_pnl_normalized_research"
         else:
             classification = "crossable_after_cost_contract_validated_research"
+        if (
+            execution is not None
+            and execution.executable
+            and not execution.capital_verified
+            and classification.startswith("crossable")
+        ):
+            classification = f"{classification}_capital_unverified"
         summary = CrossBrokerSummary(
             broker_a=request.broker_a,
             broker_b=request.broker_b,
@@ -398,8 +426,44 @@ class CrossBrokerComparisonEngine:
             maximum_normalized_net_pnl=(
                 float(aligned["normalized_net_pnl"].max()) if normalization_available else None
             ),
+            execution=execution,
         )
         return CrossBrokerAnalysis(summary, opportunities, aligned)
+
+    def _execution_assessment(
+        self,
+        aligned: pd.DataFrame,
+        request: CrossBrokerRequest,
+    ) -> ExecutionAssessment | None:
+        """Assess whether a sized position could be held at both brokers.
+
+        The assessment uses the widest observed discrepancy, because that is the
+        most favourable case for execution. If capital or fill feasibility fails
+        even there, no smaller or less favourable opportunity can be executable.
+        """
+        if aligned.empty:
+            return None
+        request_volume = request.volume
+        broker_b_volume = request_volume
+        if request.contract_a is not None and request.contract_b is not None:
+            broker_b_volume = (
+                request_volume * request.contract_a.contract_size / request.contract_b.contract_size
+            )
+        widest = aligned.loc[aligned["gross_crossable_edge"].idxmax()]
+        assessor = ExecutionAssessor(
+            margin_model=MarginModel(request.leverage),
+            fill_simulator=FillSimulator(),
+            leverage=request.leverage,
+            minimum_fill_ratio=request.minimum_fill_ratio,
+        )
+        return assessor.assess(
+            request.contract_a,
+            request.contract_b,
+            request_volume,
+            broker_b_volume,
+            float(widest["a_mid"]),
+            float(widest["b_mid"]),
+        )
 
     def _bar_summary(
         self,
@@ -414,6 +478,9 @@ class CrossBrokerComparisonEngine:
             request.contract_a,
             request.contract_b,
         )
+        # Bar comparisons are theoretical only, so no execution feasibility is
+        # assessed. A close price cannot establish that a position could be
+        # opened and closed at those levels.
         summary = CrossBrokerSummary(
             broker_a=request.broker_a,
             broker_b=request.broker_b,
@@ -452,6 +519,7 @@ class CrossBrokerComparisonEngine:
             broker_b_volume_per_broker_a_volume=None,
             mean_normalized_net_pnl=None,
             maximum_normalized_net_pnl=None,
+            execution=None,
         )
         return CrossBrokerAnalysis(summary, (), aligned)
 

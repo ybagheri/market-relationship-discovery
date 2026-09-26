@@ -133,11 +133,49 @@ def test_contract_size_difference_is_volume_and_pnl_normalized() -> None:
     )
 
     assert analysis.summary.contract_status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
-    assert analysis.summary.classification == "crossable_after_cost_pnl_normalized_research"
+    assert (
+        analysis.summary.classification
+        == "crossable_after_cost_pnl_normalized_research_capital_unverified"
+    )
     assert analysis.summary.contract_normalization_applied is True
     assert analysis.summary.broker_b_volume_per_broker_a_volume == 2.0
     assert analysis.summary.maximum_normalized_net_pnl is not None
     assert analysis.opportunities
+
+
+def test_configured_leverage_verifies_capital_and_drops_the_caveat() -> None:
+    """A leverage-derived margin is a real figure, so capital becomes verified.
+
+    The example contracts report ``margin_initial`` as zero, which MetaTrader uses
+    to mean "not reported" rather than "free". Supplying account leverage turns
+    that unknown into a derived margin and removes the caveat.
+    """
+    contract_a = ContractSpecification.from_dict(
+        json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
+    )
+    contract_b = ContractSpecification.from_dict(
+        json.loads(Path("examples/broker_b_contract.json").read_text(encoding="utf-8"))
+    )
+    broker_a = tick_frame([(1.1000, 1.1002), (1.1001, 1.1003)])
+    broker_b = tick_frame([(1.1006, 1.1008), (1.1007, 1.1009)])
+
+    analysis = CrossBrokerComparisonEngine().compare(
+        broker_a,
+        broker_b,
+        replace(
+            request(),
+            contract_a=contract_a,
+            contract_b=contract_b,
+            leverage=500,
+        ),
+    )
+
+    execution = analysis.summary.execution
+    assert execution is not None
+    assert execution.capital_verified is True
+    assert execution.executable is True
+    assert execution.total_margin is not None
+    assert analysis.summary.classification == "crossable_after_cost_contract_validated_research"
 
 
 def test_symmetric_synchronization_keeps_only_mutual_nearest_matches() -> None:

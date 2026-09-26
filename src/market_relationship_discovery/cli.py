@@ -49,8 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m market_relationship_discovery")
     parser.add_argument("--verbose", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("doctor")
-    subparsers.add_parser("mt5-info")
+    doctor_parser = subparsers.add_parser("doctor")
+    doctor_parser.add_argument("--broker-profile", default="default")
+    mt5_info_parser = subparsers.add_parser("mt5-info")
+    mt5_info_parser.add_argument("--broker-profile", default="default")
     symbols_parser = subparsers.add_parser(
         "symbols",
         help=(
@@ -150,6 +152,16 @@ def build_parser() -> argparse.ArgumentParser:
     comparison_parser.add_argument("--broker-a", required=True)
     comparison_parser.add_argument("--broker-b", required=True)
     comparison_parser.add_argument("--symbol", required=True)
+    comparison_parser.add_argument(
+        "--symbol-a",
+        default=None,
+        help="broker A label for the same instrument when it differs from --symbol",
+    )
+    comparison_parser.add_argument(
+        "--symbol-b",
+        default=None,
+        help="broker B label for the same instrument when it differs from --symbol",
+    )
     comparison_parser.add_argument("--kind", choices=["tick", "bar"], default="tick")
     comparison_parser.add_argument("--max-delay-ms", type=int, default=100)
     comparison_parser.add_argument("--additional-cost", type=float, default=0.0)
@@ -164,6 +176,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--tick-aggregation",
         choices=["last", "none"],
         default="last",
+    )
+    comparison_parser.add_argument(
+        "--volume",
+        type=float,
+        default=None,
+        help="position size in lots for margin and fill feasibility",
+    )
+    comparison_parser.add_argument(
+        "--leverage",
+        type=int,
+        default=None,
+        help="account leverage used when the broker does not report margin",
+    )
+    comparison_parser.add_argument(
+        "--minimum-fill-ratio",
+        type=float,
+        default=None,
+        help="minimum acceptable fill ratio across both legs",
     )
     comparison_parser.add_argument("--output", type=Path)
     specifications_parser = subparsers.add_parser("symbol-specs")
@@ -198,9 +228,9 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(logging.DEBUG if arguments.verbose else logging.INFO)
     try:
         if arguments.command == "doctor":
-            return _doctor()
+            return _doctor(arguments.broker_profile)
         if arguments.command == "mt5-info":
-            return _mt5_info()
+            return _mt5_info(arguments.broker_profile)
         if arguments.command == "symbols":
             return _symbols(
                 arguments.broker_profile,
@@ -236,19 +266,26 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-def _doctor() -> int:
-    checks = run_doctor(get_settings())
+def _doctor(broker_profile: str = "default") -> int:
+    checks = run_doctor(get_settings(), broker_profile)
     for check in checks:
         marker = "OK" if check.passed else "FAIL"
         print(f"[{marker}] {check.name}: {check.detail}")
     return doctor_exit_code(checks)
 
 
-def _mt5_info() -> int:
+def _mt5_info(broker_profile: str = "default") -> int:
     settings = get_settings()
-    with MT5Adapter(settings.mt5) as adapter:
+    profile, _ = resolve_profile(settings, broker_profile)
+    with MT5Adapter(profile) as adapter:
         print(
-            _serializable({"terminal": adapter.terminal_info(), "account": adapter.account_info()})
+            _serializable(
+                {
+                    "broker_profile": broker_profile,
+                    "terminal": adapter.terminal_info(),
+                    "account": adapter.account_info(),
+                }
+            )
         )
     return 0
 
@@ -458,6 +495,7 @@ def _robustness(arguments: argparse.Namespace) -> int:
 
 
 def _compare_brokers(arguments: argparse.Namespace) -> int:
+    costs = get_settings().costs
     result = CrossBrokerExperimentService().run(
         arguments.source_a,
         arguments.source_b,
@@ -472,6 +510,15 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
         arguments.contract_b,
         SynchronizationMode(arguments.sync_mode),
         TickAggregation(arguments.tick_aggregation),
+        arguments.volume if arguments.volume is not None else costs.volume,
+        arguments.leverage if arguments.leverage is not None else costs.leverage,
+        (
+            arguments.minimum_fill_ratio
+            if arguments.minimum_fill_ratio is not None
+            else costs.minimum_fill_ratio
+        ),
+        arguments.symbol_a,
+        arguments.symbol_b,
     )
     print(_serializable(result))
     return 0
