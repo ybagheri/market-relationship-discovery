@@ -481,7 +481,8 @@ class CrossBrokerComparisonEngine:
             adverse_move_allowance=request.adverse_move_allowance,
             minimum_capturable_fraction=request.minimum_capturable_fraction,
         )
-        return LatencyCaptureModel().assess(episodes, assumption)
+        capture = LatencyCaptureModel().assess(episodes, assumption)
+        return capture
 
     def _execution_assessment(
         self,

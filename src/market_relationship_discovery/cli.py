@@ -229,6 +229,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="minimum share of an episode that must survive a round trip",
     )
+    comparison_parser.add_argument(
+        "--latency-grid-ms",
+        type=float,
+        action="append",
+        default=None,
+        help="latency values for the sensitivity sweep; repeatable",
+    )
     comparison_parser.add_argument("--output", type=Path)
     specifications_parser = subparsers.add_parser("symbol-specs")
     specifications_parser.add_argument("--broker-profile", default="default")
@@ -570,6 +577,7 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
             if arguments.minimum_capturable_fraction is not None
             else costs.minimum_capturable_fraction
         ),
+        tuple(arguments.latency_grid_ms) if arguments.latency_grid_ms else None,
     )
     print(_serializable(result))
     return 0

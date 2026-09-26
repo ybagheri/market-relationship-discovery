@@ -149,6 +149,70 @@ def _render_latency(latency: dict[str, object]) -> None:
         "Capturable fraction assumes linear edge decay over a measured episode. "
         "Queue position, book depth, and fill probability are not modelled."
     )
+    _render_sensitivity(cast(dict[str, object], report.get("latency_sensitivity", {})))
+
+
+def _render_sensitivity(sensitivity: dict[str, object]) -> None:
+    """Show how far the capture verdict travels from the configured assumption.
+
+    A verdict that survives every setting can still capture almost nothing, and a
+    verdict that flips is describing the assumption rather than the market. Both
+    cases are reported rather than reduced to a single yes or no.
+    """
+    st.subheader("Latency sensitivity")
+    if not sensitivity:
+        st.info(
+            "This report has no sensitivity sweep. A single capture verdict does not "
+            "show how much it depends on the assumed round-trip time."
+        )
+        return
+    fragility = str(sensitivity.get("fragility"))
+    baseline = as_float(sensitivity.get("baseline_value"))
+    st.write(
+        f"Swept **{sensitivity.get('axis')}** around the configured baseline "
+        f"**{baseline:g}** | fragility **{fragility}** | "
+        f"baseline survives **{sensitivity.get('baseline_survives')}**"
+    )
+    if fragility == "nominal":
+        st.warning(
+            "The verdict survives arithmetically but captures a negligible share: "
+            f"{as_float(sensitivity.get('baseline_capturable_fraction')) * 100:.0f}% of episodes "
+            f"and {as_float(sensitivity.get('baseline_captured_share')) * 100:.0f}% of the peak "
+            "edge. Treating that as a result would overstate it."
+        )
+    elif fragility in {"sensitive", "knife_edge"}:
+        st.warning(
+            "The verdict depends heavily on the assumed value. It holds up to "
+            f"{sensitivity.get('highest_surviving_value')} and fails from "
+            f"{sensitivity.get('lowest_failing_value')}."
+        )
+    elif fragility == "always_fails":
+        st.error("No swept value leaves a capturable episode.")
+    else:
+        st.success("The verdict holds across the whole swept range.")
+    points = as_records(sensitivity.get("points"))
+    if points:
+        st.dataframe(
+            [
+                {
+                    "Assumed ms/leg": point.get("value"),
+                    "Round trip (ms)": point.get("round_trip_ms"),
+                    "Capturable": point.get("capturable"),
+                    "Marginal": point.get("marginal"),
+                    "Not capturable": point.get("not_capturable"),
+                    "Mean captured edge": point.get("mean_captured_edge"),
+                    "Share of peak": point.get("captured_share_of_peak"),
+                    "Survives": point.get("survives"),
+                    "Baseline": point.get("is_baseline"),
+                }
+                for point in points
+            ],
+            width="stretch",
+        )
+    st.caption(
+        "The sweep never selects a favourable parameter. The configured baseline is "
+        "the reference and the useful output is the distance to the point of failure."
+    )
 
 
 def _as_float_dict(value: object) -> dict[str, object]:

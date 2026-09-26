@@ -6,6 +6,11 @@ from typing import cast
 
 import pandas as pd
 
+from market_relationship_discovery.costs.latency import RoundTripAssumption
+from market_relationship_discovery.costs.sensitivity import (
+    DEFAULT_LATENCY_GRID_MS,
+    LatencySensitivityAnalyzer,
+)
 from market_relationship_discovery.domain.errors import DataQualityError
 from market_relationship_discovery.domain.experiment import create_experiment_manifest
 from market_relationship_discovery.market_data.contract import ContractSpecification
@@ -43,6 +48,7 @@ class CrossBrokerExperimentService:
         latency_per_leg_ms: float = 50.0,
         adverse_move_allowance: float = 0.0,
         minimum_capturable_fraction: float = 0.25,
+        latency_grid_ms: tuple[float, ...] | None = None,
     ) -> dict[str, object]:
         """Compare two broker feeds for the same research instrument.
 
@@ -102,17 +108,26 @@ class CrossBrokerExperimentService:
                 "latency_per_leg_ms": latency_per_leg_ms,
                 "adverse_move_allowance": adverse_move_allowance,
                 "minimum_capturable_fraction": minimum_capturable_fraction,
+                "latency_grid_ms": list(latency_grid_ms or DEFAULT_LATENCY_GRID_MS),
             },
             (source_b,),
         )
         execution = analysis.summary.execution
         latency = analysis.summary.latency
+        sensitivity = self._latency_sensitivity(
+            latency,
+            latency_per_leg_ms,
+            adverse_move_allowance,
+            minimum_capturable_fraction,
+            latency_grid_ms,
+        )
         payload: dict[str, object] = {
             "summary": asdict(analysis.summary),
             "opportunities": [asdict(opportunity) for opportunity in analysis.opportunities],
             "aligned_preview": self._preview(analysis.aligned_observations),
             "execution": (execution.to_dict() if execution is not None else None),
             "latency": (latency.to_dict() if latency is not None else None),
+            "latency_sensitivity": sensitivity,
             "limitations": [
                 "Crossable is a positive research edge after configured additional cost, "
                 "not guaranteed execution.",
@@ -135,6 +150,38 @@ class CrossBrokerExperimentService:
                 ExperimentReportWriter(output_directory).write(payload, manifest)
             )
         return response
+
+    @staticmethod
+    def _latency_sensitivity(
+        latency: object,
+        latency_per_leg_ms: float,
+        adverse_move_allowance: float,
+        minimum_capturable_fraction: float,
+        grid: tuple[float, ...] | None,
+    ) -> dict[str, object] | None:
+        """Report how far the capture verdict travels from the configured value.
+
+        A verdict that flips across a plausible parameter range describes the
+        assumption, not the market, so the distance to the point of failure is
+        the useful output. The sweep is built from the episodes the capture model
+        already measured, so it adds no recollection.
+        """
+        if latency is None:
+            return None
+        payload = latency.to_dict() if hasattr(latency, "to_dict") else None
+        if not isinstance(payload, dict):
+            return None
+        analyzer = LatencySensitivityAnalyzer()
+        episodes = analyzer.episodes_from_report(payload)
+        if not episodes:
+            return None
+        baseline = RoundTripAssumption(
+            latency_per_leg_ms=latency_per_leg_ms,
+            legs=2,
+            adverse_move_allowance=adverse_move_allowance,
+            minimum_capturable_fraction=minimum_capturable_fraction,
+        )
+        return analyzer.sweep(episodes, baseline, grid or DEFAULT_LATENCY_GRID_MS).to_dict()
 
     @staticmethod
     def _load_contract(path: Path | None) -> ContractSpecification | None:
