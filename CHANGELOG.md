@@ -2,6 +2,22 @@
 
 All notable changes follow semantic versioning.
 
+## [1.6.1] - 2026-09-26
+
+### Fixed
+
+- A zero round trip reported every measured episode as fully capturable, which is the most flattering answer the model can produce and exactly what an unset configuration value silently yields. `latency_per_leg_ms` must now be positive, and `COSTS__LATENCY_ASSUMPTION_MS` defaults to 50. An absent latency assumption is unknown, not free, the same way a broker-reported margin of zero is unknown rather than free margin.
+
+### Observed on live bitcoin
+
+- 800 live ticks from each demo broker while both feeds were active within five seconds of each other
+- With contract specifications: `blocked_by_contract_specification`, 287 of 296 aligned observations blocked, zero opportunities
+- Maximum gross edge was $17.00 on an $84,000 asset with zero spread on both feeds, about two basis points
+- The cross-broker difference of $5.84 mean absolute exceeded broker A's own $3.68 mean tick-to-tick move, so the feeds do not track each other closely enough for the edge to mean anything
+- The difference is not one-way: 62 percent below against 35 percent above, mean −$2.89 with a standard deviation of $6.85
+- Without contract specifications the same data yields 97 percent crossable and a mean captured edge of 91 percent of peak, labelled `crossable_research_contract_unverified_capital_unverified`
+- Latency separates the regimes: gold's median episode was 0 ms with 2 of 16 capturable, while bitcoin's median episode was 65.5 seconds with 8 of 10 capturable
+
 ## [1.6.0] - 2026-09-26
 
 ### Added

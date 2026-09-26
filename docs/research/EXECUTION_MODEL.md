@@ -203,6 +203,82 @@ COSTS__MINIMUM_CAPTURABLE_FRACTION=0.25
 `COSTS__LATENCY_ASSUMPTION_MS` existed in the configuration and was passed into
 `CostModel`, but was never used in any calculation. It now drives this model.
 
+### A zero round trip is refused
+
+`latency_per_leg_ms` must be **positive**. A zero round trip reports every
+episode as fully capturable, which is the most flattering answer the model can
+produce, and it is exactly what a forgotten configuration value silently yields.
+The same reasoning that treats a broker-reported margin of zero as *not reported*
+applies to an absent latency assumption: it is unknown, not free.
+
+`COSTS__LATENCY_ASSUMPTION_MS` therefore defaults to `50` and rejects zero.
+This was found by running the model on live data without the flag set, which
+reported 100 percent capturable.
+
+## Live bitcoin, the most misleading dataset in the project
+
+Bitcoin trades continuously, so it is the only instrument here with genuine
+24-hour opportunity durations. Collected 800 live ticks from each broker on
+2026-09-26, both feeds active within five seconds of each other.
+
+Run **with** contract specifications:
+
+| Measure | Value |
+| --- | --- |
+| Classification | `blocked_by_contract_specification` |
+| Contract status | `incompatible` |
+| Issues | point sizes differ, tick sizes differ, maximum volumes differ |
+| Aligned observations | 296 |
+| **Blocked observations** | **287** |
+| Crossable observations | 0 |
+| Opportunities | 0 |
+
+287 of 296 observations had a positive raw cross-broker edge and every one was
+blocked. Maximum gross edge was **$17.00** on an $84,000 asset, about two basis
+points, with **zero spread on both feeds**: broker A had `bid == ask` on 99.5
+percent of ticks and broker B on 100 percent.
+
+This is the most attractive-looking result in the entire dataset, and it is not
+tradable. Three independent reasons:
+
+- **The contracts are not comparable.** Broker B quotes bitcoin in whole dollars
+  (`digits` 0, `tick_size` 1.0) while broker A quotes to the half dollar
+  (`digits` 2). Volume maxima differ by 30 times, 300 lots against 10.
+- **The feeds do not track each other closely enough for the edge to mean
+  anything.** The mean absolute difference between brokers was $5.84, while
+  broker A's own mean tick-to-tick move was $3.68. The cross-broker difference
+  is *larger* than the asset's own movement between ticks.
+- **A zero-spread demo feed is not evidence about live execution.** Neither
+  broker charges a spread on this instrument, so any cross-broker comparison on
+  it is measuring feed construction rather than a tradable dislocation.
+
+The difference is also not a one-way gap. 62 percent of aligned observations had
+broker A below broker B and 35 percent had it above, with a mean of −$2.89 and a
+standard deviation of $6.85. That is a noisy relationship around a small offset,
+not a persistent dislocation. Reading only the mean would have inverted the
+conclusion.
+
+Run **without** contract specifications, the same data produces
+`crossable_research_contract_unverified_capital_unverified` with 97 percent of
+observations crossable, ten opportunity episodes, a median episode of 65
+seconds, and 91 percent of the mean peak edge captured at a 100 ms round trip.
+
+That contrast is the point. Omitting a check does not make the finding weaker; it
+removes the label that says the finding is unverified. Both runs were made, and
+the gated one is the correct one.
+
+### Why bitcoin opportunities last longer than gold
+
+| Instrument | Episodes | Median duration | Capturable at 100 ms |
+| --- | --- | --- | --- |
+| XAUUSD | 16 | 0 ms | 2 |
+| BTCUSD | 10 | 65,500 ms | 8 |
+
+Gold's crossable states were single aligned ticks that flickered away instantly.
+Bitcoin's persist for over a minute because both feeds are continuously active,
+so a crossable state survives many ticks. The latency model separates these
+regimes cleanly, and an episode count alone would not have.
+
 ## Usage
 
 ```bash
