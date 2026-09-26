@@ -63,6 +63,7 @@ def load_comparison_report(path: Path) -> dict[str, object]:
         "summary": _as_dict(results.get("summary")),
         "opportunities": _as_list(results.get("opportunities")),
         "aligned_preview": _as_list(results.get("aligned_preview")),
+        "execution": _as_dict(results.get("execution")),
         "limitations": _as_list(results.get("limitations")),
     }
 
