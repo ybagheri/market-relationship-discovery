@@ -55,12 +55,23 @@ class FamilyHypothesis:
 
     label: str
     p_value: float
+    tests_agree: bool | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.p_value <= 1.0:
             raise ValueError("p_value must lie between zero and one")
         if not self.label:
             raise ValueError("label is required")
+
+    @property
+    def is_contested(self) -> bool:
+        """Whether the corroborating stationarity test contradicted the primary one.
+
+        The family is keyed on the augmented Dickey-Fuller p-value. When the
+        KPSS test disagrees, the verdict rests on one of two conflicting tests,
+        and a reader should see that rather than a single clean number.
+        """
+        return self.tests_agree is False
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +83,7 @@ class AdjustedHypothesis:
     unadjusted_rejected: bool
     survived_correction: bool
     rank: int
+    contested: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -82,6 +94,7 @@ class AdjustedHypothesis:
             "unadjusted_rejected": self.unadjusted_rejected,
             "survived_correction": self.survived_correction,
             "rank": self.rank,
+            "contested": self.contested,
         }
 
 
@@ -97,6 +110,7 @@ class MultiplicityReport:
     unadjusted_rejections: int
     adjusted_rejections: int
     retained_after_correction: int
+    contested: int
     hypotheses: tuple[AdjustedHypothesis, ...]
 
     def to_dict(self) -> dict[str, object]:
@@ -109,6 +123,7 @@ class MultiplicityReport:
             "unadjusted_rejections": self.unadjusted_rejections,
             "adjusted_rejections": self.adjusted_rejections,
             "retained_after_correction": self.retained_after_correction,
+            "contested": self.contested,
             "hypotheses": [item.to_dict() for item in self.hypotheses],
         }
 
@@ -154,6 +169,7 @@ class MultiplicityController:
                 unadjusted_rejections=0,
                 adjusted_rejections=0,
                 retained_after_correction=0,
+                contested=0,
                 hypotheses=(),
             )
         values = np.array([item.p_value for item in hypotheses], dtype=float)
@@ -178,6 +194,7 @@ class MultiplicityController:
                     unadjusted_rejected=bool(values[index] < self._alpha),
                     survived_correction=survived,
                     rank=int(ranks[index]),
+                    contested=hypothesis.is_contested,
                 )
             )
         results.sort(key=lambda item: (item.adjusted_p_value, item.rank))
@@ -190,6 +207,7 @@ class MultiplicityController:
             unadjusted_rejections=unadjusted_rejected,
             adjusted_rejections=int(rejected.sum()),
             retained_after_correction=sum(1 for item in results if item.survived_correction),
+            contested=sum(1 for item in results if item.contested),
             hypotheses=tuple(results),
         )
 
@@ -214,6 +232,16 @@ def stationarity_p_value(summary: object) -> float | None:
     return float(value)
 
 
+def stationarity_agreement(summary: object) -> bool | None:
+    """Return whether the ADF and KPSS verdicts agreed, when that is known."""
+    if not isinstance(summary, dict) or summary.get("status") != "available":
+        return None
+    value = summary.get("stationarity_tests_agree")
+    if isinstance(value, bool):
+        return value
+    return None
+
+
 def build_family(
     summaries: dict[str, object],
 ) -> tuple[tuple[FamilyHypothesis, ...], tuple[str, ...]]:
@@ -230,5 +258,11 @@ def build_family(
         if p_value is None:
             excluded.append(label)
             continue
-        hypotheses.append(FamilyHypothesis(label=label, p_value=p_value))
+        hypotheses.append(
+            FamilyHypothesis(
+                label=label,
+                p_value=p_value,
+                tests_agree=stationarity_agreement(nested),
+            )
+        )
     return tuple(hypotheses), tuple(excluded)

@@ -43,6 +43,12 @@ def test_advanced_discovery_writes_advanced_research_report(tmp_path: Path) -> N
     assert result["experiment"]["parameters"]["multiplicity_method"] == "fdr_bh"
     assert result["experiment"]["parameters"]["panel_fully_overlapping_rows"] == 80
     assert result["experiment"]["parameters"]["excluded_symbols"] == []
+    assert result["experiment"]["parameters"]["candidates_before_deduplication"] == len(
+        result["results"]["candidates"]
+    ) + len(result["results"]["deduplication"]["removed_duplicates"])
+    deduplication = result["results"]["deduplication"]
+    assert deduplication["unparsable_formulas"] == []
+    assert deduplication["kept_candidates"] == len(result["results"]["candidates"])
     coverage = result["results"]["coverage"]
     assert coverage["is_usable"] is True
     assert coverage["analysed_rows"] == 80

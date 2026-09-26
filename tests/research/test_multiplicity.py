@@ -178,6 +178,51 @@ def test_hypotheses_are_validated() -> None:
         MultiplicityController(alpha=1.0)
 
 
+def test_a_result_with_disagreeing_tests_is_marked_contested() -> None:
+    """A verdict resting on one of two conflicting tests must say so."""
+    summaries = {
+        "CONTESTED": {
+            "cointegration_stationarity": {
+                "status": "available",
+                "engle_granger_p_value": 0.001,
+                "stationarity_tests_agree": False,
+            }
+        },
+        "CLEAN": {
+            "cointegration_stationarity": {
+                "status": "available",
+                "engle_granger_p_value": 0.002,
+                "stationarity_tests_agree": True,
+            }
+        },
+    }
+
+    family, _ = build_family(summaries)
+    report = MultiplicityController().adjust(family)
+
+    by_label = {item.label: item for item in report.hypotheses}
+    assert by_label["CONTESTED"].contested is True
+    assert by_label["CLEAN"].contested is False
+    assert report.contested == 1
+
+
+def test_a_missing_agreement_flag_is_not_treated_as_a_disagreement() -> None:
+    summaries = {
+        "UNKNOWN": {
+            "cointegration_stationarity": {
+                "status": "available",
+                "engle_granger_p_value": 0.001,
+            }
+        }
+    }
+
+    family, _ = build_family(summaries)
+    report = MultiplicityController().adjust(family)
+
+    assert report.hypotheses[0].contested is False
+    assert report.contested == 0
+
+
 def test_report_is_serializable() -> None:
     report = MultiplicityController().adjust(hypotheses([0.01, 0.6]))
 

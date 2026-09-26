@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from pathlib import Path
 
+from market_relationship_discovery.discovery.deduplicate import CandidateDeduplicator
 from market_relationship_discovery.discovery.evaluator import GraphCandidateEvaluator
 from market_relationship_discovery.discovery.graph import GraphRelationshipDiscoveryEngine
 from market_relationship_discovery.discovery.ranker import (
@@ -61,6 +62,8 @@ class AdvancedDiscoveryService:
         symbols = tuple(sorted(used_columns))
         graph = RelationshipGraph.from_definitions(RelationshipCatalog().all())
         candidates = GraphRelationshipDiscoveryEngine(graph, max_depth=max_depth).discover(symbols)
+        deduplication = CandidateDeduplicator().deduplicate(candidates)
+        candidates = list(deduplication.kept)
         evaluations = GraphCandidateEvaluator().evaluate(
             analysis_prices,
             candidates,
@@ -114,6 +117,7 @@ class AdvancedDiscoveryService:
                 "candidates": [asdict(candidate) for candidate in ranking.candidates],
             },
             "multiplicity": multiplicity_report.to_dict(),
+            "deduplication": deduplication.to_dict(),
             "coverage": {
                 **coverage.to_dict(),
                 "analysed_symbols": list(symbols),
@@ -134,6 +138,8 @@ class AdvancedDiscoveryService:
                 "costs, contract compatibility, and execution feasibility are separate gates.",
                 "Symbols collected in one request can cover different calendar ranges; only the "
                 "largest shared window is analysed and excluded symbols are reported.",
+                "Candidates asserting the same hypothesis are collapsed before testing, but "
+                "different formulas for one target remain separate tests.",
             ],
         }
         manifest = create_experiment_manifest(
@@ -144,6 +150,8 @@ class AdvancedDiscoveryService:
             {
                 "minimum_observations": minimum_observations,
                 "minimum_symbols_for_window": minimum_symbols_for_window,
+                "candidates_before_deduplication": deduplication.input_count,
+                "candidates_after_deduplication": len(deduplication.kept),
                 "panel_union_rows": coverage.union_rows,
                 "panel_fully_overlapping_rows": coverage.fully_overlapping_rows,
                 "excluded_symbols": sorted(
