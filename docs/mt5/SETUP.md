@@ -23,16 +23,34 @@ Additional terminals are configured as JSON profiles under `BROKERS`. Each profi
 
 ## Symbol names
 
-Do not assume `XAUUSD`, `XAGUSD`, or `XAUEUR`. Inspect and search:
+Do not assume `XAUUSD`, `XAGUSD`, or `XAUEUR`. Brokers name instruments differently, and a broker can expose far more symbols than appear in the terminal watch window. Discovery matches a query against the symbol name, the broker-supplied description, and the canonical alias table, and reports which rule matched.
 
 ```bash
 python -m market_relationship_discovery symbols --search gold
-python -m market_relationship_discovery symbols --search eur
 python -m market_relationship_discovery symbols --search silver
-python -m market_relationship_discovery symbols --search jpy
+python -m market_relationship_discovery symbols --search eur
+python -m market_relationship_discovery symbols --search dollar
+python -m market_relationship_discovery symbols --search XAUUSD --json
 ```
 
+By default the search covers the whole broker catalog and excludes symbols the broker reports as not tradable. Useful flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--search TEXT` | Match name, description, or alias |
+| `--visible-only` | Restrict to the terminal watch window |
+| `--all` | Include symbols the broker marks not tradable |
+| `--json` | Machine-readable output with metadata |
+
+The header line reports `catalog_size`, `tradable`, and `match_count`, which is the quickest way to see how much a broker actually offers. Each row shows `mode`, `tradable`, `matched`, `canonical`, and the broker description.
+
 Store resolved mappings in `.env`. Broker suffixes and prefixes are meaningful and must not be hard-coded in the engine. Export local contract metadata with `symbol-specs` before contract-gated cross-broker comparison.
+
+A symbol whose trade mode is unknown is treated as not tradable, so missing metadata can never be read as an executable opportunity.
+
+## Tick collection
+
+Tick requests search a window ending at the current time and keep the newest rows, widening the window while too few ticks are available. Outside trading hours the most recent tick can be far behind the clock, so `MT5__TICK_LOOKBACK_HOURS` sets the initial window and `MT5__TICK_MAX_LOOKBACK_HOURS` caps the widening. An empty result after the maximum lookback reports that the market may be closed rather than a generic connection failure.
 
 ## Source clock
 

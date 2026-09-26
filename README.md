@@ -10,6 +10,8 @@ A Python quantitative research platform for discovering and validating market re
 
 Foundation through advanced deterministic research phases implemented. The platform now includes causal volatility regimes, formula dependency-graph discovery, bar-panel candidate evaluation, chronological NumPy ridge ranking, two-terminal process-isolated collection, symmetric event-time matching, contract-aware PnL normalization, walk-forward, and Monte Carlo robustness. Live execution remains disabled.
 
+Symbol discovery searches the whole broker catalog by name, description, and alias, and reports which rule matched. Stationarity and cointegration use `statsmodels` augmented Dickey-Fuller and KPSS tests, require at least 30 aligned observations, and return an explicit reason instead of a result when the data cannot support the test.
+
 ## Capabilities
 
 - Read-only MetaTrader 5 data adapter for ticks, bars, symbols, account, and terminal metadata
@@ -19,6 +21,9 @@ Foundation through advanced deterministic research phases implemented. The platf
 - Separation of theoretical and bid/ask-aware executable discrepancies
 - Configurable spread-independent cost assumptions
 - Pearson, Spearman, rolling z-score, half-life, and lead/lag analysis
+- Stationarity and cointegration diagnostics using `statsmodels` ADF and KPSS with explicit unavailable reasons
+- Symbol discovery that matches broker name, broker description, and canonical alias
+- Tradability-aware filtering so a non-tradable symbol is never surfaced as a candidate
 - Data quality and timestamp-alignment utilities
 - Multiple broker profiles with sequential read-only collection
 - Parquet tick/bar datasets with reproducibility manifests
@@ -90,12 +95,16 @@ MT5__TERMINAL_PATH=C:\\path\\to\\terminal64.exe
 MT5__DATA_PATH=C:\\path\\to\\terminal\\data
 MT5__DEMO_ONLY=true
 MT5__SOURCE_UTC_OFFSET_MINUTES=0
+MT5__TICK_LOOKBACK_HOURS=24
+MT5__TICK_MAX_LOOKBACK_HOURS=168
 BROKERS={"DEMO":{"terminal_path":"C:\\\\path\\\\to\\\\demo\\\\terminal64.exe","demo_only":true}}
 DATA__TIMEZONE=UTC
 DATA__MAX_ALIGNMENT_DELAY_MS=100
 ```
 
-The research adapter deliberately rejects non-empty password configuration. MT5 authentication should be managed by the terminal, not application source. `source_utc_offset_minutes` defaults to zero and must only be changed after verifying a source clock offset; the original MT5 timestamp remains stored as `source_timestamp`.
+Blank optional values such as `MT5__LOGIN=` mean "not configured" rather than a validation failure. The research adapter deliberately rejects non-empty password configuration. MT5 authentication should be managed by the terminal, not application source. `source_utc_offset_minutes` defaults to zero and must only be changed after verifying a source clock offset; the original MT5 timestamp remains stored as `source_timestamp`.
+
+Tick requests search backwards from the current time and widen the window while too few ticks are available, because the newest tick can be hours behind the clock outside trading hours. `MT5__TICK_LOOKBACK_HOURS` sets the initial window and `MT5__TICK_MAX_LOOKBACK_HOURS` caps it.
 
 ## Quick start
 
@@ -103,7 +112,10 @@ The research adapter deliberately rejects non-empty password configuration. MT5 
 python -m market_relationship_discovery doctor
 python -m market_relationship_discovery mt5-info
 python -m market_relationship_discovery symbols --search gold
+python -m market_relationship_discovery symbols --search silver --json
+python -m market_relationship_discovery symbols --all
 python -m market_relationship_discovery collect --broker-profile DEMO --symbol XAUUSD --symbol EURUSD --symbol XAUEUR --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery collect --symbol XAUUSD --data-type tick --limit 500
 python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile BROKER_A --broker-profile BROKER_B --symbol EURUSD --data-type tick --limit 500
 python -m market_relationship_discovery symbol-specs --broker-profile DEMO --symbol EURUSD --output config/specs/demo_eurusd.json
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
@@ -138,6 +150,7 @@ mypy
 
 - [Persian README](README.fa.md)
 - [MT5 setup](docs/mt5/SETUP.md)
+- [Symbol mapping and broker naming](docs/mt5/SYMBOL_MAPPING.md)
 - [Quickstart tutorial](docs/tutorials/QUICKSTART.md)
 - [Research methodology](docs/research/METHODOLOGY.md)
 - [Backtesting](docs/research/BACKTESTING.md)

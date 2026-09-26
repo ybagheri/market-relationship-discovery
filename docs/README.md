@@ -3,6 +3,7 @@
 - [Architecture](architecture/ARCHITECTURE.md)
 - [Data flow](architecture/DATA_FLOW.md)
 - [MT5 setup](mt5/SETUP.md)
+- [Symbol mapping](mt5/SYMBOL_MAPPING.md)
 - [Parallel collection](mt5/PARALLEL_COLLECTION.md)
 - [Quickstart](tutorials/QUICKSTART.md)
 - [Methodology](research/METHODOLOGY.md)

@@ -23,16 +23,34 @@ package رسمی Python ترمینال را از مسیر executable انتخا�
 
 ## نام symbolها
 
-فرض نکنید که بروکر حتماً `XAUUSD`، `XAGUSD` یا `XAUEUR` دارد. ابتدا جست‌وجو کنید:
+فرض نکنید که بروکر حتماً `XAUUSD`، `XAGUSD` یا `XAUEUR` دارد. بروکرها نام متفاوتی می‌گذارند و ممکن است بسیار بیشتر از آنچه در watch window ترمینال دیده می‌شود نماد منتشر کنند. کشف، پرس‌وجو را هم روی نام نماد، هم روی توضیح broker و هم روی جدول aliasهای canonical تطبیق می‌دهد و گزارش می‌دهد کدام قاعده مطابقت کرده است.
 
 ```bash
 python -m market_relationship_discovery symbols --search gold
-python -m market_relationship_discovery symbols --search eur
 python -m market_relationship_discovery symbols --search silver
-python -m market_relationship_discovery symbols --search jpy
+python -m market_relationship_discovery symbols --search eur
+python -m market_relationship_discovery symbols --search dollar
+python -m market_relationship_discovery symbols --search XAUUSD --json
 ```
 
+به‌صورت پیش‌فرض جست‌وجو کل کاتالوگ بروکر را پوشش می‌دهد و نمادهایی را که بروکر غیرقابل‌معامله اعلام کرده کنار می‌گذارد. پرچم‌های مفید:
+
+| پرچم | اثر |
+| --- | --- |
+| `--search TEXT` | تطبیق نام، توضیح یا alias |
+| `--visible-only` | محدود به watch window ترمینال |
+| `--all` | شامل نمادهای غیرقابل‌معامله |
+| `--json` | خروجی machine-readable با فراداده |
+
+سرصفحه `catalog_size`، `tradable` و `match_count` را گزارش می‌کند که سریع‌ترین راه برای دیدن پیشنهاد واقعی بروکر است. هر ردیف `mode`، `tradable`، `matched`، `canonical` و توضیح بروکر را نشان می‌دهد.
+
 نگاشت‌های واقعی را در `.env` ذخیره کنید. پسوند و پیشوند بروکر باید در موتور ثابت نشوند. پیش از مقایسه چند broker با contract gate، فراداده محلی قرارداد را با `symbol-specs` خروجی بگیرید.
+
+نمادی که trade mode آن نامشخص باشد غیرقابل‌معامله در نظر گرفته می‌شود، بنابراین نبود فراداده هرگز به‌عنوان فرصت اجرایی تفسیر نمی‌شود. جزئیات بیشتر در [نگاشت نمادها](SYMBOL_MAPPING.fa.md) آمده است.
+
+## جمع‌آوری tick
+
+درخواست tick یک پنجره را تا زمان جاری جست‌وجو می‌کند و جدیدترین ردیف‌ها را نگه می‌دارد و تا زمانی که tick کافی پیدا نشود پنجره را گشاد می‌کند. خارج از ساعت معامله، آخرین tick می‌تواند ساعت‌ها عقب‌تر از ساعت سیستم باشد؛ بنابراین `MT5__TICK_LOOKBACK_HOURS` پنجره اولیه و `MT5__TICK_MAX_LOOKBACK_HOURS` سقف گشادشدن را تعیین می‌کند. نتیجه خالی پس از حداکثر lookback به‌جای خطای عمومی اتصال، صریحاً اعلام می‌کند که بازار ممکن است بسته باشد.
 
 ## ساعت منبع
 

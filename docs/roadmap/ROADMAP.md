@@ -14,8 +14,11 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Read-only official MT5 adapter
 - [x] Terminal and account health diagnostics
 - [x] Demo-only account validation
-- [x] Symbol discovery and metadata
-- [x] Tick and bar retrieval
+- [x] Symbol discovery by name, description, and canonical alias
+- [x] Tradability-aware filtering with disabled and unknown trade modes excluded
+- [x] Whole-catalog discovery rather than only the terminal watch window
+- [x] Tick and bar retrieval, including newest-tick selection on a closed market
+- [x] Documented broker symbol mapping with an observed catalog
 
 ## Phase 2 — Market Data Layer
 
@@ -49,7 +52,9 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Rolling z-score
 - [x] Half-life and lead/lag
 - [x] Rolling beta and stability
-- [x] Cointegration and stationarity tests
+- [x] Cointegration and stationarity tests using `statsmodels` ADF and KPSS
+- [x] Explicit unavailable reasons for degenerate or too-short residual series
+- [ ] Multiple-testing adjustment across discovered candidates
 
 ## Phase 6 — Discovery Engine
 

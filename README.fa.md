@@ -10,6 +10,8 @@
 
 فازهای زیرساخت تا پژوهش پیشرفته قطعی پیاده‌سازی شده‌اند. اکنون regime نوسان علی، کشف رابطه با گراف وابستگی، ارزیابی candidate روی bar panel، رتبه‌بندی chronological با ridge عددی، collection دو ترمینال و پژوهش چند broker وجود دارد. اجرای زنده همچنان غیرفعال است.
 
+کشف نماد کل کاتالوگ بروکر را بر اساس نام، توضیح و alias جست‌وجو می‌کند و گزارش می‌دهد کدام قاعده مطابقت کرده است. تشخیص ایستایی و هم‌انباشت از آزمون‌های Dickey-Fuller توسعه‌یافته و KPSS در `statsmodels` استفاده می‌کند، حداقل ۳۰ مشاهده هم‌تراز می‌خواهد و در نبود داده کافی به‌جای نتیجه، دلیل را بازمی‌گرداند.
+
 ## قابلیت‌ها
 
 - آداپتور فقط‌خواندنی MetaTrader 5 برای tick، bar، symbol، حساب و مشخصات ترمینال
@@ -19,6 +21,9 @@
 - تفکیک اختلاف نظری از اختلاف آگاه به bid/ask
 - مدل هزینه قابل پیکربندی
 - تحلیل Pearson، Spearman، rolling z-score، half-life و lead/lag
+- تشخیص ایستایی و هم‌انباشت با آزمون‌های ADF و KPSS از `statsmodels` و دلیل صریح در حالت نامشخص
+- کشف نماد بر اساس نام بروکر، توضیح بروکر و alias
+- فیلتر آگاه به قابلیت معامله، به‌طوری که نماد غیرقابل‌معامله هرگز به‌عنوان نامزد نمایش داده نشود
 - ابزارهای کیفیت داده و هم‌ترازی timestamp
 - چند پروفایل broker و collection ترتیبی فقط‌خواندنی
 - datasetهای tick و bar در Parquet همراه manifest بازتولیدپذیری
@@ -90,12 +95,16 @@ MT5__TERMINAL_PATH=C:\\path\\to\\terminal64.exe
 MT5__DATA_PATH=C:\\path\\to\\terminal\\data
 MT5__DEMO_ONLY=true
 MT5__SOURCE_UTC_OFFSET_MINUTES=0
+MT5__TICK_LOOKBACK_HOURS=24
+MT5__TICK_MAX_LOOKBACK_HOURS=168
 BROKERS={"DEMO":{"terminal_path":"C:\\\\path\\\\to\\\\demo\\\\terminal64.exe","demo_only":true}}
 DATA__TIMEZONE=UTC
 DATA__MAX_ALIGNMENT_DELAY_MS=100
 ```
 
-آداپتور عمداً تنظیم password غیرخالی را نمی‌پذیرد. احراز هویت MT5 باید توسط خود ترمینال مدیریت شود. مقدار `source_utc_offset_minutes` پیش‌فرض صفر است و فقط پس از تأیید اختلاف ساعت منبع تغییر می‌کند؛ timestamp اصلی MT5 در `source_timestamp` حفظ می‌شود.
+مقادیر خالی اختیاری مانند `MT5__LOGIN=` به معنای «پیکربندی‌نشده» است، نه خطای اعتبارسنجی. آداپتور عمداً تنظیم password غیرخالی را نمی‌پذیرد. احراز هویت MT5 باید توسط خود ترمینال مدیریت شود. مقدار `source_utc_offset_minutes` پیش‌فرض صفر است و فقط پس از تأیید اختلاف ساعت منبع تغییر می‌کند؛ timestamp اصلی MT5 در `source_timestamp` حفظ می‌شود.
+
+درخواست tick به عقب از زمان جاری جست‌وجو می‌کند و تا زمانی که tick کافی پیدا نشود پنجره را گشاد می‌کند، زیرا خارج از ساعت معامله آخرین tick می‌تواند ساعت‌ها عقب‌تر باشد. `MT5__TICK_LOOKBACK_HOURS` پنجره اولیه و `MT5__TICK_MAX_LOOKBACK_HOURS` سقف آن را تعیین می‌کند.
 
 ## شروع سریع
 
@@ -103,7 +112,10 @@ DATA__MAX_ALIGNMENT_DELAY_MS=100
 python -m market_relationship_discovery doctor
 python -m market_relationship_discovery mt5-info
 python -m market_relationship_discovery symbols --search gold
+python -m market_relationship_discovery symbols --search silver --json
+python -m market_relationship_discovery symbols --all
 python -m market_relationship_discovery collect --broker-profile DEMO --symbol XAUUSD --symbol EURUSD --symbol XAUEUR --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery collect --symbol XAUUSD --data-type tick --limit 500
 python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile BROKER_A --broker-profile BROKER_B --symbol EURUSD --data-type tick --limit 500
 python -m market_relationship_discovery symbol-specs --broker-profile DEMO --symbol EURUSD --output config/specs/demo_eurusd.json
 python -m market_relationship_discovery research --broker-profile DEMO --relationship XAUEUR_SYNTHETIC --limit 500
@@ -138,6 +150,7 @@ mypy
 
 - [راهنمای انگلیسی](README.md)
 - [راه‌اندازی MT5](docs/mt5/SETUP.fa.md)
+- [نگاشت نمادها و نام‌گذاری بروکر](docs/mt5/SYMBOL_MAPPING.fa.md)
 - [آموزش شروع سریع](docs/tutorials/QUICKSTART.fa.md)
 - [روش‌شناسی پژوهش](docs/research/METHODOLOGY.fa.md)
 - [بک‌تست](docs/research/BACKTESTING.fa.md)

@@ -2,6 +2,31 @@
 
 All notable changes follow semantic versioning.
 
+## [1.1.0] - 2026-09-26
+
+### Fixed
+
+- Stationarity diagnostics no longer report false-positive cointegration. The hand-rolled augmented Dickey-Fuller approximation inverted a near-singular OLS design matrix and returned a statistic of 3.7e16 with a zero p-value on real Alpari XAUEUR data, where a proper test gives ADF p=0.82 and KPSS p=0.01, both agreeing the residuals are not stationary.
+- A constant residual series is reported as `unavailable` with a reason instead of returning a `-1e308` sentinel that was presented as strong cointegration evidence.
+- Stationarity testing requires at least 30 aligned observations and reports `unavailable` below that.
+- `recent_ticks` returns the newest ticks in the window. `copy_ticks_from` returns the oldest ticks at or after the requested time, so it silently collected stale data.
+- Tick collection no longer fails outside trading hours. A search anchored at the current time returns an empty array rather than `None`, which was reported as no data.
+- Blank optional configuration values such as `MT5__LOGIN=` load as "not configured" instead of failing validation, so the shipped example configuration works when copied verbatim.
+- CLI output reconfigures the console to UTF-8 because broker symbol descriptions contain non-ASCII text that raised `UnicodeEncodeError` on narrow code pages.
+
+### Added
+
+- Alias, description, and name aware symbol discovery that reports which rule matched
+- Tradability-aware filtering; a symbol with a disabled or unknown trade mode is excluded by default
+- Whole-catalog search instead of only the terminal watch window, with `catalog_size` and `tradable` counts
+- `symbols --visible-only`, `symbols --all`, and `symbols --json` output
+- `MT5Adapter.symbol_details` reading full broker metadata in a single MT5 call
+- `MT5__TICK_LOOKBACK_HOURS` and `MT5__TICK_MAX_LOOKBACK_HOURS` configuration with automatic window widening
+- `kpss_p_value_is_bounded` and `unavailable_reason` fields on stationarity results
+- `statsmodels` dependency replacing hand-rolled stationarity approximations
+- Bilingual symbol mapping documentation with an observed broker catalog
+- `.gitattributes` normalizing line endings
+
 ## [1.0.0] - 2026-09-25
 
 ### Added
