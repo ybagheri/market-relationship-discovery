@@ -2,6 +2,28 @@
 
 All notable changes follow semantic versioning.
 
+## [1.7.0] - 2026-09-26
+
+### Added
+
+- Latency sensitivity sweep reporting how far a capture verdict travels from its configured baseline
+- Fragility classification: `always_holds`, `stable`, `sensitive`, `knife_edge`, `nominal`, and `always_fails`
+- A `nominal` class for verdicts that survive arithmetically while capturing almost nothing, with baseline capturable fraction and captured share reported alongside
+- Adverse-move sweep against a fixed round trip
+- Episodes rebuilt from a persisted capture report, so a sweep needs no recollection or re-alignment
+- `compare-brokers --latency-grid-ms`, recorded in the provenance manifest
+- Sensitivity panel in the dashboard with a distinct warning per fragility class
+- Bilingual sensitivity documentation
+
+### Observed
+
+- XAUUSD classified `nominal` and fragile: the binary verdict holds from a 2 ms to a 2000 ms round trip, but only 2 of 16 episodes are capturable and the captured share of the edge falls from 14.6 percent to 0.6 percent while the binary answer never changes
+- BTCUSD classified `always_holds` and not fragile: 7 of 10 episodes remain capturable at a 20-second round trip, with 70.8 percent of the peak edge surviving
+
+### Fixed
+
+- The first sweep run classified the gold comparison as `stable`, which a binary survives check reports whenever any episode is capturable at every grid point. That is arithmetic stability presented as a result, and the classifier now judges materiality before stability.
+
 ## [1.6.1] - 2026-09-26
 
 ### Fixed

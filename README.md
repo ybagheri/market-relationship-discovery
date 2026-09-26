@@ -45,6 +45,7 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Fill feasibility against broker volume step and maximum, with partial-fill reporting
 - Overnight funding accrual including the triple-swap rollover
 - Latency capture comparing measured opportunity duration against round-trip time
+- Sensitivity sweep reporting how far a capture verdict travels from its assumption
 - Execution feasibility verdict with separate blocking and advisory reasons
 - Per-broker symbol labels so cross-broker research survives differing names
 - Symmetric mutual-nearest event-time matching with no duplicate quote reuse

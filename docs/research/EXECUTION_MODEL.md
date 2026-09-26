@@ -279,6 +279,77 @@ Bitcoin's persist for over a minute because both feeds are continuously active,
 so a crossable state survives many ticks. The latency model separates these
 regimes cleanly, and an episode count alone would not have.
 
+## Sensitivity of the capture verdict
+
+A single verdict is the output of a model at one point in a parameter space.
+Reporting it without that context invites the reader to treat an assumption as a
+measurement, so the platform sweeps the assumed inputs and reports how far the
+conclusion travels.
+
+The sweep never selects a favourable parameter. The configured baseline is the
+reference, and the useful output is the distance from that baseline to the point
+where the verdict fails. Episodes are rebuilt from the persisted capture report,
+so a sweep needs no recollection and no re-alignment of source data, and every
+grid point is one call into the same `LatencyCaptureModel` a single assessment
+uses.
+
+### Fragility classes
+
+| Class | Meaning |
+| --- | --- |
+| `always_holds` | Every swept value leaves a capturable episode |
+| `stable` | Material verdict that outlives the baseline across the range |
+| `sensitive` | Material, but only up to a value near or below the baseline |
+| `knife_edge` | Holds at a single swept value and fails immediately either side |
+| `nominal` | Survives arithmetically while capturing almost nothing |
+| `always_fails` | No swept value leaves a capturable episode |
+
+`nominal` exists because a binary survives check is too coarse on its own. A
+verdict can answer "yes, something is capturable" at every point on the grid
+while the captured share of the edge is negligible, and reporting that as stable
+would be more misleading than reporting nothing. The class is assigned when the
+baseline captures less than a quarter of the measured episodes, or less than a
+fifth of the peak edge.
+
+### Observed on two live instruments
+
+Both runs used the same grid from 1 ms to 10,000 ms per leg, against a 50 ms
+baseline.
+
+**XAUUSD — `nominal`, fragile**
+
+| Per leg | Round trip | Capturable | Mean captured edge | Share of peak |
+| --- | --- | --- | --- | --- |
+| 1 | 2 ms | 2 of 16 | 0.007488 | 14.6% |
+| 50 (baseline) | 100 ms | 2 of 16 | 0.006906 | 13.5% |
+| 250 | 500 ms | 2 of 16 | 0.004531 | 8.8% |
+| 2500 | 5000 ms | 0 of 16 | 0.000312 | 0.6% |
+| 10000 | 20000 ms | 0 of 16 | 0.000000 | 0.0% |
+
+The binary verdict holds from a 2 ms round trip all the way to 2000 ms, so a
+naive stability check would call this stable. It is not. Only 2 of 16 episodes
+are capturable, and the captured share of the edge falls from 14.6 percent to
+0.6 percent while the binary answer never changes. The sweep is what makes that
+visible.
+
+**BTCUSD — `always_holds`, not fragile**
+
+| Per leg | Round trip | Capturable | Mean captured edge | Share of peak |
+| --- | --- | --- | --- | --- |
+| 1 | 2 ms | 8 of 10 | 8.1995 | 91.6% |
+| 50 (baseline) | 100 ms | 8 of 10 | 8.1737 | 91.3% |
+| 2500 | 5000 ms | 7 of 10 | 7.2841 | 81.4% |
+| 10000 | 20000 ms | 7 of 10 | 6.3363 | 70.8% |
+
+Bitcoin's episodes last long enough that even a 20-second round trip leaves
+seven of ten capturable. The result is robust *to latency* — which says nothing
+about the contract incompatibility that blocks the same comparison for entirely
+different reasons.
+
+The two datasets demonstrate the distinction the class exists to draw. A sweep is
+what turns "capturable" into a statement about robustness rather than a single
+model output.
+
 ## Usage
 
 ```bash
