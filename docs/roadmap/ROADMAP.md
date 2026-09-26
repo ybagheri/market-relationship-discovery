@@ -44,7 +44,13 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Tick bid/ask cross-broker discrepancy, delay, frequency, and duration
 - [x] Contract specification capture and opportunity safety gate
 - [x] PnL-normalized contract-aware research edge
-- [ ] Funding, commission, margin, and partial-fill execution simulation
+- [x] Margin model that treats a broker-reported zero as not reported
+- [x] Leverage-derived margin with explicit source labelling
+- [x] Volume step and maximum fill feasibility with partial-fill reporting
+- [x] Overnight funding accrual including the triple-swap rollover
+- [x] Execution feasibility verdict integrated into the cross-broker summary
+- [x] Per-broker symbol labels so cross-broker research survives differing names
+- [ ] Reject, requote, and queue-position modelling
 
 ## Phase 5 — Statistical Research
 
@@ -87,6 +93,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Regime detection
 - [x] Graph-based relationship discovery
 - [x] Machine-learning-assisted ranking
+- [x] Two live demo brokers verified independently through profile-aware diagnostics
+- [x] Cross-broker studies across differing broker symbol names
 
 ## Phase 10 — Optional Execution
 

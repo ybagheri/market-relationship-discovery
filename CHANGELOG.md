@@ -2,6 +2,34 @@
 
 All notable changes follow semantic versioning.
 
+## [1.2.0] - 2026-09-26
+
+### Added
+
+- Margin model that treats a broker-reported `margin_initial` of `0.0` as *not reported* rather than free, with `broker_reported`, `leverage_derived`, and `unavailable` sources
+- Fill feasibility that reduces requested volume to the broker `volume_step` and `volume_max`, reporting a partial fill instead of silently truncating
+- Overnight funding accrual per night held, including the configurable triple-swap rollover weekday
+- `ExecutionAssessor` combining margin and fill feasibility into a verdict with separate blocking and advisory reasons
+- Execution feasibility reported in the cross-broker summary and experiment report, with a `_capital_unverified` classification suffix when margin cannot be determined
+- `COSTS__` configuration for volume, leverage, funding, minimum fill ratio, and holding days
+- `compare-brokers --volume`, `--leverage`, and `--minimum-fill-ratio`
+- `compare-brokers --symbol-a` and `--symbol-b` for brokers that name an instrument differently
+- `doctor --broker-profile` and `mt5-info --broker-profile` so every configured terminal is verifiable
+- Bilingual execution and capital model documentation, including two live two-broker case studies
+
+### Fixed
+
+- `doctor` and `mt5-info` had no broker profile flag, so a second configured demo terminal could not be diagnosed at all
+- `compare-brokers` required one symbol label for both feeds, which made cross-broker research impossible whenever broker names differ. The observed configuration publishes bitcoin as `BITCOIN` on one broker and `BTCUSD` on the other.
+- `doctor` symbol discovery compared canonical names literally instead of resolving through the alias table
+
+### Observed on two live demo brokers
+
+- `Alpari-MT5-Demo` build 6184 leverage 500 and `AMarkets-Demo` build 6230 leverage 1000 are distinct brokers
+- EURUSD contracts are compatible and produced zero crossable observations
+- XAUUSD reports a ten times tick-value difference between brokers; the maximum normalized net PnL was +23.10 while the mean was -14.50
+- BTCUSD is blocked by the contract gate because one broker quotes in whole dollars, so the apparent 5.98 price difference is mostly rounding rather than a dislocation
+
 ## [1.1.0] - 2026-09-26
 
 ### Fixed

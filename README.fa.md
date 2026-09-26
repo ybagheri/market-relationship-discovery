@@ -41,6 +41,11 @@
 - compatibility gate که در نیاز به normalization، opportunity را block می‌کند
 - collection موازی با process مستقل برای هر پروفایل broker
 - نرمال‌سازی volume و PnL آگاه به قرارداد
+- مدل margin که صفر اعلام‌شده بروکر را «گزارش‌نشده» می‌داند، هرگز رایگان
+- امکان پر شدن با رعایت گام و سقف حجم broker، همراه گزارش partial fill
+- انباشت هزینه نگهداری شبانه شامل گردش سه‌برابری
+- نتیجه‌گیری امکان اجرا با تفکیک دلایل مسدودکننده و مشورتی
+- نام نماد مجزا برای هر broker تا پژوهش بین‌بروکری با نام‌های متفاوت ممکن بماند
 - تطبیق متقارن mutual-nearest با عدم reuse تکراری quote
 - حفظ raw tick و aggregation صریح timestamp
 - چارچوب کاتالوگ رابطه و تولید نامزد
@@ -110,7 +115,8 @@ DATA__MAX_ALIGNMENT_DELAY_MS=100
 
 ```bash
 python -m market_relationship_discovery doctor
-python -m market_relationship_discovery mt5-info
+python -m market_relationship_discovery doctor --broker-profile ALPARI_2
+python -m market_relationship_discovery mt5-info --broker-profile ALPARI_2
 python -m market_relationship_discovery symbols --search gold
 python -m market_relationship_discovery symbols --search silver --json
 python -m market_relationship_discovery symbols --all
@@ -128,6 +134,25 @@ python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.
 ```
 
 روابط اولیه شامل `EURGBP = EURUSD / GBPUSD`، `EURJPY = EURUSD * USDJPY`، `GBPJPY = GBPUSD * USDJPY`، `XAUEUR = XAUUSD / EURUSD` و نسبت طلا به نقره است.
+
+## چند broker
+
+هر broker پیکربندی‌شده یک پروفایل مستقل و فقط‌دمو با نگاشت نماد مخصوص خود است.
+آن‌ها را جداگانه تشخیص دهید، چون موفقیت یک پروفایل درباره پروفایل دیگر چیزی نمی‌گوید:
+
+```bash
+python -m market_relationship_discovery doctor --broker-profile ALPARI_1
+python -m market_relationship_discovery doctor --broker-profile ALPARI_2
+python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile ALPARI_1 --broker-profile ALPARI_2 --symbol EURUSD --data-type tick --limit 500
+python -m market_relationship_discovery compare-brokers a.parquet b.parquet --broker-a Alpari-MT5-Demo --broker-b AMarkets-Demo --symbol BTCUSD --symbol-a BITCOIN --symbol-b BTCUSD --contract-a specs/a.json --contract-b specs/b.json --volume 1.0 --leverage 500
+```
+
+بروکرها به‌ندرت یک ابزار را یکسان نام‌گذاری می‌کنند، و ticker یکسان به‌معنای قرارداد
+یکسان نیست. دو بروکر دمو که در ۲۰۲۶-۰۹-۲۶ مشاهده شدند بیت‌کوین را با نام `BITCOIN`
+و `BTCUSD` منتشر می‌کنند، طلا را با اختلاف ده‌برابری در tick value قیمت‌گذاری می‌کنند،
+و بیت‌کوین را در یکی تا سنت و در دیگری به دلار کامل. دروازه قرارداد این مقایسه را
+مسدود می‌کند و فرصت کاذب گزارش نمی‌دهد. [مدل اجرا و سرمایه](docs/research/EXECUTION_MODEL.fa.md)
+را ببینید.
 
 ## داشبورد
 
@@ -158,6 +183,7 @@ mypy
 - [پایداری Monte Carlo](docs/research/MONTE_CARLO.fa.md)
 - [مقایسه چند بروکر](docs/research/CROSS_BROKER.fa.md)
 - [مشخصات قرارداد](docs/research/CONTRACT_SPECIFICATION.fa.md)
+- [مدل اجرا و سرمایه](docs/research/EXECUTION_MODEL.fa.md)
 - [collection موازی MT5](docs/mt5/PARALLEL_COLLECTION.fa.md)
 - [نرمال‌سازی PnL](docs/research/PNL_NORMALIZATION.fa.md)
 - [همگام‌سازی event-time](docs/research/EVENT_TIME.fa.md)

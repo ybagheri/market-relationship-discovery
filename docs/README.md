@@ -12,6 +12,7 @@
 - [Monte Carlo robustness](research/MONTE_CARLO.md)
 - [Cross-broker comparison](research/CROSS_BROKER.md)
 - [Contract specifications](research/CONTRACT_SPECIFICATION.md)
+- [Execution and capital model](research/EXECUTION_MODEL.md)
 - [PnL normalization](research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](research/EVENT_TIME.md)
 - [Advanced discovery](research/ADVANCED_DISCOVERY.md)

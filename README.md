@@ -41,6 +41,11 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Compatibility gate that blocks opportunities when contract normalization is required
 - Process-isolated parallel collection with one worker process per broker profile
 - Contract-aware volume and PnL normalization for cross-broker edges
+- Margin model that treats a broker-reported zero as not reported, never free
+- Fill feasibility against broker volume step and maximum, with partial-fill reporting
+- Overnight funding accrual including the triple-swap rollover
+- Execution feasibility verdict with separate blocking and advisory reasons
+- Per-broker symbol labels so cross-broker research survives differing names
 - Symmetric mutual-nearest event-time matching with no duplicate quote reuse
 - Explicit raw tick preservation and configurable timestamp aggregation
 - Relationship catalog and candidate generation framework
@@ -110,7 +115,8 @@ Tick requests search backwards from the current time and widen the window while 
 
 ```bash
 python -m market_relationship_discovery doctor
-python -m market_relationship_discovery mt5-info
+python -m market_relationship_discovery doctor --broker-profile ALPARI_2
+python -m market_relationship_discovery mt5-info --broker-profile ALPARI_2
 python -m market_relationship_discovery symbols --search gold
 python -m market_relationship_discovery symbols --search silver --json
 python -m market_relationship_discovery symbols --all
@@ -128,6 +134,19 @@ python -m market_relationship_discovery compare-brokers examples\broker_a_ticks.
 ```
 
 The first relationship definitions include `EURGBP = EURUSD / GBPUSD`, `EURJPY = EURUSD * USDJPY`, `GBPJPY = GBPUSD * USDJPY`, `XAUEUR = XAUUSD / EURUSD`, and the Gold/Silver ratio.
+
+## Multiple brokers
+
+Each configured broker is an independent, demo-only profile with its own symbol mapping. Diagnose them separately, because a passing check on one profile says nothing about another:
+
+```bash
+python -m market_relationship_discovery doctor --broker-profile ALPARI_1
+python -m market_relationship_discovery doctor --broker-profile ALPARI_2
+python -m market_relationship_discovery collect --parallel --max-workers 2 --broker-profile ALPARI_1 --broker-profile ALPARI_2 --symbol EURUSD --data-type tick --limit 500
+python -m market_relationship_discovery compare-brokers a.parquet b.parquet --broker-a Alpari-MT5-Demo --broker-b AMarkets-Demo --symbol BTCUSD --symbol-a BITCOIN --symbol-b BTCUSD --contract-a specs/a.json --contract-b specs/b.json --volume 1.0 --leverage 500
+```
+
+Brokers rarely name an instrument identically, and a shared ticker does not imply a shared contract. Two demo brokers observed on 2026-09-26 publish bitcoin as `BITCOIN` and `BTCUSD`, quote gold with a ten times tick-value difference, and price bitcoin to the cent on one side and to whole dollars on the other. The contract gate blocks that comparison rather than reporting a false opportunity. See [execution and capital model](docs/research/EXECUTION_MODEL.md).
 
 ## Dashboard
 
@@ -158,6 +177,7 @@ mypy
 - [Monte Carlo robustness](docs/research/MONTE_CARLO.md)
 - [Cross-broker comparison](docs/research/CROSS_BROKER.md)
 - [Contract specifications](docs/research/CONTRACT_SPECIFICATION.md)
+- [Execution and capital model](docs/research/EXECUTION_MODEL.md)
 - [Parallel MT5 collection](docs/mt5/PARALLEL_COLLECTION.md)
 - [PnL normalization](docs/research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](docs/research/EVENT_TIME.md)
