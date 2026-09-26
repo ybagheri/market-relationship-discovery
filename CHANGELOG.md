@@ -2,6 +2,35 @@
 
 All notable changes follow semantic versioning.
 
+## [1.3.0] - 2026-09-26
+
+### Added
+
+- False-discovery control across the discovered candidate family, reusing `statsmodels` `multipletests` rather than a hand-rolled procedure
+- `bonferroni`, `holm`, `sidak`, `fdr_bh`, and `fdr_by` methods with `fdr_bh` as the default
+- Reporting of the number of tests and the rejections expected under the null, so a surviving candidate is read against the family it came from
+- Per-candidate raw and adjusted p-values, unadjusted and adjusted verdicts, and adjusted rank
+- Candidates excluded from the family when their stationarity test never ran, listed separately
+- `multiplicity` section in the advanced discovery report and its provenance manifest
+- `discover --multiplicity-method`
+- Multi-broker dashboard with a sidebar profile selector and per-profile health check
+- Per-profile symbol resolution in the market monitor, reusing `SymbolMapper`
+- Execution and capital verdict surfaced in the dashboard comparison views
+- Streamlit `AppTest` integration suite that executes the page script
+- Bilingual multiple-testing and dashboard documentation
+
+### Fixed
+
+- The dashboard assumed a single terminal, so a second configured demo broker was invisible
+- The dashboard market monitor requested quotes using canonical research names, so it could not read an instrument a broker publishes under a different label, such as `BITCOIN`
+- The dashboard market monitor requested each quote three times per row, tripling broker round-trips and able to mix values from different moments
+- Replaced `use_container_width` with `width`, whose Streamlit deprecation deadline has already passed
+
+### Observed
+
+- Against 1370 M1 bars spanning six symbols, two candidates were testable: `EURGBP_SYNTHETIC` survived with an adjusted p-value of 0.0013, while `XAUEUR_SYNTHETIC` did not survive at 0.056
+- The same relationship produced different stationarity verdicts on 300 and 1500 bar samples, so a single run is not a discovery
+
 ## [1.2.0] - 2026-09-26
 
 ### Added

@@ -13,6 +13,7 @@
 - [Cross-broker comparison](research/CROSS_BROKER.md)
 - [Contract specifications](research/CONTRACT_SPECIFICATION.md)
 - [Execution and capital model](research/EXECUTION_MODEL.md)
+- [Multiple testing and discovery](research/MULTIPLE_TESTING.md)
 - [PnL normalization](research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](research/EVENT_TIME.md)
 - [Advanced discovery](research/ADVANCED_DISCOVERY.md)

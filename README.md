@@ -56,6 +56,8 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Bar price-panel loading from wide or long CSV/Parquet
 - Historical candidate evaluation with discrepancy, correlation, persistence, and regime metrics
 - Deterministic chronological NumPy ridge ranking with out-of-sample RMSE
+- False-discovery control across the discovered candidate family
+- Multi-broker dashboard with per-profile symbol resolution and health checks
 - Rolling beta stability and retrospective cointegration/stationarity diagnostics
 
 ## Safety model
@@ -178,6 +180,7 @@ mypy
 - [Cross-broker comparison](docs/research/CROSS_BROKER.md)
 - [Contract specifications](docs/research/CONTRACT_SPECIFICATION.md)
 - [Execution and capital model](docs/research/EXECUTION_MODEL.md)
+- [Multiple testing and discovery](docs/research/MULTIPLE_TESTING.md)
 - [Parallel MT5 collection](docs/mt5/PARALLEL_COLLECTION.md)
 - [PnL normalization](docs/research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](docs/research/EVENT_TIME.md)

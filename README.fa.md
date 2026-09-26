@@ -46,6 +46,8 @@
 - انباشت هزینه نگهداری شبانه شامل گردش سه‌برابری
 - نتیجه‌گیری امکان اجرا با تفکیک دلایل مسدودکننده و مشورتی
 - نام نماد مجزا برای هر broker تا پژوهش بین‌بروکری با نام‌های متفاوت ممکن بماند
+- کنترل کشف کاذب در خانواده نامزدهای کشف‌شده
+- داشبورد چند broker با تطبیق نماد و بررسی سلامت در هر پروفایل
 - تطبیق متقارن mutual-nearest با عدم reuse تکراری quote
 - حفظ raw tick و aggregation صریح timestamp
 - چارچوب کاتالوگ رابطه و تولید نامزد
@@ -184,6 +186,7 @@ mypy
 - [مقایسه چند بروکر](docs/research/CROSS_BROKER.fa.md)
 - [مشخصات قرارداد](docs/research/CONTRACT_SPECIFICATION.fa.md)
 - [مدل اجرا و سرمایه](docs/research/EXECUTION_MODEL.fa.md)
+- [آزمون چندگانه و کشف](docs/research/MULTIPLE_TESTING.fa.md)
 - [collection موازی MT5](docs/mt5/PARALLEL_COLLECTION.fa.md)
 - [نرمال‌سازی PnL](docs/research/PNL_NORMALIZATION.fa.md)
 - [همگام‌سازی event-time](docs/research/EVENT_TIME.fa.md)

@@ -60,7 +60,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Rolling beta and stability
 - [x] Cointegration and stationarity tests using `statsmodels` ADF and KPSS
 - [x] Explicit unavailable reasons for degenerate or too-short residual series
-- [ ] Multiple-testing adjustment across discovered candidates
+- [x] Multiple-testing adjustment across discovered candidates
+- [ ] Candidate-family de-duplication for correlated duplicates
 
 ## Phase 6 — Discovery Engine
 
@@ -82,6 +83,10 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Persistent demo/research warning
 - [x] Overview, monitor, catalog, and limitations views
 - [x] Interactive discrepancy and broker charts
+- [x] Multi-broker profile selection with per-profile symbol resolution
+- [x] Per-profile health check that reports failure as data
+- [x] Execution and capital verdict surfaced from persisted reports
+- [x] Script-level render tests through Streamlit AppTest
 
 ## Phase 9 — Advanced Research
 
