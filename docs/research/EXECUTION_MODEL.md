@@ -126,6 +126,83 @@ was `blocked_by_contract_specification` with zero opportunities.
 Without the contract gate a researcher would have seen a six-dollar cross-broker
 bitcoin spread and concluded arbitrage. The gate is what prevents that.
 
+## Latency capture
+
+An opportunity count is misleading on its own. A crossable tick that existed for
+a single instant is counted exactly like one that stayed open for a minute, and
+a round trip takes time.
+
+The latency model compares each **measured** episode against the time an order
+actually takes. It introduces no new data: the durations come from the episodes
+the cross-broker comparison already measured.
+
+The capturable fraction is the share of an episode's life during which the
+position could still be open when the round trip completes, which under linear
+decay is `(duration − round_trip) / duration`. An episode shorter than the round
+trip captures nothing, because the edge closes before the trade completes.
+
+| Verdict | Meaning |
+| --- | --- |
+| `capturable` | Retained at least `minimum_capturable_fraction` of the episode |
+| `marginal` | Survived the round trip but left too little to be worth taking |
+| `not_capturable` | Closed before the round trip completed, or the adverse move erased it |
+
+When no episode is capturable the classification gains
+`_not_capturable_within_latency`.
+
+### Observed on two live demo brokers
+
+Real XAUUSD comparison between `Alpari-MT5-Demo` and `AMarkets-Demo`, 500 ticks
+per side, 16 measured episodes:
+
+| Round trip | Capturable | Median episode | Mean peak edge | Mean captured edge |
+| --- | --- | --- | --- | --- |
+| 100 ms (50 ms × 2 legs) | 2 of 16 | 0 ms | 0.0513 | 0.0069 |
+| 6000 ms | 0 of 16 | 0 ms | 0.0513 | 0.0000 |
+
+Reporting "16 opportunities" without this was misleading by roughly an order of
+magnitude. The median episode lasted **zero** milliseconds: most crossable
+observations were a single aligned tick. At a 100 ms round trip only the two
+episodes that persisted for six seconds could be acted on at all, and the mean
+capturable edge fell to about 13 percent of the peak.
+
+This is the clearest argument for reporting feasibility alongside opportunity
+counts. The episode count is real; the question is whether any of it survives
+the time it takes to act.
+
+### Assumptions and limits
+
+Decay is modelled as **linear**. A different decay shape would change the
+captured fraction, and assuming a shape while presenting the result as measured
+would be dishonest, so the simplest assumption is used and stated.
+
+The adverse-move allowance defaults to zero and is a configured input, not an
+estimate. It is reported visibly so it cannot be mistaken for a measured
+quantity.
+
+**Not modelled:** queue position, order-book depth, partial-fill probability,
+exchange rejection, and market impact. None of these can be observed from
+research data. A `capturable` verdict means no *known* constraint rules the
+episode out; it is not a prediction that a fill occurs.
+
+### Configuration
+
+```bash
+python -m market_relationship_discovery compare-brokers a.parquet b.parquet \
+  --broker-a Alpari-MT5-Demo --broker-b AMarkets-Demo --symbol XAUUSD \
+  --kind tick --latency-per-leg-ms 50 --adverse-move-allowance 0.0005 \
+  --minimum-capturable-fraction 0.25
+```
+
+```dotenv
+COSTS__LATENCY_ASSUMPTION_MS=50
+COSTS__ADVERSE_MOVE_ALLOWANCE=0.0
+COSTS__MINIMUM_CAPTURABLE_FRACTION=0.25
+```
+
+`COSTS__LATENCY_ASSUMPTION_MS` existed in the configuration and was passed into
+`CostModel`, but was never used in any calculation. It now drives this model.
+
 ## Usage
 
 ```bash

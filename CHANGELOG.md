@@ -2,6 +2,26 @@
 
 All notable changes follow semantic versioning.
 
+## [1.6.0] - 2026-09-26
+
+### Added
+
+- Latency capture model comparing each measured opportunity episode against the time a round trip takes
+- Capturable fraction under a stated linear decay assumption, with capturable, marginal, and not-capturable verdicts
+- `_not_capturable_within_latency` classification suffix when no episode outlasts the round trip
+- `compare-brokers --latency-per-leg-ms`, `--adverse-move-allowance`, and `--minimum-capturable-fraction`
+- `COSTS__ADVERSE_MOVE_ALLOWANCE` and `COSTS__MINIMUM_CAPTURABLE_FRACTION` configuration
+- Latency capture block in the experiment payload and a dashboard panel beside the execution verdict
+
+### Fixed
+
+- `EpisodeCapture.is_capturable` was inverted, so a not-capturable episode reported itself as capturable
+- `COSTS__LATENCY_ASSUMPTION_MS` was passed into `CostModel` but never used in any calculation; it now drives the latency model
+
+### Observed
+
+- Real two-broker XAUUSD comparison reported 16 opportunity episodes, but at a 100 ms round trip only 2 were capturable. The median episode lasted 0 ms because most crossable observations were a single aligned tick, and the mean captured edge fell from 0.0513 to 0.0069, roughly a thirteenth of the peak. At a 6000 ms round trip nothing was capturable. Reporting the episode count alone overstated the result by about an order of magnitude.
+
 ## [1.5.0] - 2026-09-26
 
 ### Added
