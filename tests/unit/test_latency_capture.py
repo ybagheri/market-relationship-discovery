@@ -26,7 +26,15 @@ def episode(label: str, duration_ms: float, peak_edge: float = 1.0) -> Episode:
 def test_round_trip_multiplies_latency_by_legs() -> None:
     assert RoundTripAssumption(latency_per_leg_ms=50, legs=2).round_trip_ms == 100.0
     assert RoundTripAssumption(latency_per_leg_ms=20, legs=3).round_trip_ms == 60.0
-    assert RoundTripAssumption(latency_per_leg_ms=0, legs=2).round_trip_ms == 0.0
+
+
+def test_a_tiny_round_trip_still_captures_almost_everything() -> None:
+    report = LatencyCaptureModel().assess(
+        [episode("EP000", 10_000.0, peak_edge=0.5)],
+        RoundTripAssumption(latency_per_leg_ms=1.0, legs=2),
+    )
+
+    assert report.captures[0].capturable_fraction == pytest.approx(0.9998)
 
 
 def test_an_episode_shorter_than_the_round_trip_captures_nothing() -> None:
@@ -55,14 +63,17 @@ def test_a_long_episode_retains_most_of_its_edge() -> None:
     assert report.survives is True
 
 
-def test_a_zero_latency_assumption_captures_the_full_edge() -> None:
-    report = LatencyCaptureModel().assess(
-        [episode("EP000", 10.0, peak_edge=0.5)],
-        RoundTripAssumption(latency_per_leg_ms=0.0),
-    )
+def test_a_zero_latency_assumption_is_refused() -> None:
+    """A zero round trip would report every episode as fully capturable.
 
-    assert report.captures[0].capturable_fraction == 1.0
-    assert report.captures[0].captured_edge == pytest.approx(0.5)
+    An absent latency assumption is unknown, not free, the same way a
+    broker-reported margin of zero is unknown rather than free margin.
+    """
+    with pytest.raises(ValueError, match="must be positive"):
+        RoundTripAssumption(latency_per_leg_ms=0.0)
+
+    with pytest.raises(ValueError, match="must be positive"):
+        RoundTripAssumption(latency_per_leg_ms=-5.0)
 
 
 def test_a_partially_surviving_episode_is_marked_marginal() -> None:
@@ -177,8 +188,6 @@ def test_episodes_are_validated() -> None:
 
 
 def test_assumptions_are_validated() -> None:
-    with pytest.raises(ValueError, match="latency_per_leg_ms"):
-        RoundTripAssumption(latency_per_leg_ms=-1.0)
     with pytest.raises(ValueError, match="at least one leg"):
         RoundTripAssumption(legs=0)
     with pytest.raises(ValueError, match="adverse_move_allowance"):

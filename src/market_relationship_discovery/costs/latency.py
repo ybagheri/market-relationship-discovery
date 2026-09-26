@@ -69,7 +69,15 @@ class Episode:
 
 @dataclass(frozen=True, slots=True)
 class RoundTripAssumption:
-    """Time and adverse-move assumptions for completing both legs."""
+    """Time and adverse-move assumptions for completing both legs.
+
+    Latency is deliberately required to be positive. A zero round trip reports
+    every episode as fully capturable, which is the most flattering answer the
+    model can produce, and it is the answer a forgotten configuration value
+    silently yields. The same reasoning that treats a broker-reported margin of
+    zero as *not reported* applies here: an absent latency assumption is unknown,
+    not free.
+    """
 
     latency_per_leg_ms: float = 50.0
     legs: int = 2
@@ -77,8 +85,11 @@ class RoundTripAssumption:
     minimum_capturable_fraction: float = 0.25
 
     def __post_init__(self) -> None:
-        if self.latency_per_leg_ms < 0:
-            raise ValueError("latency_per_leg_ms cannot be negative")
+        if self.latency_per_leg_ms <= 0:
+            raise ValueError(
+                "latency_per_leg_ms must be positive; a zero round trip would report "
+                "every episode as fully capturable"
+            )
         if self.legs < 1:
             raise ValueError("a round trip needs at least one leg")
         if self.adverse_move_allowance < 0:
@@ -203,9 +214,7 @@ class LatencyCaptureModel:
         round_trip = assumption.round_trip_ms
         captures: list[EpisodeCapture] = []
         for episode in episodes:
-            if round_trip <= 0:
-                fraction = 1.0
-            elif episode.duration_ms <= round_trip:
+            if episode.duration_ms <= round_trip:
                 fraction = 0.0
             else:
                 fraction = (episode.duration_ms - round_trip) / episode.duration_ms

@@ -84,8 +84,11 @@ class CrossBrokerRequest:
             raise ValueError("leverage must be positive when provided")
         if not 0.0 <= self.minimum_fill_ratio <= 1.0:
             raise ValueError("minimum_fill_ratio must be between zero and one")
-        if self.latency_per_leg_ms < 0:
-            raise ValueError("latency_per_leg_ms cannot be negative")
+        if self.latency_per_leg_ms <= 0:
+            raise ValueError(
+                "latency_per_leg_ms must be positive; a zero round trip would report every "
+                "episode as fully capturable"
+            )
         if self.adverse_move_allowance < 0:
             raise ValueError("adverse_move_allowance cannot be negative")
         if not 0.0 <= self.minimum_capturable_fraction <= 1.0:
