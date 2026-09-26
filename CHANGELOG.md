@@ -2,6 +2,31 @@
 
 All notable changes follow semantic versioning.
 
+## [1.4.0] - 2026-09-26
+
+### Added
+
+- Cross-symbol coverage reporting: per-symbol observations, first and last timestamp, coverage fraction, and largest gap
+- Largest-shared-window analysis so discovery runs only on genuinely comparable data
+- Greedy subset selection when no symbol spans a window, because choosing by column order pairs instruments that never trade at the same time
+- Actionable failure when no usable window exists, naming the problem, the affected symbols, and the remedy
+- Candidate de-duplication keyed on target plus a canonical formula, reusing the existing `FormulaParser`
+- Associative flattening of multiplication and addition chains before sorting, so `A*B*C` and `C*B*A` agree
+- `contested` flag and count when the ADF and KPSS verdicts disagree
+- `discover --minimum-symbols-for-window`
+- Coverage and de-duplication sections in the advanced discovery report and provenance manifest
+- Bilingual panel coverage and candidate family documentation
+
+### Fixed
+
+- A panel whose symbols covered different calendar ranges failed as `prices must be finite positive values` from a statistics routine, which said nothing about the misalignment that caused it. Observed on a real Alpari demo account where one nine-symbol request left USDJPY ending sixteen days before EURUSD, and zero timestamps were shared by every symbol.
+- Candidates differing only in name, whitespace, or redundant grouping were counted as separate tests, inflating the family and making a false-discovery correction stricter for no reason
+
+### Observed
+
+- The greedy subset pass selected `EURGBP` and `EURJPY` with 1500 shared rows, where alphabetical order would have paired `GBPJPY` with `EURGBP`, which never trade at the same time
+- `EURGBP_SYNTHETIC` survived correction at an adjusted p-value of 0.0013 but is contested, because its stationarity tests disagreed
+
 ## [1.3.0] - 2026-09-26
 
 ### Added

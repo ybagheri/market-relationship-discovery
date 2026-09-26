@@ -14,6 +14,7 @@
 - [Contract specifications](research/CONTRACT_SPECIFICATION.md)
 - [Execution and capital model](research/EXECUTION_MODEL.md)
 - [Multiple testing and discovery](research/MULTIPLE_TESTING.md)
+- [Panel coverage and candidate families](research/PANEL_COVERAGE.md)
 - [PnL normalization](research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](research/EVENT_TIME.md)
 - [Advanced discovery](research/ADVANCED_DISCOVERY.md)

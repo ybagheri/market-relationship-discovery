@@ -62,7 +62,8 @@ The `multiplicity` block of an advanced discovery report contains:
 | `unadjusted_rejections` | Candidates that looked significant read individually |
 | `adjusted_rejections` | Candidates that survive the correction |
 | `retained_after_correction` | Count surviving, and significant before correction |
-| `hypotheses` | Per-candidate raw and adjusted p-value, verdict, and rank |
+| `contested` | Candidates whose ADF and KPSS verdicts disagreed |
+| `hypotheses` | Per-candidate raw and adjusted p-value, verdict, rank, and contested flag |
 
 A candidate is reported as `survived_correction` only when it is both rejected
 by the procedure and individually significant. The distinction matters: a
@@ -70,6 +71,17 @@ candidate can pass the procedure while being individually weak.
 
 Comparing `unadjusted_rejections` with `adjusted_rejections` shows how much of
 the apparent discovery was chance.
+
+### Contested results
+
+The family is keyed on the augmented Dickey-Fuller p-value. When the KPSS test
+contradicts it, the verdict rests on one of two conflicting tests, so the
+candidate is marked `contested`.
+
+This is not a formality. On real data `EURGBP_SYNTHETIC` survived correction with
+an adjusted p-value of 0.0013 while its two stationarity tests disagreed.
+Reported as a single number it read as a clean result; reported as surviving and
+contested it reads correctly.
 
 ## What a correction does not do
 

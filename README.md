@@ -57,6 +57,9 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Historical candidate evaluation with discrepancy, correlation, persistence, and regime metrics
 - Deterministic chronological NumPy ridge ranking with out-of-sample RMSE
 - False-discovery control across the discovered candidate family
+- Candidate de-duplication by canonical formula before testing
+- Cross-symbol coverage reporting and largest-shared-window analysis
+- Contested flag when ADF and KPSS verdicts disagree
 - Multi-broker dashboard with per-profile symbol resolution and health checks
 - Rolling beta stability and retrospective cointegration/stationarity diagnostics
 
@@ -181,6 +184,7 @@ mypy
 - [Contract specifications](docs/research/CONTRACT_SPECIFICATION.md)
 - [Execution and capital model](docs/research/EXECUTION_MODEL.md)
 - [Multiple testing and discovery](docs/research/MULTIPLE_TESTING.md)
+- [Panel coverage and candidate families](docs/research/PANEL_COVERAGE.md)
 - [Parallel MT5 collection](docs/mt5/PARALLEL_COLLECTION.md)
 - [PnL normalization](docs/research/PNL_NORMALIZATION.md)
 - [Event-time synchronization](docs/research/EVENT_TIME.md)

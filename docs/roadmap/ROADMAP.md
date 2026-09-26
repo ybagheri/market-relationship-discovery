@@ -61,7 +61,10 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Cointegration and stationarity tests using `statsmodels` ADF and KPSS
 - [x] Explicit unavailable reasons for degenerate or too-short residual series
 - [x] Multiple-testing adjustment across discovered candidates
-- [ ] Candidate-family de-duplication for correlated duplicates
+- [x] Cross-symbol coverage reporting and largest-shared-window analysis
+- [x] Candidate-family de-duplication by canonical formula
+- [x] Contested flag when stationarity tests disagree
+- [ ] Semantics-aware formula equivalence beyond syntactic canonicalisation
 
 ## Phase 6 — Discovery Engine
 
