@@ -48,6 +48,36 @@ The broker view plots aligned `a_mid` and `b_mid` values using the broker labels
 
 Both comparison views show the execution verdict recorded with the report: whether the sized position is ruled out by a known constraint, whether capital was verified, the total margin across both legs, the binding fill ratio, and the reasons behind the verdict. A report written before this layer existed says so explicitly, because the absence of a verdict must not be read as approval.
 
+## Discovery
+
+The `Discovery` tab reads persisted `advanced_relationship_discovery` reports.
+This is the tab that distinguishes evidence from intent: the Relationship
+Explorer shows the declared catalog, which states what the project looks for,
+while this tab shows what a real run actually found.
+
+It presents:
+
+- the multiplicity summary — method, alpha, tests, expected false positives,
+  unadjusted rejections, and rejections after correction
+- a grouped bar chart of raw against adjusted p-value per candidate, with the
+  alpha threshold marked, so the cost of the correction is visible
+- a candidate table joining significance onto each candidate's evaluation
+  metrics, with `survived_correction` and `contested` columns
+- an explicit warning listing contested candidates, where the ADF and KPSS
+  stationarity tests disagreed and the verdict rests on one of two conflicting
+  tests
+- a per-symbol coverage chart with excluded symbols greyed, giving the context
+  every candidate on that panel was computed under
+- collapsed duplicate candidates, unusable formulas, coverage findings, and the
+  limitations recorded with the run
+
+A candidate that survived correction is still not tradable. Costs, contract
+compatibility, and execution feasibility are separate gates, and the tab says so.
+
+Reports are read defensively: a partially written report degrades to the
+information it does contain rather than raising, so one interrupted run cannot
+break the page.
+
 ## Safety and limitations
 
 Dashboard code does not read or display account passwords or logins. Charts remain descriptive: they add no funding, commission, margin, slippage, latency, or partial-fill modelling beyond what the report already records. Use the underlying research and validation reports before drawing conclusions.

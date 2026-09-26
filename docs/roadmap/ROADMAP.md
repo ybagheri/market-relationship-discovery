@@ -90,6 +90,7 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Per-profile health check that reports failure as data
 - [x] Execution and capital verdict surfaced from persisted reports
 - [x] Script-level render tests through Streamlit AppTest
+- [x] Evaluated discovery results surfaced with significance, contested flags, and coverage
 
 ## Phase 9 — Advanced Research
 

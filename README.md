@@ -61,6 +61,7 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Cross-symbol coverage reporting and largest-shared-window analysis
 - Contested flag when ADF and KPSS verdicts disagree
 - Multi-broker dashboard with per-profile symbol resolution and health checks
+- Discovery dashboard separating evaluated evidence from the declared catalog
 - Rolling beta stability and retrospective cointegration/stationarity diagnostics
 
 ## Safety model

@@ -2,6 +2,23 @@
 
 All notable changes follow semantic versioning.
 
+## [1.5.0] - 2026-09-26
+
+### Added
+
+- Discovery tab in the research dashboard, reading persisted `advanced_relationship_discovery` reports
+- Raw against adjusted p-value chart per candidate with the alpha threshold, making the cost of false-discovery control visible
+- Per-symbol panel coverage chart with excluded symbols greyed, giving the context candidates were computed under
+- Candidate table joining significance, `survived_correction`, and `contested` onto each candidate's evaluation metrics
+- Explicit warning listing contested candidates where the stationarity tests disagreed
+- `list_discovery_reports`, `load_discovery_report`, `candidate_frame`, and `coverage_frame` in the report loaders
+- Typed report readers `as_count`, `as_float`, `as_records`, and `as_str_list` so a partially written report degrades instead of raising
+- Discovery tab render tests and report loader unit tests
+
+### Changed
+
+- The Relationship Explorer is now captioned to distinguish the declared catalog from evaluated evidence
+
 ## [1.4.0] - 2026-09-26
 
 ### Added
