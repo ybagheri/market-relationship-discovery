@@ -91,6 +91,68 @@ def _render_execution(execution: dict[str, object]) -> None:
         "Fill estimates respect volume step and maximum but do not model queue "
         "position, partial-fill probability, or rejection."
     )
+    _render_latency(cast(dict[str, object], report.get("latency", {})))
+
+
+def _render_latency(latency: dict[str, object]) -> None:
+    """Show how much of each measured episode survives a round trip.
+
+    An episode count alone is misleading: a crossable tick that existed for one
+    instant is counted the same as one that stayed open for a minute.
+    """
+    st.subheader("Latency capture")
+    if not latency:
+        st.info(
+            "This report predates latency capture modelling, or no measurable "
+            "opportunity episode was recorded. Whether the observed windows were "
+            "long enough to act in is unknown."
+        )
+        return
+    episodes = as_count(latency.get("episodes"))
+    capturable = as_count(latency.get("capturable"))
+    assumptions = latency.get("assumptions")
+    round_trip = as_float(_as_float_dict(assumptions).get("round_trip_ms"), 0.0)
+    st.write(
+        f"Episodes **{episodes}** | capturable **{capturable}** | "
+        f"marginal **{as_count(latency.get('marginal'))}** | "
+        f"not capturable **{as_count(latency.get('not_capturable'))}** | "
+        f"round trip **{round_trip} ms**"
+    )
+    st.write(
+        f"Median episode **{as_float(latency.get('median_duration_ms')):.0f} ms** | "
+        f"longest **{as_float(latency.get('maximum_duration_ms')):.0f} ms** | "
+        f"mean peak edge **{as_float(latency.get('mean_peak_edge')):.6f}** | "
+        f"mean captured edge **{as_float(latency.get('mean_captured_edge')):.6f}**"
+    )
+    if capturable == 0:
+        st.error(
+            "No measured episode outlasted the round trip, so none of the "
+            "observed opportunities could be acted on under these assumptions."
+        )
+    captures = as_records(latency.get("captures"))
+    if captures:
+        st.dataframe(
+            [
+                {
+                    "Episode": item.get("label"),
+                    "Duration (ms)": item.get("duration_ms"),
+                    "Peak edge": item.get("peak_edge"),
+                    "Capturable fraction": item.get("capturable_fraction"),
+                    "Net captured edge": item.get("net_captured_edge"),
+                    "Status": item.get("status"),
+                }
+                for item in captures
+            ],
+            width="stretch",
+        )
+    st.caption(
+        "Capturable fraction assumes linear edge decay over a measured episode. "
+        "Queue position, book depth, and fill probability are not modelled."
+    )
+
+
+def _as_float_dict(value: object) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
 
 
 overview, monitor, relationships, discovery, discrepancy, brokers, limitations = st.tabs(

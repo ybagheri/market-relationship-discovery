@@ -13,6 +13,12 @@ from market_relationship_discovery.costs.execution import (
     FillSimulator,
     MarginModel,
 )
+from market_relationship_discovery.costs.latency import (
+    Episode,
+    LatencyCaptureModel,
+    LatencyCaptureReport,
+    RoundTripAssumption,
+)
 from market_relationship_discovery.domain.errors import DataQualityError, InsufficientDataError
 from market_relationship_discovery.market_data.contract import (
     ContractCompatibilityStatus,
@@ -57,6 +63,9 @@ class CrossBrokerRequest:
     volume: float = 1.0
     leverage: int | None = None
     minimum_fill_ratio: float = 0.0
+    latency_per_leg_ms: float = 50.0
+    adverse_move_allowance: float = 0.0
+    minimum_capturable_fraction: float = 0.25
 
     def __post_init__(self) -> None:
         if not self.broker_a or not self.broker_b or not self.symbol:
@@ -75,6 +84,12 @@ class CrossBrokerRequest:
             raise ValueError("leverage must be positive when provided")
         if not 0.0 <= self.minimum_fill_ratio <= 1.0:
             raise ValueError("minimum_fill_ratio must be between zero and one")
+        if self.latency_per_leg_ms < 0:
+            raise ValueError("latency_per_leg_ms cannot be negative")
+        if self.adverse_move_allowance < 0:
+            raise ValueError("adverse_move_allowance cannot be negative")
+        if not 0.0 <= self.minimum_capturable_fraction <= 1.0:
+            raise ValueError("minimum_capturable_fraction must be between zero and one")
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +146,7 @@ class CrossBrokerSummary:
     mean_normalized_net_pnl: float | None
     maximum_normalized_net_pnl: float | None
     execution: ExecutionAssessment | None
+    latency: LatencyCaptureReport | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -353,6 +369,7 @@ class CrossBrokerComparisonEngine:
         if execution is not None and not execution.executable:
             aligned["is_crossable"] = False
         opportunities = self._episodes(aligned)
+        latency = self._latency_capture(opportunities, request)
         crossable = aligned[aligned["is_crossable"]]
         period_hours = self._period_hours(aligned)
         durations = [opportunity.duration_ms for opportunity in opportunities]
@@ -373,6 +390,8 @@ class CrossBrokerComparisonEngine:
             and classification.startswith("crossable")
         ):
             classification = f"{classification}_capital_unverified"
+        if latency is not None and not latency.survives:
+            classification = f"{classification}_not_capturable_within_latency"
         summary = CrossBrokerSummary(
             broker_a=request.broker_a,
             broker_b=request.broker_b,
@@ -427,8 +446,39 @@ class CrossBrokerComparisonEngine:
                 float(aligned["normalized_net_pnl"].max()) if normalization_available else None
             ),
             execution=execution,
+            latency=latency,
         )
         return CrossBrokerAnalysis(summary, opportunities, aligned)
+
+    @staticmethod
+    def _latency_capture(
+        opportunities: tuple[CrossBrokerOpportunity, ...],
+        request: CrossBrokerRequest,
+    ) -> LatencyCaptureReport | None:
+        """Compare each measured episode against the time an order actually takes.
+
+        The episodes are the ones the comparison already measured, so this adds no
+        new data. It answers whether the observed window was long enough to act
+        in, which the episode counts alone cannot say.
+        """
+        episodes = [
+            Episode(
+                label=f"{opportunity.direction.value}:{opportunity.start.isoformat()}",
+                duration_ms=opportunity.duration_ms,
+                peak_edge=opportunity.maximum_net_edge,
+            )
+            for opportunity in opportunities
+            if opportunity.maximum_net_edge > 0
+        ]
+        if not episodes:
+            return None
+        assumption = RoundTripAssumption(
+            latency_per_leg_ms=request.latency_per_leg_ms,
+            legs=2,
+            adverse_move_allowance=request.adverse_move_allowance,
+            minimum_capturable_fraction=request.minimum_capturable_fraction,
+        )
+        return LatencyCaptureModel().assess(episodes, assumption)
 
     def _execution_assessment(
         self,
@@ -520,6 +570,7 @@ class CrossBrokerComparisonEngine:
             mean_normalized_net_pnl=None,
             maximum_normalized_net_pnl=None,
             execution=None,
+            latency=None,
         )
         return CrossBrokerAnalysis(summary, (), aligned)
 

@@ -211,6 +211,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="minimum acceptable fill ratio across both legs",
     )
+    comparison_parser.add_argument(
+        "--latency-per-leg-ms",
+        type=float,
+        default=None,
+        help="assumed latency for one leg; defaults to COSTS__LATENCY_ASSUMPTION_MS",
+    )
+    comparison_parser.add_argument(
+        "--adverse-move-allowance",
+        type=float,
+        default=None,
+        help="assumed adverse price move during the round trip",
+    )
+    comparison_parser.add_argument(
+        "--minimum-capturable-fraction",
+        type=float,
+        default=None,
+        help="minimum share of an episode that must survive a round trip",
+    )
     comparison_parser.add_argument("--output", type=Path)
     specifications_parser = subparsers.add_parser("symbol-specs")
     specifications_parser.add_argument("--broker-profile", default="default")
@@ -537,6 +555,21 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
         ),
         arguments.symbol_a,
         arguments.symbol_b,
+        (
+            arguments.latency_per_leg_ms
+            if arguments.latency_per_leg_ms is not None
+            else float(costs.latency_assumption_ms)
+        ),
+        (
+            arguments.adverse_move_allowance
+            if arguments.adverse_move_allowance is not None
+            else costs.adverse_move_allowance
+        ),
+        (
+            arguments.minimum_capturable_fraction
+            if arguments.minimum_capturable_fraction is not None
+            else costs.minimum_capturable_fraction
+        ),
     )
     print(_serializable(result))
     return 0

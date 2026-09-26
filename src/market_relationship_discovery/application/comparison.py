@@ -40,6 +40,9 @@ class CrossBrokerExperimentService:
         minimum_fill_ratio: float = 0.0,
         symbol_a: str | None = None,
         symbol_b: str | None = None,
+        latency_per_leg_ms: float = 50.0,
+        adverse_move_allowance: float = 0.0,
+        minimum_capturable_fraction: float = 0.25,
     ) -> dict[str, object]:
         """Compare two broker feeds for the same research instrument.
 
@@ -67,6 +70,9 @@ class CrossBrokerExperimentService:
             volume,
             leverage,
             minimum_fill_ratio,
+            latency_per_leg_ms,
+            adverse_move_allowance,
+            minimum_capturable_fraction,
         )
         analysis = CrossBrokerComparisonEngine().compare(frame_a, frame_b, request)
         start = min(frame_a["timestamp"].min(), frame_b["timestamp"].min()).to_pydatetime()
@@ -93,15 +99,20 @@ class CrossBrokerExperimentService:
                 "volume": volume,
                 "leverage": leverage,
                 "minimum_fill_ratio": minimum_fill_ratio,
+                "latency_per_leg_ms": latency_per_leg_ms,
+                "adverse_move_allowance": adverse_move_allowance,
+                "minimum_capturable_fraction": minimum_capturable_fraction,
             },
             (source_b,),
         )
         execution = analysis.summary.execution
+        latency = analysis.summary.latency
         payload: dict[str, object] = {
             "summary": asdict(analysis.summary),
             "opportunities": [asdict(opportunity) for opportunity in analysis.opportunities],
             "aligned_preview": self._preview(analysis.aligned_observations),
             "execution": (execution.to_dict() if execution is not None else None),
+            "latency": (latency.to_dict() if latency is not None else None),
             "limitations": [
                 "Crossable is a positive research edge after configured additional cost, "
                 "not guaranteed execution.",
@@ -111,6 +122,8 @@ class CrossBrokerExperimentService:
                 "configured; an unknown margin is never treated as free margin.",
                 "Fill estimates respect volume step and maximum but do not model queue position, "
                 "partial-fill probability, or rejection.",
+                "Latency capture assumes linear edge decay over a measured episode. It is a "
+                "feasibility estimate, not a prediction that a fill will occur.",
             ],
         }
         response: dict[str, object] = {

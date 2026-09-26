@@ -99,6 +99,8 @@ class CostSettings(BaseModel):
     funding_enabled: bool = True
     funding_daily_rate: float = Field(default=0.0, ge=0)
     minimum_fill_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    minimum_capturable_fraction: float = Field(default=0.25, ge=0.0, le=1.0)
+    adverse_move_allowance: float = Field(default=0.0, ge=0)
     holding_days: int = Field(default=1, ge=0, le=365)
 
 
