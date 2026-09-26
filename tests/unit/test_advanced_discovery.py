@@ -41,6 +41,14 @@ def test_advanced_discovery_writes_advanced_research_report(tmp_path: Path) -> N
     assert result["experiment"]["parameters"]["rolling_beta_window"] == 30
     assert result["experiment"]["parameters"]["statistical_significance"] == 0.05
     assert result["experiment"]["parameters"]["multiplicity_method"] == "fdr_bh"
+    assert result["experiment"]["parameters"]["panel_fully_overlapping_rows"] == 80
+    assert result["experiment"]["parameters"]["excluded_symbols"] == []
+    coverage = result["results"]["coverage"]
+    assert coverage["is_usable"] is True
+    assert coverage["analysed_rows"] == 80
+    assert sorted(coverage["analysed_symbols"]) == ["EURGBP", "EURUSD", "GBPUSD"]
+    assert coverage["excluded_symbols"] == []
+    assert {item["symbol"] for item in coverage["coverage"]} == {"EURUSD", "GBPUSD", "EURGBP"}
     multiplicity = result["results"]["multiplicity"]
     assert multiplicity["method"] == "fdr_bh"
     assert multiplicity["alpha"] == 0.05

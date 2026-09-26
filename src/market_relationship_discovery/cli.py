@@ -106,6 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MULTIPLICITY_METHOD.value,
         help="false-discovery control applied across all tested candidates",
     )
+    discover_parser.add_argument(
+        "--minimum-symbols-for-window",
+        type=int,
+        default=2,
+        help="minimum symbols that must share a window before discovery runs",
+    )
     research_parser = subparsers.add_parser("research")
     research_parser.add_argument("--broker-profile", default="default")
     research_parser.add_argument("--relationship", default="XAUEUR_SYNTHETIC")
@@ -398,6 +404,7 @@ def _discover(arguments: argparse.Namespace) -> int:
             arguments.statistical_significance,
             arguments.output or get_settings().data.reports_directory,
             MultiplicityMethod(arguments.multiplicity_method),
+            arguments.minimum_symbols_for_window,
         )
     else:
         if not arguments.symbol:

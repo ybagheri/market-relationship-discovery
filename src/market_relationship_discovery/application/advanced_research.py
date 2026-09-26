@@ -23,6 +23,7 @@ from market_relationship_discovery.statistics.multiplicity import (
     build_family,
 )
 from market_relationship_discovery.statistics.regime import RegimeDetector
+from market_relationship_discovery.validation.coverage import PanelCoverageAnalyzer
 
 DEFAULT_RANKING_CONFIG = CandidateRankingConfig()
 
@@ -42,15 +43,26 @@ class AdvancedDiscoveryService:
         ranking_config: CandidateRankingConfig = DEFAULT_RANKING_CONFIG,
         output_directory: Path | None = None,
         multiplicity_method: MultiplicityMethod = DEFAULT_MULTIPLICITY_METHOD,
+        minimum_symbols_for_window: int = 2,
     ) -> dict[str, object]:
         prices = load_price_panel(source_path)
         if prices.empty:
             raise ValueError("advanced research source is empty")
-        symbols = tuple(sorted(str(column) for column in prices.columns))
+        analyzer = PanelCoverageAnalyzer()
+        coverage = analyzer.require_usable(
+            prices,
+            minimum_symbols=minimum_symbols_for_window,
+            minimum_observations=minimum_observations,
+        )
+        window = coverage.best_shared_window
+        assert window is not None  # require_usable guarantees a window
+        used_columns = [symbol for symbol in window.symbols if symbol in prices.columns]
+        analysis_prices = prices.loc[window.start : window.end, used_columns].dropna(how="any")
+        symbols = tuple(sorted(used_columns))
         graph = RelationshipGraph.from_definitions(RelationshipCatalog().all())
         candidates = GraphRelationshipDiscoveryEngine(graph, max_depth=max_depth).discover(symbols)
         evaluations = GraphCandidateEvaluator().evaluate(
-            prices,
+            analysis_prices,
             candidates,
             minimum_observations=minimum_observations,
             regime_window=regime_window,
@@ -69,7 +81,7 @@ class AdvancedDiscoveryService:
         regimes = {
             str(symbol): RegimeDetector()
             .detect(
-                prices[symbol],
+                analysis_prices[symbol],
                 window=regime_window,
                 low_quantile=regime_low_quantile,
                 high_quantile=regime_high_quantile,
@@ -102,6 +114,16 @@ class AdvancedDiscoveryService:
                 "candidates": [asdict(candidate) for candidate in ranking.candidates],
             },
             "multiplicity": multiplicity_report.to_dict(),
+            "coverage": {
+                **coverage.to_dict(),
+                "analysed_symbols": list(symbols),
+                "analysed_rows": len(analysis_prices),
+                "analysed_start": analysis_prices.index[0].isoformat(),
+                "analysed_end": analysis_prices.index[-1].isoformat(),
+                "excluded_symbols": sorted(
+                    symbol for symbol in coverage.symbols if symbol not in symbols
+                ),
+            },
             "limitations": [
                 "Regime thresholds are causal expanding quantiles, not forecasts.",
                 "ML-assisted ranking is a deterministic research ordering, not profitability "
@@ -110,15 +132,23 @@ class AdvancedDiscoveryService:
                 "Cointegration, ADF, and KPSS are retrospective full-sample diagnostics.",
                 "A candidate that survives multiplicity correction is still not tradable; "
                 "costs, contract compatibility, and execution feasibility are separate gates.",
+                "Symbols collected in one request can cover different calendar ranges; only the "
+                "largest shared window is analysed and excluded symbols are reported.",
             ],
         }
         manifest = create_experiment_manifest(
             "advanced_relationship_discovery",
             source_path,
-            prices.index[0].to_pydatetime(),
-            prices.index[-1].to_pydatetime(),
+            analysis_prices.index[0].to_pydatetime(),
+            analysis_prices.index[-1].to_pydatetime(),
             {
                 "minimum_observations": minimum_observations,
+                "minimum_symbols_for_window": minimum_symbols_for_window,
+                "panel_union_rows": coverage.union_rows,
+                "panel_fully_overlapping_rows": coverage.fully_overlapping_rows,
+                "excluded_symbols": sorted(
+                    symbol for symbol in coverage.symbols if symbol not in symbols
+                ),
                 "regime_window": regime_window,
                 "regime_low_quantile": regime_low_quantile,
                 "regime_high_quantile": regime_high_quantile,

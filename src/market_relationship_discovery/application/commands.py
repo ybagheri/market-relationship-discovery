@@ -172,6 +172,7 @@ def run_advanced_research(
     statistical_significance: float = 0.05,
     output_directory: Path | None = None,
     multiplicity_method: MultiplicityMethod = DEFAULT_MULTIPLICITY_METHOD,
+    minimum_symbols_for_window: int = 2,
 ) -> dict[str, object]:
     from market_relationship_discovery.discovery.ranker import CandidateRankingConfig
 
@@ -190,6 +191,7 @@ def run_advanced_research(
         ),
         output_directory=output_directory,
         multiplicity_method=multiplicity_method,
+        minimum_symbols_for_window=minimum_symbols_for_window,
     )
 
 
