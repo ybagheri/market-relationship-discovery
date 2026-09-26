@@ -38,7 +38,11 @@ from market_relationship_discovery.market_data.cross_broker import (
     SynchronizationMode,
     TickAggregation,
 )
-from market_relationship_discovery.market_data.symbols import SymbolMapper
+from market_relationship_discovery.market_data.symbols import (
+    SymbolMapper,
+    SymbolSearchService,
+    describe_matches,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,10 +51,26 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("doctor")
     subparsers.add_parser("mt5-info")
-    symbols_parser = subparsers.add_parser("symbols")
+    symbols_parser = subparsers.add_parser(
+        "symbols",
+        help=(
+            "discover broker symbols by name, description, or alias "
+            "(for example --search gold, --search silver, --search dollar)"
+        ),
+    )
     symbols_parser.add_argument("--broker-profile", default="default")
     symbols_parser.add_argument("--search", default=None)
-    symbols_parser.add_argument("--all", action="store_true", help="include hidden symbols")
+    symbols_parser.add_argument(
+        "--visible-only",
+        action="store_true",
+        help="restrict to symbols shown in the terminal watch window",
+    )
+    symbols_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="include symbols the broker marks as not tradable",
+    )
+    symbols_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     collect_parser = subparsers.add_parser("collect")
     collect_parser.add_argument("--broker-profile", action="append")
     collect_parser.add_argument("--symbol", action="append", required=True)
@@ -154,8 +174,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _configure_console_encoding() -> None:
+    """Make CLI output safe on narrow console code pages.
+
+    Broker symbol descriptions routinely contain non-ASCII text, and Windows
+    consoles default to a legacy code page such as cp1252 or cp1256. Without
+    this, printing a discovered description raises ``UnicodeEncodeError`` and
+    hides the discovery result the user asked for.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            continue
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
+    _configure_console_encoding()
     configure_logging(logging.DEBUG if arguments.verbose else logging.INFO)
     try:
         if arguments.command == "doctor":
@@ -163,7 +202,13 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "mt5-info":
             return _mt5_info()
         if arguments.command == "symbols":
-            return _symbols(arguments.broker_profile, arguments.search, arguments.all)
+            return _symbols(
+                arguments.broker_profile,
+                arguments.search,
+                arguments.visible_only,
+                arguments.all,
+                arguments.json,
+            )
         if arguments.command == "collect":
             return _collect(arguments)
         if arguments.command == "discover":
@@ -211,17 +256,63 @@ def _mt5_info() -> int:
 def _symbols(
     broker_profile: str,
     search: str | None,
-    include_hidden: bool,
+    visible_only: bool,
+    include_disabled: bool,
+    as_json: bool,
 ) -> int:
+    """List broker symbols with metadata and the rule that matched the query.
+
+    Discovery defaults to the full broker catalog filtered to tradable symbols.
+    A broker can expose hundreds of symbols while only a handful appear in the
+    terminal watch window, so restricting the search to the watch window would
+    hide instruments such as gold on brokers that name them ``XAUUSD``.
+    """
     settings = get_settings()
     profile, _ = resolve_profile(settings, broker_profile)
     with MT5Adapter(profile) as adapter:
-        symbols = adapter.symbols(visible_only=not include_hidden)
-        if search:
-            query = search.casefold()
-            symbols = [symbol for symbol in symbols if query in symbol.casefold()]
-        for symbol in sorted(symbols):
-            print(symbol)
+        service = SymbolSearchService(adapter)
+        catalog = service.catalog(visible_only=visible_only)
+        results = service.search(
+            search,
+            visible_only=visible_only,
+            tradable_only=not include_disabled,
+        )
+        if as_json:
+            print(
+                _serializable(
+                    {
+                        "broker_profile": broker_profile,
+                        "query": search,
+                        "catalog_size": len(catalog),
+                        "tradable_count": sum(1 for item in catalog if item.is_tradable),
+                        "match_count": len(results),
+                        "symbols": [
+                            {
+                                "name": result.descriptor.name,
+                                "description": result.descriptor.description,
+                                "currency_base": result.descriptor.currency_base,
+                                "currency_profit": result.descriptor.currency_profit,
+                                "digits": result.descriptor.digits,
+                                "point": result.descriptor.point,
+                                "spread_points": result.descriptor.spread_in_points,
+                                "trade_mode": result.descriptor.trade_mode,
+                                "trade_mode_name": result.descriptor.trade_mode_name,
+                                "tradable": result.descriptor.is_tradable,
+                                "matched_by": result.reason.value,
+                                "canonical_symbol": result.canonical_symbol,
+                            }
+                            for result in results
+                        ],
+                    }
+                )
+            )
+            return 0
+        print(
+            f"# catalog_size={len(catalog)} "
+            f"tradable={sum(1 for item in catalog if item.is_tradable)} "
+            f"match_count={len(results)} query={search or '<all>'}"
+        )
+        print(describe_matches(results))
     return 0
 
 

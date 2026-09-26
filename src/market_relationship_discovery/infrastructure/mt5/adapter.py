@@ -14,6 +14,7 @@ from market_relationship_discovery.domain.errors import (
 )
 from market_relationship_discovery.domain.market import Bar, Quote
 from market_relationship_discovery.market_data.contract import ContractSpecification
+from market_relationship_discovery.market_data.symbols import SymbolDescriptor
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,13 +113,41 @@ class MT5Adapter:
         return self._account
 
     def symbols(self, visible_only: bool = True) -> list[str]:
+        return [descriptor.name for descriptor in self.symbol_details(visible_only=visible_only)]
+
+    def symbol_details(self, visible_only: bool = True) -> list[SymbolDescriptor]:
+        """Return full metadata for broker symbols in a single MT5 call.
+
+        Brokers can expose hundreds of symbols while only a handful appear in
+        the terminal watch window, so discovery must not depend on
+        ``symbols_get`` visibility alone.
+        """
         module = self._required_module()
         values = module.symbols_get()
         if values is None:
             return []
-        if visible_only:
-            return [str(item.name) for item in values if bool(getattr(item, "visible", False))]
-        return [str(item.name) for item in values]
+        return [
+            self._to_symbol_descriptor(item)
+            for item in values
+            if not visible_only or bool(getattr(item, "visible", False))
+        ]
+
+    @staticmethod
+    def _to_symbol_descriptor(value: Any) -> SymbolDescriptor:
+        spread = getattr(value, "spread", None)
+        trade_mode = getattr(value, "trade_mode", None)
+        return SymbolDescriptor(
+            name=str(value.name),
+            description=str(value.description),
+            path=str(value.path),
+            currency_base=str(value.currency_base),
+            currency_profit=str(value.currency_profit),
+            digits=int(value.digits),
+            point=float(value.point),
+            spread=int(spread) if spread is not None else None,
+            trade_mode=int(trade_mode) if trade_mode is not None else None,
+            visible=bool(getattr(value, "visible", False)),
+        )
 
     def symbol_info(self, symbol: str) -> SymbolInfo:
         module = self._required_module()

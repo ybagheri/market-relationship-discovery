@@ -17,6 +17,36 @@ class MT5Settings(BaseModel):
     source_utc_offset_minutes: int = Field(default=0, ge=-1440, le=1440)
     symbol_mapping: dict[str, str] = Field(default_factory=dict)
 
+    @field_validator("login", mode="before")
+    @classmethod
+    def blank_login_is_absent(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("terminal_path", "data_path", mode="before")
+    @classmethod
+    def blank_path_is_absent(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("server", mode="before")
+    @classmethod
+    def blank_server_is_absent(cls, value: object) -> object:
+        if value is None:
+            return ""
+        if isinstance(value, str) and not value.strip():
+            return ""
+        return value
+
+    @field_validator("password", mode="before")
+    @classmethod
+    def blank_password_is_absent(cls, value: object) -> object:
+        if value is None:
+            return ""
+        return value
+
     @field_validator("password")
     @classmethod
     def reject_nonempty_password(cls, value: str) -> str:
