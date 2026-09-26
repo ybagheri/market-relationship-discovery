@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -19,9 +20,9 @@ def frame(symbol: str, values: list[float]) -> pd.DataFrame:
 
 
 def test_historical_research_evaluates_synthetic_formula() -> None:
-    eurusd = [1.2 + index / 10000 for index in range(20)]
-    gbpusd = [1.5 + index / 20000 for index in range(20)]
-    eurgbp = [eurusd[index] / gbpusd[index] for index in range(20)]
+    eurusd = [1.2 + index / 10000 for index in range(60)]
+    gbpusd = [1.5 + index / 20000 for index in range(60)]
+    eurgbp = [eurusd[index] / gbpusd[index] for index in range(60)]
     relationship = RelationshipDefinition("EURGBP_TEST", "EURGBP", "EURUSD / GBPUSD")
     researcher = HistoricalRelationshipResearcher(100, 5, 10, rolling_beta_window=5)
 
@@ -34,12 +35,38 @@ def test_historical_research_evaluates_synthetic_formula() -> None:
         },
     )
 
-    assert result.observations == 20
+    assert result.observations == 60
     assert result.mean_discrepancy == pytest.approx(0.0, abs=1e-12)
     assert result.executable_discrepancy_claimed is False
     assert result.classification == "requires_further_validation"
     assert result.beta_stability["valid_windows"] > 0
-    assert result.cointegration_stationarity["status"] == "available"
+    assert result.cointegration_stationarity["status"] == "unavailable"
+    assert "constant" in str(result.cointegration_stationarity["unavailable_reason"])
+
+
+def test_historical_research_reports_stationarity_for_a_noisy_relationship() -> None:
+    generator = np.random.default_rng(20260926)
+    eurusd = [1.2 + index / 10000 for index in range(60)]
+    gbpusd = [1.5 + index / 20000 for index in range(60)]
+    eurgbp = [
+        eurusd[index] / gbpusd[index] + generator.normal(scale=1e-6, size=1)[0]
+        for index in range(60)
+    ]
+    relationship = RelationshipDefinition("EURGBP_TEST", "EURGBP", "EURUSD / GBPUSD")
+    researcher = HistoricalRelationshipResearcher(100, 5, 10, rolling_beta_window=5)
+
+    result = researcher.run(
+        relationship,
+        {
+            "EURUSD": frame("EURUSD", eurusd),
+            "GBPUSD": frame("GBPUSD", gbpusd),
+            "EURGBP": frame("EURGBP", eurgbp),
+        },
+    )
+
+    stationarity = result.cointegration_stationarity
+    assert stationarity["status"] == "available"
+    assert abs(float(stationarity["engle_granger_statistic"])) < 100.0
 
 
 def test_historical_research_requires_complete_alignment() -> None:

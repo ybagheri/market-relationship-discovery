@@ -30,8 +30,33 @@ def test_evaluator_scores_exact_relationship() -> None:
     assert result.summary["mean_absolute_discrepancy"] == 0.0
     assert "rolling_beta" in result.frame
     assert result.summary["beta_stability"]["valid_windows"] > 0
-    assert result.summary["cointegration_stationarity"]["status"] == "available"
+    assert result.summary["cointegration_stationarity"]["status"] == "unavailable"
+    assert "constant" in str(result.summary["cointegration_stationarity"]["unavailable_reason"])
     assert result.frame["next_abs_zscore"].iloc[-1] != result.frame["next_abs_zscore"].iloc[-1]
+
+
+def test_evaluator_reports_stationarity_for_a_noisy_relationship() -> None:
+    generator = np.random.default_rng(20260926)
+    index = pd.date_range("2026-09-25", periods=60, freq="h", tz="UTC")
+    first = np.linspace(1.0, 1.3, 60)
+    second = np.linspace(1.0, 1.1, 60)
+    prices = pd.DataFrame(
+        {
+            "A": first,
+            "B": second,
+            "C": first * second + generator.normal(scale=1e-4, size=60),
+        },
+        index=index,
+    )
+    candidate = DiscoveryCandidate("A_B", "C", "A * B", CandidateStatus.RESEARCH_CANDIDATE)
+
+    result = GraphCandidateEvaluator().evaluate(
+        prices, [candidate], minimum_observations=30, regime_window=5
+    )[0]
+
+    stationarity = result.summary["cointegration_stationarity"]
+    assert stationarity["status"] == "available"
+    assert abs(float(stationarity["engle_granger_statistic"])) < 100.0
 
 
 def test_evaluator_marks_missing_columns_as_requires_data() -> None:

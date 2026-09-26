@@ -57,27 +57,62 @@ def test_rolling_beta_is_causal() -> None:
 
 
 def test_cointegration_stationarity_reports_residual_diagnostics() -> None:
-    benchmark = pd.Series(np.arange(1.0, 41.0))
-    target = 2.0 + 0.5 * benchmark
+    generator = np.random.default_rng(20260926)
+    benchmark = np.cumsum(generator.normal(size=400)) + 100.0
+    target = 2.0 * benchmark + generator.normal(scale=0.05, size=400)
 
-    result = StatisticalAnalyzer.cointegration_stationarity(target, benchmark)
+    result = StatisticalAnalyzer.cointegration_stationarity(pd.Series(target), pd.Series(benchmark))
 
     assert result["status"] == "available"
-    assert result["engle_granger_method"] == "ols_residual_adf_approximation"
-    assert result["adf_method"] == "fixed_lag1_ols_normal_approximation"
-    assert result["kpss_method"] == "level_cusum_chi_square_approximation"
+    assert result["unavailable_reason"] is None
+    assert result["engle_granger_method"] == "ols_residual_augmented_dickey_fuller"
+    assert result["adf_method"] == "statsmodels_adfuller_autolag_aic"
+    assert result["kpss_method"] == "statsmodels_kpss_level_autolag"
     assert result["cointegrated_at_significance"] is True
     assert result["stationarity_tests_agree"] is True
 
 
-def test_cointegration_stationarity_handles_degenerate_input() -> None:
+def test_cointegrated_random_walk_pair_is_not_reported_as_cointegrated() -> None:
+    """A strongly correlated but non-cointegrated pair must not be labelled so.
+
+    Regression on an ill-conditioned near unit-root pair previously produced an
+    augmented Dickey-Fuller statistic of order 1e16 with a zero p-value, which
+    reported a confident cointegrated result for a relationship that a proper
+    test rejects. The statistic must stay in a plausible range and the pair must
+    not be labelled cointegrated.
+    """
+    generator = np.random.default_rng(20260926)
+    benchmark = pd.Series(np.cumsum(generator.normal(size=400)) + 100.0)
+    target = pd.Series(np.cumsum(generator.normal(size=400)) + 50.0)
+
+    result = StatisticalAnalyzer.cointegration_stationarity(target, benchmark)
+
+    assert result["status"] == "available"
+    assert abs(float(result["engle_granger_statistic"])) < 100.0
+    assert 0.0 <= float(result["engle_granger_p_value"]) <= 1.0
+    assert result["cointegrated_at_significance"] is False
+    assert result["stationarity_tests_agree"] is True
+
+
+def test_stationarity_diagnostics_report_a_reason_when_unavailable() -> None:
     result = StatisticalAnalyzer.cointegration_stationarity(
-        pd.Series([1.0] * 20),
+        pd.Series(np.arange(1.0, 21.0)),
         pd.Series(np.arange(1.0, 21.0)),
     )
 
     assert result["status"] == "unavailable"
+    assert "30 aligned observations" in str(result["unavailable_reason"])
+
+
+def test_cointegration_stationarity_handles_degenerate_input() -> None:
+    result = StatisticalAnalyzer.cointegration_stationarity(
+        pd.Series([1.0] * 40),
+        pd.Series(np.arange(1.0, 41.0)),
+    )
+
+    assert result["status"] == "unavailable"
     assert result["adf_p_value"] is None
+    assert "constant" in str(result["unavailable_reason"])
 
 
 def test_statistical_parameters_are_validated() -> None:

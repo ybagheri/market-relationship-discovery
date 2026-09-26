@@ -17,6 +17,7 @@ dependencies = [
   "pydantic>=2.9",
   "pydantic-settings>=2.5",
   "scipy>=1.14",
+  "statsmodels>=0.14",
   "streamlit>=1.40",
 ]
 
@@ -62,5 +63,15 @@ packages = ["market_relationship_discovery"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["MetaTrader5", "streamlit.*", "plotly", "plotly.*", "pandas", "pandas.*", "scipy", "scipy.*"]
+module = [
+  "MetaTrader5",
+  "streamlit.*",
+  "plotly",
+  "plotly.*",
+  "pandas",
+  "pandas.*",
+  "scipy",
+  "scipy.*",
+  "statsmodels.*",
+]
 ignore_missing_imports = true
