@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import uuid4
 
@@ -31,6 +31,7 @@ class CollectionRequest:
     end: datetime | None = None
     limit: int | None = None
     source_utc_offset_minutes: int = 0
+    tick_lookback_hours: int = 168
 
 
 class HistoricalDataSource(Protocol):
@@ -147,7 +148,11 @@ class HistoricalCollector:
 
     def _collect_ticks(self, request: CollectionRequest, symbol: str) -> list[Quote]:
         if request.limit is not None:
-            return self._source.recent_ticks(symbol, datetime.now(UTC), request.limit)
+            # The search floor has to sit behind the most recent tick. Anchoring
+            # it at the current time yields nothing whenever the market is
+            # closed, which is the normal case outside trading hours.
+            earliest = datetime.now(UTC) - timedelta(hours=request.tick_lookback_hours)
+            return self._source.recent_ticks(symbol, earliest, request.limit)
         if request.start is None or request.end is None:
             raise ValueError("tick range is incomplete")
         return self._source.ticks(symbol, request.start, request.end)

@@ -1,11 +1,12 @@
-from datetime import UTC, datetime
+import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from market_relationship_discovery.config.settings import MT5Settings
-from market_relationship_discovery.domain.errors import DemoSafetyError
+from market_relationship_discovery.domain.errors import DemoSafetyError, MT5ConnectionError
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
 
 
@@ -50,6 +51,27 @@ class FakeMT5:
             }
             for index in range(count)
         ]
+
+    def copy_ticks_range(
+        self,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+        flags: int,
+    ) -> list[dict[str, float | int]]:
+        base = time.time() - 60.0
+        rows = [
+            {
+                "time": base + index,
+                "bid": 1.1 + index / 1000,
+                "ask": 1.2 + index / 1000,
+                "volume": index,
+            }
+            for index in range(200)
+        ]
+        lower = start.timestamp()
+        upper = end.timestamp()
+        return [row for row in rows if lower <= float(row["time"]) <= upper]
 
     def symbol_info(self, symbol: str) -> SimpleNamespace:
         return SimpleNamespace(
@@ -104,10 +126,110 @@ def test_recent_ticks_are_normalized_to_utc(
     adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
     adapter.connect()
 
-    quotes = adapter.recent_ticks("EURUSD", datetime.now(UTC), 3)
+    quotes = adapter.recent_ticks("EURUSD", datetime.now(UTC) - timedelta(hours=48), 3)
 
     assert len(quotes) == 3
     assert all(quote.timestamp.utcoffset() == UTC.utcoffset(quote.timestamp) for quote in quotes)
+    adapter.disconnect()
+
+
+def test_recent_ticks_return_the_newest_ticks_not_the_oldest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A "most recent N ticks" request must not return the oldest N in the window.
+
+    ``copy_ticks_from`` returns the first ``count`` ticks at or after the
+    requested time, so it silently selected stale data. Searching a range and
+    keeping the newest rows is required for tick-level research.
+    """
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = FakeMT5(0)
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+    adapter.connect()
+
+    quotes = adapter.recent_ticks("EURUSD", datetime.now(UTC) - timedelta(hours=48), 5)
+
+    assert len(quotes) == 5
+    timestamps = [quote.timestamp for quote in quotes]
+    assert timestamps == sorted(timestamps)
+    assert quotes[-1].bid == max(quote.bid for quote in quotes)
+    adapter.disconnect()
+
+
+def test_recent_ticks_widen_the_window_when_data_is_sparse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A closed market must not be reported as a connection failure.
+
+    MetaTrader returns an empty array rather than ``None`` when a range holds no
+    ticks, and the most recent ticks can sit well before the current time. The
+    adapter widens its lookback window before giving up.
+    """
+
+    class SparseMT5(FakeMT5):
+        def __init__(self) -> None:
+            super().__init__(0)
+            self.requested_windows: list[tuple[datetime, datetime]] = []
+
+        def copy_ticks_range(
+            self,
+            symbol: str,
+            start: datetime,
+            end: datetime,
+            flags: int,
+        ) -> list[dict[str, float | int]]:
+            self.requested_windows.append((start, end))
+            rows = super().copy_ticks_range(symbol, start, end, flags)
+            return rows if len(self.requested_windows) > 2 else []
+
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = SparseMT5()
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+    adapter.connect()
+
+    quotes = adapter.recent_ticks("EURUSD", datetime.now(UTC) - timedelta(days=30), 3)
+
+    assert len(quotes) == 3
+    assert len(fake.requested_windows) > 1
+    adapter.disconnect()
+
+
+def test_recent_ticks_report_a_closed_market_clearly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ClosedMT5(FakeMT5):
+        def copy_ticks_range(
+            self,
+            symbol: str,
+            start: datetime,
+            end: datetime,
+            flags: int,
+        ) -> list[dict[str, float | int]]:
+            return []
+
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module",
+        lambda _: ClosedMT5(0),
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+    adapter.connect()
+
+    with pytest.raises(MT5ConnectionError, match="market may be closed"):
+        adapter.recent_ticks("EURUSD", datetime.now(UTC) - timedelta(days=30), 3)
+
     adapter.disconnect()
 
 

@@ -240,21 +240,46 @@ class MT5Adapter:
         return self._quotes_from_rows(rows, symbol)
 
     def recent_ticks(self, symbol: str, start: datetime, count: int) -> list[Quote]:
+        """Return the most recent ``count`` ticks at or after ``start``.
+
+        ``copy_ticks_from`` cannot express "the latest N ticks". It returns the
+        first ``count`` ticks at or after the requested time, which is the
+        oldest part of the window, and it yields an empty array rather than
+        ``None`` when the market is closed. This searches a range ending at the
+        current time and keeps the newest rows, widening the window while fewer
+        than ``count`` ticks are available.
+        """
         if count < 1:
             raise ValueError("count must be positive")
         module = self._required_module()
-        rows = module.copy_ticks_from(
-            symbol,
-            self._source_time(start),
-            count,
-            module.COPY_TICKS_ALL,
-        )
-        if rows is None:
-            error_code, description = module.last_error()
-            raise MT5ConnectionError(
-                f"MT5 returned no recent ticks for {symbol}: {error_code} {description}"
+        now = datetime.now(UTC)
+        lookback = timedelta(hours=max(1, self._settings.tick_lookback_hours))
+        maximum_lookback = timedelta(hours=max(1, self._settings.tick_max_lookback_hours))
+        rows: Any = None
+        while True:
+            window_start = max(start, now - lookback)
+            if window_start >= now:
+                break
+            rows = module.copy_ticks_range(
+                symbol,
+                self._source_time(window_start),
+                self._source_time(now),
+                module.COPY_TICKS_ALL,
             )
-        return self._quotes_from_rows(rows, symbol)
+            if rows is None:
+                error_code, description = module.last_error()
+                raise MT5ConnectionError(
+                    f"MT5 returned no ticks for {symbol}: {error_code} {description}"
+                )
+            if len(rows) >= count or lookback >= maximum_lookback:
+                break
+            lookback = min(lookback * 2, maximum_lookback)
+        if rows is None or len(rows) == 0:
+            raise MT5ConnectionError(
+                f"MT5 returned no recent ticks for {symbol} within "
+                f"{self._settings.tick_max_lookback_hours} hours; the market may be closed"
+            )
+        return self._quotes_from_rows(rows[-count:], symbol)
 
     def _quotes_from_rows(self, rows: Any, symbol: str) -> list[Quote]:
         account = self.account_info()

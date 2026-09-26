@@ -91,6 +91,7 @@ def collect_broker_job(job: CollectionJob) -> CollectionBatch:
                     end=job.end,
                     limit=job.limit,
                     source_utc_offset_minutes=job.mt5_settings.source_utc_offset_minutes,
+                    tick_lookback_hours=job.mt5_settings.tick_max_lookback_hours,
                 )
                 repository = ParquetQuoteRepository(job.raw_directory)
                 return HistoricalCollector(adapter, repository).collect(request)

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,8 @@ class MT5Settings(BaseModel):
     server: str = ""
     timeout_seconds: int = Field(default=60, ge=1, le=600)
     source_utc_offset_minutes: int = Field(default=0, ge=-1440, le=1440)
+    tick_lookback_hours: int = Field(default=24, ge=1, le=8760)
+    tick_max_lookback_hours: int = Field(default=168, ge=1, le=8760)
     symbol_mapping: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("login", mode="before")
@@ -53,6 +55,12 @@ class MT5Settings(BaseModel):
         if value:
             raise ValueError("Passwords are not supported in the research configuration")
         return value
+
+    @model_validator(mode="after")
+    def check_tick_lookback_order(self) -> "MT5Settings":
+        if self.tick_max_lookback_hours < self.tick_lookback_hours:
+            raise ValueError("tick_max_lookback_hours must be at least tick_lookback_hours")
+        return self
 
 
 class DataSettings(BaseModel):
