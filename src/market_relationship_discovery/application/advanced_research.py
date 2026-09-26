@@ -14,6 +14,14 @@ from market_relationship_discovery.market_data.panel import load_price_panel
 from market_relationship_discovery.relationships.catalog import RelationshipCatalog
 from market_relationship_discovery.relationships.graph import RelationshipGraph
 from market_relationship_discovery.reporting.experiment import ExperimentReportWriter
+from market_relationship_discovery.statistics.multiplicity import (
+    DEFAULT_METHOD as DEFAULT_MULTIPLICITY_METHOD,
+)
+from market_relationship_discovery.statistics.multiplicity import (
+    MultiplicityController,
+    MultiplicityMethod,
+    build_family,
+)
 from market_relationship_discovery.statistics.regime import RegimeDetector
 
 DEFAULT_RANKING_CONFIG = CandidateRankingConfig()
@@ -33,6 +41,7 @@ class AdvancedDiscoveryService:
         statistical_significance: float = 0.05,
         ranking_config: CandidateRankingConfig = DEFAULT_RANKING_CONFIG,
         output_directory: Path | None = None,
+        multiplicity_method: MultiplicityMethod = DEFAULT_MULTIPLICITY_METHOD,
     ) -> dict[str, object]:
         prices = load_price_panel(source_path)
         if prices.empty:
@@ -51,6 +60,12 @@ class AdvancedDiscoveryService:
             statistical_significance=statistical_significance,
         )
         ranking = RidgeCandidateRanker().rank(evaluations, ranking_config)
+        multiplicity = MultiplicityController(
+            method=multiplicity_method,
+            alpha=statistical_significance,
+        )
+        family, excluded = build_family({item.candidate.name: item.summary for item in evaluations})
+        multiplicity_report = multiplicity.adjust(family, excluded)
         regimes = {
             str(symbol): RegimeDetector()
             .detect(
@@ -86,12 +101,15 @@ class AdvancedDiscoveryService:
                 "evaluation_start": ranking.evaluation_start,
                 "candidates": [asdict(candidate) for candidate in ranking.candidates],
             },
+            "multiplicity": multiplicity_report.to_dict(),
             "limitations": [
                 "Regime thresholds are causal expanding quantiles, not forecasts.",
                 "ML-assisted ranking is a deterministic research ordering, not profitability "
                 "evidence.",
                 "Bar prices and formula relationships do not establish tick execution.",
                 "Cointegration, ADF, and KPSS are retrospective full-sample diagnostics.",
+                "A candidate that survives multiplicity correction is still not tradable; "
+                "costs, contract compatibility, and execution feasibility are separate gates.",
             ],
         }
         manifest = create_experiment_manifest(
@@ -107,6 +125,7 @@ class AdvancedDiscoveryService:
                 "max_depth": max_depth,
                 "rolling_beta_window": rolling_beta_window,
                 "statistical_significance": statistical_significance,
+                "multiplicity_method": multiplicity_method.value,
                 "training_fraction": ranking_config.training_fraction,
                 "ridge_alpha": ranking_config.ridge_alpha,
                 "minimum_train_rows": ranking_config.minimum_train_rows,

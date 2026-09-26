@@ -43,6 +43,10 @@ from market_relationship_discovery.market_data.symbols import (
     SymbolSearchService,
     describe_matches,
 )
+from market_relationship_discovery.statistics.multiplicity import (
+    DEFAULT_METHOD as DEFAULT_MULTIPLICITY_METHOD,
+)
+from market_relationship_discovery.statistics.multiplicity import MultiplicityMethod
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -96,6 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
     discover_parser.add_argument("--ridge-alpha", type=float, default=1.0)
     discover_parser.add_argument("--rolling-beta-window", type=int, default=30)
     discover_parser.add_argument("--statistical-significance", type=float, default=0.05)
+    discover_parser.add_argument(
+        "--multiplicity-method",
+        choices=[item.value for item in MultiplicityMethod],
+        default=DEFAULT_MULTIPLICITY_METHOD.value,
+        help="false-discovery control applied across all tested candidates",
+    )
     research_parser = subparsers.add_parser("research")
     research_parser.add_argument("--broker-profile", default="default")
     research_parser.add_argument("--relationship", default="XAUEUR_SYNTHETIC")
@@ -387,6 +397,7 @@ def _discover(arguments: argparse.Namespace) -> int:
             arguments.rolling_beta_window,
             arguments.statistical_significance,
             arguments.output or get_settings().data.reports_directory,
+            MultiplicityMethod(arguments.multiplicity_method),
         )
     else:
         if not arguments.symbol:

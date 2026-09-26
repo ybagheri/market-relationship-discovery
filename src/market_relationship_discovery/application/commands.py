@@ -21,6 +21,10 @@ from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
 from market_relationship_discovery.market_data.symbols import SymbolMapper
 from market_relationship_discovery.relationships.catalog import RelationshipCatalog
 from market_relationship_discovery.research.service import HistoricalRelationshipResearcher
+from market_relationship_discovery.statistics.multiplicity import (
+    DEFAULT_METHOD as DEFAULT_MULTIPLICITY_METHOD,
+)
+from market_relationship_discovery.statistics.multiplicity import MultiplicityMethod
 
 
 def collect_historical_data(
@@ -167,6 +171,7 @@ def run_advanced_research(
     rolling_beta_window: int = 30,
     statistical_significance: float = 0.05,
     output_directory: Path | None = None,
+    multiplicity_method: MultiplicityMethod = DEFAULT_MULTIPLICITY_METHOD,
 ) -> dict[str, object]:
     from market_relationship_discovery.discovery.ranker import CandidateRankingConfig
 
@@ -184,6 +189,7 @@ def run_advanced_research(
             ridge_alpha=ridge_alpha,
         ),
         output_directory=output_directory,
+        multiplicity_method=multiplicity_method,
     )
 
 

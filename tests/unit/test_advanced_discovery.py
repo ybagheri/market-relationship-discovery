@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from market_relationship_discovery.application.advanced_research import AdvancedDiscoveryService
 from market_relationship_discovery.discovery.ranker import CandidateRankingConfig
@@ -39,6 +40,13 @@ def test_advanced_discovery_writes_advanced_research_report(tmp_path: Path) -> N
     assert result["results"]["ranking"]["model"] == "numpy_ridge"
     assert result["experiment"]["parameters"]["rolling_beta_window"] == 30
     assert result["experiment"]["parameters"]["statistical_significance"] == 0.05
+    assert result["experiment"]["parameters"]["multiplicity_method"] == "fdr_bh"
+    multiplicity = result["results"]["multiplicity"]
+    assert multiplicity["method"] == "fdr_bh"
+    assert multiplicity["alpha"] == 0.05
+    assert multiplicity["tests"] >= 1
+    assert multiplicity["expected_false_positives"] == pytest.approx(multiplicity["tests"] * 0.05)
+    assert len(multiplicity["hypotheses"]) == multiplicity["tests"]
     candidate_summary = result["results"]["candidates"][0]["summary"]
     assert "beta_stability" in candidate_summary
     assert candidate_summary["cointegration_stationarity"]["status"] == "available"
