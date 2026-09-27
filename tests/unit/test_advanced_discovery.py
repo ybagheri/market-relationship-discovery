@@ -14,12 +14,13 @@ def test_advanced_discovery_writes_advanced_research_report(tmp_path: Path) -> N
     index = pd.date_range("2026-09-25", periods=80, freq="h", tz="UTC")
     eurusd = np.linspace(1.1, 1.2, 80)
     gbpusd = np.linspace(1.3, 1.4, 80)
+    noise = np.random.default_rng(20260927).normal(scale=1e-4, size=80)
     pd.DataFrame(
         {
             "timestamp": index,
             "EURUSD": eurusd,
             "GBPUSD": gbpusd,
-            "EURGBP": eurusd / gbpusd,
+            "EURGBP": eurusd / gbpusd + noise,
         }
     ).to_csv(source, index=False)
 

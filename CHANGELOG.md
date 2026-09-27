@@ -2,6 +2,13 @@
 
 All notable changes follow semantic versioning.
 
+## [1.7.1] - 2026-09-27
+
+### Fixed
+
+- Package metadata now reports `1.7.1` consistently; experiment manifests were still stamped `1.0.0` while the distribution reported `1.7.0`
+- Near-zero OLS residuals are reported as `unavailable` for cointegration diagnostics instead of running singular ADF/KPSS regressions
+
 ## [1.7.0] - 2026-09-26
 
 ### Added

@@ -149,7 +149,9 @@ class StatisticalAnalyzer:
         except (ValueError, np.linalg.LinAlgError, FloatingPointError):
             base["unavailable_reason"] = "ordinary least squares residuals could not be computed"
             return base
-        if not np.all(np.isfinite(residuals)) or np.ptp(residuals) == 0.0:
+        residual_scale = max(1.0, float(np.max(np.abs(y))))
+        degenerate_residuals = bool(np.max(np.abs(residuals)) <= 1e-12 * residual_scale)
+        if not np.all(np.isfinite(residuals)) or np.ptp(residuals) == 0.0 or degenerate_residuals:
             base["unavailable_reason"] = "residual series is constant or not finite"
             return base
 
