@@ -43,6 +43,7 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Contract-aware volume and PnL normalization for cross-broker edges
 - Margin model that treats a broker-reported zero as not reported, never free
 - Fill feasibility against broker volume step and maximum, with partial-fill reporting
+- Measured round-trip latency from a supplied execution log, read without placing orders
 - Overnight funding accrual including the triple-swap rollover
 - Latency capture comparing measured opportunity duration against round-trip time
 - Sensitivity sweep reporting how far a capture verdict travels from its assumption

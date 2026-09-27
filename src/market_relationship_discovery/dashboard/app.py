@@ -54,7 +54,7 @@ selected_profile = st.sidebar.selectbox(
 )
 
 
-def _render_execution(execution: dict[str, object]) -> None:
+def _render_execution(execution: dict[str, object], report: dict[str, object]) -> None:
     """Show the capital and fill verdict recorded with a comparison report.
 
     A report written before this layer existed has no execution block, so the
@@ -91,16 +91,26 @@ def _render_execution(execution: dict[str, object]) -> None:
         "Fill estimates respect volume step and maximum but do not model queue "
         "position, partial-fill probability, or rejection."
     )
-    _render_latency(cast(dict[str, object], report.get("latency", {})))
+    _render_latency(cast(dict[str, object], report.get("latency", {})), report)
 
 
-def _render_latency(latency: dict[str, object]) -> None:
+def _render_latency(latency: dict[str, object], report: dict[str, object]) -> None:
     """Show how much of each measured episode survives a round trip.
 
     An episode count alone is misleading: a crossable tick that existed for one
     instant is counted the same as one that stayed open for a minute.
     """
     st.subheader("Latency capture")
+    baseline = cast(dict[str, object], report.get("latency_baseline", {}))
+    source_kind = str(baseline.get("source_kind", "assumed"))
+    if source_kind == "measured":
+        st.info(
+            f"Round-trip latency is **measured** from `{baseline.get('source_file_name')}` — "
+            f"{baseline.get('sample_count')} samples, {baseline.get('statistic')}, "
+            f"{baseline.get('minimum_ms')} to {baseline.get('maximum_ms')} ms."
+        )
+    else:
+        st.warning("Round-trip latency is an **assumption**, not a measurement.")
     if not latency:
         st.info(
             "This report predates latency capture modelling, or no measurable "
@@ -455,7 +465,7 @@ with discrepancy:
         st.dataframe(aligned, width="stretch")
         if not opportunities.empty:
             st.dataframe(opportunities, width="stretch")
-        _render_execution(cast(dict[str, object], report.get("execution", {})))
+        _render_execution(cast(dict[str, object], report.get("execution", {})), report)
 
 with brokers:
     st.subheader("Broker mid-price comparison")
@@ -482,7 +492,7 @@ with brokers:
         st.caption(
             "Mid prices are descriptive observations and do not establish executable arbitrage."
         )
-        _render_execution(cast(dict[str, object], report.get("execution", {})))
+        _render_execution(cast(dict[str, object], report.get("execution", {})), report)
 
 with limitations:
     st.markdown("""

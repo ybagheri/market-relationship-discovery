@@ -215,6 +215,20 @@ applies to an absent latency assumption: it is unknown, not free.
 This was found by running the model on live data without the flag set, which
 reported 100 percent capturable.
 
+## Measured round-trip latency
+
+The default latency baseline is an assumption. A user-supplied execution log can replace it:
+
+```bash
+python -m market_relationship_discovery compare-brokers a.csv b.csv --broker-a A --broker-b B --symbol EURUSD --latency-log executions.csv --latency-log-statistic median
+```
+
+CSV and Parquet logs require `round_trip_ms`, `round_trip`, or `latency_ms`; `symbol` and `broker` are optional filters. JSON accepts a list of observations, a `samples`/`executions`/`latency_log` wrapper, or a pre-aggregated object containing `round_trip_ms`. The log is hashed as a related source and the report records the statistic, sample count, median, p95, and range.
+
+`--latency-log` and an explicit `--latency-per-leg-ms` cannot be combined. A measured or assumed zero round trip is refused. `COSTS__LATENCY_LOG_PATH` and `COSTS__LATENCY_LOG_STATISTIC` provide the local default.
+
+This feature reads a log produced elsewhere. It does not connect to a terminal, place an order, or measure latency itself.
+
 ## Live bitcoin, the most misleading dataset in the project
 
 Bitcoin trades continuously, so it is the only instrument here with genuine

@@ -93,6 +93,8 @@ class CostSettings(BaseModel):
     commission: float = Field(default=0.0, ge=0)
     slippage: float = Field(default=0.0, ge=0)
     latency_assumption_ms: int = Field(default=50, gt=0)
+    latency_log_path: Path | None = None
+    latency_log_statistic: str = "median"
     other_costs: float = Field(default=0.0, ge=0)
     volume: float = Field(default=1.0, gt=0)
     leverage: int | None = Field(default=None, gt=0)

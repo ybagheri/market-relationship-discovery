@@ -51,7 +51,7 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Execution feasibility verdict integrated into the cross-broker summary
 - [x] Latency capture against measured episode duration with a capturability gate
 - [x] Latency and adverse-move sensitivity sweep with fragility classification
-- [ ] Measured round-trip latency from an execution log, replacing the assumption
+- [x] Measured round-trip latency from an execution log, replacing the assumption
 - [x] Per-broker symbol labels so cross-broker research survives differing names
 - [ ] Queue position and book depth, which research data cannot observe
 

@@ -30,6 +30,12 @@ from market_relationship_discovery.backtesting.monte_carlo import (
 )
 from market_relationship_discovery.backtesting.walk_forward import WalkForwardConfig
 from market_relationship_discovery.config import get_settings
+from market_relationship_discovery.costs.measurement import (
+    LatencySource,
+    LatencyStatistic,
+    MeasuredLatencyBaseline,
+    load_measured_latency,
+)
 from market_relationship_discovery.domain.dataset import DataType
 from market_relationship_discovery.infrastructure.logging.config import configure_logging
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
@@ -229,6 +235,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="minimum share of an episode that must survive a round trip",
     )
+    comparison_parser.add_argument(
+        "--latency-log",
+        type=Path,
+        default=None,
+        help="CSV, Parquet, or JSON execution log of measured round-trip latency",
+    )
+    comparison_parser.add_argument(
+        "--latency-log-statistic",
+        choices=[item.value for item in LatencyStatistic],
+        default=LatencyStatistic.MEDIAN.value,
+    )
+    comparison_parser.add_argument("--latency-log-symbol", default=None)
+    comparison_parser.add_argument("--latency-log-broker", default=None)
     comparison_parser.add_argument(
         "--latency-grid-ms",
         type=float,
@@ -537,8 +556,34 @@ def _robustness(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _load_latency_baseline(arguments: argparse.Namespace) -> MeasuredLatencyBaseline | None:
+    path = arguments.latency_log or get_settings().costs.latency_log_path
+    if path is None:
+        return None
+    return load_measured_latency(
+        path,
+        LatencyStatistic(arguments.latency_log_statistic),
+        arguments.latency_log_symbol,
+        arguments.latency_log_broker,
+    )
+
+
 def _compare_brokers(arguments: argparse.Namespace) -> int:
     costs = get_settings().costs
+    measured = _load_latency_baseline(arguments)
+    if measured is not None and arguments.latency_per_leg_ms is not None:
+        raise ValueError(
+            "a measured latency log and an assumed latency cannot both define the baseline"
+        )
+    latency_per_leg_ms = (
+        measured.per_leg(2)
+        if measured is not None
+        else (
+            arguments.latency_per_leg_ms
+            if arguments.latency_per_leg_ms is not None
+            else float(costs.latency_assumption_ms)
+        )
+    )
     result = CrossBrokerExperimentService().run(
         arguments.source_a,
         arguments.source_b,
@@ -562,11 +607,7 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
         ),
         arguments.symbol_a,
         arguments.symbol_b,
-        (
-            arguments.latency_per_leg_ms
-            if arguments.latency_per_leg_ms is not None
-            else float(costs.latency_assumption_ms)
-        ),
+        latency_per_leg_ms,
         (
             arguments.adverse_move_allowance
             if arguments.adverse_move_allowance is not None
@@ -578,6 +619,11 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
             else costs.minimum_capturable_fraction
         ),
         tuple(arguments.latency_grid_ms) if arguments.latency_grid_ms else None,
+        LatencySource.MEASURED if measured is not None else LatencySource.ASSUMED,
+        measured.sample_count if measured is not None else 0,
+        measured.source_file_name if measured is not None else None,
+        measured.to_dict() if measured is not None else None,
+        arguments.latency_log or get_settings().costs.latency_log_path,
     )
     print(_serializable(result))
     return 0

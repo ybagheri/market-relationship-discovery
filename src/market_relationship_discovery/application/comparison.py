@@ -7,6 +7,7 @@ from typing import cast
 import pandas as pd
 
 from market_relationship_discovery.costs.latency import RoundTripAssumption
+from market_relationship_discovery.costs.measurement import LatencySource
 from market_relationship_discovery.costs.sensitivity import (
     DEFAULT_LATENCY_GRID_MS,
     LatencySensitivityAnalyzer,
@@ -49,6 +50,11 @@ class CrossBrokerExperimentService:
         adverse_move_allowance: float = 0.0,
         minimum_capturable_fraction: float = 0.25,
         latency_grid_ms: tuple[float, ...] | None = None,
+        latency_source: LatencySource = LatencySource.ASSUMED,
+        latency_sample_count: int = 0,
+        latency_log_file_name: str | None = None,
+        latency_baseline: dict[str, object] | None = None,
+        latency_log_path: Path | None = None,
     ) -> dict[str, object]:
         """Compare two broker feeds for the same research instrument.
 
@@ -79,6 +85,8 @@ class CrossBrokerExperimentService:
             latency_per_leg_ms,
             adverse_move_allowance,
             minimum_capturable_fraction,
+            latency_source,
+            latency_sample_count,
         )
         analysis = CrossBrokerComparisonEngine().compare(frame_a, frame_b, request)
         start = min(frame_a["timestamp"].min(), frame_b["timestamp"].min()).to_pydatetime()
@@ -109,8 +117,11 @@ class CrossBrokerExperimentService:
                 "adverse_move_allowance": adverse_move_allowance,
                 "minimum_capturable_fraction": minimum_capturable_fraction,
                 "latency_grid_ms": list(latency_grid_ms or DEFAULT_LATENCY_GRID_MS),
+                "latency_source": latency_source.value,
+                "latency_sample_count": latency_sample_count,
+                "latency_log_file_name": latency_log_file_name,
             },
-            (source_b,),
+            tuple(path for path in (source_b, latency_log_path) if path is not None),
         )
         execution = analysis.summary.execution
         latency = analysis.summary.latency
@@ -120,6 +131,8 @@ class CrossBrokerExperimentService:
             adverse_move_allowance,
             minimum_capturable_fraction,
             latency_grid_ms,
+            latency_source,
+            latency_sample_count,
         )
         payload: dict[str, object] = {
             "summary": asdict(analysis.summary),
@@ -128,6 +141,13 @@ class CrossBrokerExperimentService:
             "execution": (execution.to_dict() if execution is not None else None),
             "latency": (latency.to_dict() if latency is not None else None),
             "latency_sensitivity": sensitivity,
+            "latency_baseline": latency_baseline
+            or {
+                "source_kind": latency_source.value,
+                "sample_count": latency_sample_count,
+                "latency_per_leg_ms": latency_per_leg_ms,
+                "round_trip_ms": latency_per_leg_ms * 2,
+            },
             "limitations": [
                 "Crossable is a positive research edge after configured additional cost, "
                 "not guaranteed execution.",
@@ -139,6 +159,8 @@ class CrossBrokerExperimentService:
                 "partial-fill probability, or rejection.",
                 "Latency capture assumes linear edge decay over a measured episode. It is a "
                 "feasibility estimate, not a prediction that a fill will occur.",
+                "A measured latency baseline is read from a supplied execution log produced "
+                "elsewhere. This pipeline places no order and does not measure latency itself.",
             ],
         }
         response: dict[str, object] = {
@@ -158,6 +180,8 @@ class CrossBrokerExperimentService:
         adverse_move_allowance: float,
         minimum_capturable_fraction: float,
         grid: tuple[float, ...] | None,
+        latency_source: LatencySource,
+        latency_sample_count: int,
     ) -> dict[str, object] | None:
         """Report how far the capture verdict travels from the configured value.
 
@@ -180,6 +204,8 @@ class CrossBrokerExperimentService:
             legs=2,
             adverse_move_allowance=adverse_move_allowance,
             minimum_capturable_fraction=minimum_capturable_fraction,
+            latency_source=latency_source,
+            latency_sample_count=latency_sample_count,
         )
         return analyzer.sweep(episodes, baseline, grid or DEFAULT_LATENCY_GRID_MS).to_dict()
 

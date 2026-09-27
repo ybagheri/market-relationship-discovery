@@ -84,6 +84,7 @@ def load_comparison_report(path: Path) -> dict[str, object]:
         "execution": _as_dict(results.get("execution")),
         "latency": _as_dict(results.get("latency")),
         "latency_sensitivity": _as_dict(results.get("latency_sensitivity")),
+        "latency_baseline": _as_dict(results.get("latency_baseline")),
         "limitations": _as_list(results.get("limitations")),
     }
 

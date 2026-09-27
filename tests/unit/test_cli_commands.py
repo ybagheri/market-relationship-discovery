@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from market_relationship_discovery.application.commands import run_no_lookahead_backtest
-from market_relationship_discovery.cli import build_parser
+from market_relationship_discovery.cli import build_parser, main
 
 
 def test_backtest_command_uses_next_observation(tmp_path: Path) -> None:
@@ -169,6 +169,35 @@ def test_compare_brokers_command_exposes_alignment_and_cost_controls() -> None:
     assert arguments.max_delay_ms == 50
     assert arguments.additional_cost == 0.0002
     assert arguments.kind == "tick"
+
+
+def test_compare_brokers_latency_log_conflicts_with_an_explicit_assumption(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    latency_log = tmp_path / "latency.csv"
+    latency_log.write_text("round_trip_ms\n80\n", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "compare-brokers",
+            "a.csv",
+            "b.csv",
+            "--broker-a",
+            "A",
+            "--broker-b",
+            "B",
+            "--symbol",
+            "EURUSD",
+            "--latency-log",
+            str(latency_log),
+            "--latency-per-leg-ms",
+            "50",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "cannot both define the baseline" in capsys.readouterr().err
 
 
 def test_contract_commands_are_available() -> None:

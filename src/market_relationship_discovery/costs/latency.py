@@ -37,6 +37,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
+from market_relationship_discovery.costs.measurement import LatencySource
 from market_relationship_discovery.domain.errors import InsufficientDataError
 
 
@@ -83,6 +84,8 @@ class RoundTripAssumption:
     legs: int = 2
     adverse_move_allowance: float = 0.0
     minimum_capturable_fraction: float = 0.25
+    latency_source: LatencySource = LatencySource.ASSUMED
+    latency_sample_count: int = 0
 
     def __post_init__(self) -> None:
         if self.latency_per_leg_ms <= 0:
@@ -109,6 +112,8 @@ class RoundTripAssumption:
             "round_trip_ms": self.round_trip_ms,
             "adverse_move_allowance": self.adverse_move_allowance,
             "minimum_capturable_fraction": self.minimum_capturable_fraction,
+            "latency_source": self.latency_source.value,
+            "latency_sample_count": self.latency_sample_count,
         }
 
 

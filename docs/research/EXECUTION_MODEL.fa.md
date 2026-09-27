@@ -211,6 +211,20 @@ COSTS__MINIMUM_CAPTURABLE_FRACTION=0.25
 می‌کند. این با اجرای مدل روی داده زنده بدون تنظیم پرچم کشف شد که ۱۰۰ درصد
 قابل پر شدن گزارش می‌کرد.
 
+## latency رفت‌وبرگشت اندازه‌گیری‌شده
+
+baseline پیش‌فرض latency یک فرض است. execution log کاربر می‌تواند آن را جایگزین کند:
+
+```bash
+python -m market_relationship_discovery compare-brokers a.csv b.csv --broker-a A --broker-b B --symbol EURUSD --latency-log executions.csv --latency-log-statistic median
+```
+
+logهای CSV و Parquet به `round_trip_ms`، `round_trip` یا `latency_ms` نیاز دارند؛ `symbol` و `broker` فیلترهای اختیاری‌اند. JSON فهرست observation، wrapper با کلید `samples`/`executions`/`latency_log` یا شیء تجمیعی با `round_trip_ms` را می‌پذیرد. log به‌عنوان منبع وابسته hash می‌شود و گزارش آماره، تعداد نمونه، میانه، p95 و بازه را ثبت می‌کند.
+
+`--latency-log` و `--latency-per-leg-ms` صریح با هم قابل ترکیب نیستند. رفت‌وبرگشت صفر چه فرضی چه اندازه‌گیری‌شده رد می‌شود. `COSTS__LATENCY_LOG_PATH` و `COSTS__LATENCY_LOG_STATISTIC` پیش‌فرض محلی را فراهم می‌کنند.
+
+این قابلیت log تولیدشده جای دیگر را می‌خواند. به ترمینال وصل نمی‌شود، سفارش ثبت نمی‌کند و خودش latency را اندازه نمی‌گیرد.
+
 ## بیت‌کوین زنده، گمراه‌کننده‌ترین داده پروژه
 
 بیت‌کوین دائماً معامله می‌شود، پس تنها ابزاری است که مدت opportunity واقعی ۲۴

@@ -2,6 +2,19 @@
 
 All notable changes follow semantic versioning.
 
+## [1.8.0] - 2026-09-27
+
+### Added
+
+- Measured round-trip latency baselines read from CSV, Parquet, or JSON execution logs
+- Latency statistic, symbol, and broker filters with zero-round-trip refusal
+- Measured latency provenance, related-source hashing, and report metadata
+- Dashboard banner distinguishing measured latency from an assumption
+
+### Fixed
+
+- Dashboard latency and execution renderers now receive the report explicitly instead of relying on a module global
+
 ## [1.7.1] - 2026-09-27
 
 ### Fixed

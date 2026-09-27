@@ -19,6 +19,7 @@ from market_relationship_discovery.costs.latency import (
     LatencyCaptureReport,
     RoundTripAssumption,
 )
+from market_relationship_discovery.costs.measurement import LatencySource
 from market_relationship_discovery.domain.errors import DataQualityError, InsufficientDataError
 from market_relationship_discovery.market_data.contract import (
     ContractCompatibilityStatus,
@@ -66,6 +67,8 @@ class CrossBrokerRequest:
     latency_per_leg_ms: float = 50.0
     adverse_move_allowance: float = 0.0
     minimum_capturable_fraction: float = 0.25
+    latency_source: LatencySource = LatencySource.ASSUMED
+    latency_sample_count: int = 0
 
     def __post_init__(self) -> None:
         if not self.broker_a or not self.broker_b or not self.symbol:
@@ -480,6 +483,8 @@ class CrossBrokerComparisonEngine:
             legs=2,
             adverse_move_allowance=request.adverse_move_allowance,
             minimum_capturable_fraction=request.minimum_capturable_fraction,
+            latency_source=request.latency_source,
+            latency_sample_count=request.latency_sample_count,
         )
         capture = LatencyCaptureModel().assess(episodes, assumption)
         return capture
