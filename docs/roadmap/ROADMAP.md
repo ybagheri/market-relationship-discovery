@@ -53,7 +53,7 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Latency and adverse-move sensitivity sweep with fragility classification
 - [x] Measured round-trip latency from an execution log, replacing the assumption
 - [x] Per-broker symbol labels so cross-broker research survives differing names
-- [ ] Queue position and book depth, which research data cannot observe
+- [~] Queue position and book depth, which research data cannot observe
 
 ## Phase 5 — Statistical Research
 
@@ -110,5 +110,5 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 
 ## Phase 10 — Optional Execution
 
-- [ ] Not implemented and explicitly out of scope
+- [ ] Not implemented and explicitly out of scope; a separate execution package and authorization are required
 - [ ] If separately authorized later: demo-only, kill switch, exposure/loss limits, audit trail

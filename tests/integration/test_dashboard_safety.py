@@ -11,3 +11,21 @@ def test_dashboard_contains_research_safety_banner() -> None:
     assert "Broker Comparison" in source
     assert "settings.mt5.password" not in source
     assert "settings.mt5.login" not in source
+
+
+def test_research_package_has_no_order_execution_path() -> None:
+    package = Path("src/market_relationship_discovery")
+    offenders = [
+        str(path)
+        for path in package.rglob("*.py")
+        if "order_send(" in path.read_text(encoding="utf-8")
+    ]
+
+    assert offenders == []
+
+
+def test_roadmap_keeps_optional_execution_out_of_scope() -> None:
+    roadmap = Path("docs/roadmap/ROADMAP.md").read_text(encoding="utf-8")
+
+    assert "Not implemented and explicitly out of scope" in roadmap
+    assert "separately authorized" in roadmap
