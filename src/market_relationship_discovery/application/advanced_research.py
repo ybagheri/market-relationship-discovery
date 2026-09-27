@@ -138,8 +138,9 @@ class AdvancedDiscoveryService:
                 "costs, contract compatibility, and execution feasibility are separate gates.",
                 "Symbols collected in one request can cover different calendar ranges; only the "
                 "largest shared window is analysed and excluded symbols are reported.",
-                "Candidates asserting the same hypothesis are collapsed before testing, but "
-                "different formulas for one target remain separate tests.",
+                "Candidates asserting the same hypothesis are collapsed before testing. "
+                "Semantic equivalence is proven for monomial rational forms; additive formulas "
+                "remain separate tests.",
             ],
         }
         manifest = create_experiment_manifest(
@@ -152,6 +153,8 @@ class AdvancedDiscoveryService:
                 "minimum_symbols_for_window": minimum_symbols_for_window,
                 "candidates_before_deduplication": deduplication.input_count,
                 "candidates_after_deduplication": len(deduplication.kept),
+                "candidates_semantically_merged": len(deduplication.semantic_merges),
+                "equivalence_basis": "semantic_then_syntactic",
                 "panel_union_rows": coverage.union_rows,
                 "panel_fully_overlapping_rows": coverage.fully_overlapping_rows,
                 "excluded_symbols": sorted(

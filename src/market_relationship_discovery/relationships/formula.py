@@ -35,6 +35,61 @@ class Expression:
         return self.left.dependencies() | self.right.dependencies()
 
 
+def monomial_exponents(expression: Expression) -> dict[str, int] | None:
+    """Return signed symbol exponents when the expression is a monomial ratio.
+
+    Addition, subtraction, literals, and functions are not provable here, so the
+    function returns ``None`` and callers fall back to syntactic identity.
+    """
+    if expression.symbol is not None:
+        return {expression.symbol: 1}
+    if expression.left is None or expression.right is None or expression.operation is None:
+        return None
+    left = monomial_exponents(expression.left)
+    right = monomial_exponents(expression.right)
+    if left is None or right is None:
+        return None
+    match expression.operation:
+        case Operation.MULTIPLY:
+            result = dict(left)
+            for symbol, exponent in right.items():
+                result[symbol] = result.get(symbol, 0) + exponent
+        case Operation.DIVIDE:
+            result = dict(left)
+            for symbol, exponent in right.items():
+                result[symbol] = result.get(symbol, 0) - exponent
+        case _:
+            return None
+    return {symbol: exponent for symbol, exponent in result.items() if exponent != 0}
+
+
+def semantic_key(expression: Expression) -> str:
+    """Return a canonical identity key for provable monomial expressions."""
+    exponents = monomial_exponents(expression)
+    if exponents is None:
+        return f"S|{canonical_formula_fallback(expression)}"
+    body = ",".join(f"{symbol}^{exponent}" for symbol, exponent in sorted(exponents.items()))
+    return f"M|{body}|C=1"
+
+
+def canonical_formula_fallback(expression: Expression) -> str:
+    if expression.symbol is not None:
+        return expression.symbol
+    if expression.left is None or expression.right is None or expression.operation is None:
+        return "invalid"
+    left = canonical_formula_fallback(expression.left)
+    right = canonical_formula_fallback(expression.right)
+    symbol = {"add": "+", "subtract": "-", "multiply": "*", "divide": "/"}[
+        expression.operation.value
+    ]
+    return f"({left}{symbol}{right})"
+
+
+def equivalent(first: Expression, second: Expression) -> bool:
+    """Whether two expressions are proven equal by the semantic normal form."""
+    return semantic_key(first) == semantic_key(second)
+
+
 class FormulaParser:
     _token_pattern = re.compile(r"\s*(?:(?P<operator>[()*/+\-])|(?P<identifier>[A-Za-z0-9_.\-#]+))")
 

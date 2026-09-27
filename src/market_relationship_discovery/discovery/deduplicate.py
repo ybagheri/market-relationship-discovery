@@ -26,7 +26,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from market_relationship_discovery.discovery.engine import DiscoveryCandidate
-from market_relationship_discovery.relationships.formula import Expression, FormulaParser, Operation
+from market_relationship_discovery.relationships.formula import (
+    Expression,
+    FormulaParser,
+    Operation,
+    semantic_key,
+)
 
 
 class NormalizationError(ValueError):
@@ -84,6 +89,7 @@ class CandidateFingerprint:
     target: str
     canonical: str
     dependencies: tuple[str, ...]
+    semantic: str = ""
 
     @classmethod
     def of(cls, candidate: DiscoveryCandidate) -> CandidateFingerprint:
@@ -91,6 +97,7 @@ class CandidateFingerprint:
             expression = FormulaParser.parse(candidate.formula)
             canonical = canonical_formula(expression)
             dependencies = tuple(sorted(expression.dependencies()))
+            semantic = semantic_key(expression)
         except ValueError as exc:
             raise NormalizationError(
                 f"candidate {candidate.name!r} has an unusable formula "
@@ -100,6 +107,7 @@ class CandidateFingerprint:
             target=candidate.target.strip().upper(),
             canonical=canonical,
             dependencies=dependencies,
+            semantic=semantic,
         )
 
     def describe(self) -> str:
@@ -113,6 +121,7 @@ class DeduplicationReport:
     kept: tuple[DiscoveryCandidate, ...]
     duplicates: tuple[tuple[str, str], ...]
     unparsable: tuple[str, ...]
+    semantic_merges: tuple[tuple[str, str, str], ...] = ()
 
     @property
     def removed_count(self) -> int:
@@ -126,6 +135,11 @@ class DeduplicationReport:
         return {
             "input_candidates": self.input_count,
             "kept_candidates": len(self.kept),
+            "equivalence_basis": "semantic_then_syntactic",
+            "semantic_merges": [
+                {"kept": kept, "removed": removed, "shared_key": key}
+                for kept, removed, key in self.semantic_merges
+            ],
             "removed_duplicates": [
                 {"kept": kept, "removed": removed} for kept, removed in self.duplicates
             ],
@@ -148,24 +162,35 @@ class CandidateDeduplicator:
     ) -> DeduplicationReport:
         kept: list[DiscoveryCandidate] = []
         duplicates: list[tuple[str, str]] = []
+        semantic_merges: list[tuple[str, str, str]] = []
         unparsable: list[str] = []
-        seen: dict[CandidateFingerprint, DiscoveryCandidate] = {}
+        semantic_seen: dict[tuple[str, str], DiscoveryCandidate] = {}
+        canonical_seen: dict[tuple[str, str], DiscoveryCandidate] = {}
         for candidate in candidates:
             try:
                 fingerprint = CandidateFingerprint.of(candidate)
             except NormalizationError:
                 unparsable.append(candidate.name)
                 continue
-            existing = seen.get(fingerprint)
-            if existing is None:
-                seen[fingerprint] = candidate
-                kept.append(candidate)
-            else:
+            semantic_identity = (fingerprint.target, fingerprint.semantic)
+            existing = semantic_seen.get(semantic_identity)
+            if existing is not None:
                 duplicates.append((existing.name, candidate.name))
+                semantic_merges.append((existing.name, candidate.name, fingerprint.semantic))
+                continue
+            canonical_identity = (fingerprint.target, fingerprint.canonical)
+            existing = canonical_seen.get(canonical_identity)
+            if existing is not None:
+                duplicates.append((existing.name, candidate.name))
+                continue
+            semantic_seen[semantic_identity] = candidate
+            canonical_seen[canonical_identity] = candidate
+            kept.append(candidate)
         return DeduplicationReport(
             kept=tuple(kept),
             duplicates=tuple(duplicates),
             unparsable=tuple(unparsable),
+            semantic_merges=tuple(semantic_merges),
         )
 
     def fingerprints(

@@ -2,6 +2,14 @@
 
 All notable changes follow semantic versioning.
 
+## [1.8.1] - 2026-09-27
+
+### Added
+
+- Proven semantic equivalence for monomial rational formulas such as `A/(B*C)`, `A/B/C`, and `(A/B)*B`
+- Two-stage semantic-then-syntactic candidate de-duplication with explicit merge reporting
+- Advanced-discovery manifest fields for semantic merges and equivalence basis
+
 ## [1.8.0] - 2026-09-27
 
 ### Added

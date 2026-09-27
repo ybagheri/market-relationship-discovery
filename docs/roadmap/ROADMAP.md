@@ -67,7 +67,7 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Cross-symbol coverage reporting and largest-shared-window analysis
 - [x] Candidate-family de-duplication by canonical formula
 - [x] Contested flag when stationarity tests disagree
-- [ ] Semantics-aware formula equivalence beyond syntactic canonicalisation
+- [x] Semantics-aware formula equivalence beyond syntactic canonicalisation
 
 ## Phase 6 — Discovery Engine
 

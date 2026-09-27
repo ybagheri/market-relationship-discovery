@@ -183,6 +183,25 @@ def test_report_is_serializable() -> None:
     assert payload["unparsable_formulas"] == []
 
 
+def test_semantic_merge_collapses_a_cancelled_product() -> None:
+    report = CandidateDeduplicator().deduplicate(
+        [candidate("FIRST", "T", "(A/B)*B"), candidate("SECOND", "T", "A")]
+    )
+
+    assert [item.name for item in report.kept] == ["FIRST"]
+    assert report.semantic_merges[0][0:2] == ("FIRST", "SECOND")
+    assert report.to_dict()["equivalence_basis"] == "semantic_then_syntactic"
+
+
+def test_semantic_merge_does_not_reach_additive_formulas() -> None:
+    report = CandidateDeduplicator().deduplicate(
+        [candidate("FIRST", "T", "A*B+C"), candidate("SECOND", "T", "A+C*B")]
+    )
+
+    assert len(report.kept) == 2
+    assert report.semantic_merges == ()
+
+
 def test_deduplication_never_mutates_its_input() -> None:
     deduplicator = CandidateDeduplicator()
     candidates = [

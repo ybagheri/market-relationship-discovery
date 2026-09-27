@@ -50,6 +50,8 @@ def test_advanced_discovery_writes_advanced_research_report(tmp_path: Path) -> N
     deduplication = result["results"]["deduplication"]
     assert deduplication["unparsable_formulas"] == []
     assert deduplication["kept_candidates"] == len(result["results"]["candidates"])
+    assert deduplication["equivalence_basis"] == "semantic_then_syntactic"
+    assert result["experiment"]["parameters"]["candidates_semantically_merged"] == 0
     coverage = result["results"]["coverage"]
     assert coverage["is_usable"] is True
     assert coverage["analysed_rows"] == 80

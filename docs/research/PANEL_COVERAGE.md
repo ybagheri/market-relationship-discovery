@@ -94,9 +94,14 @@ Division and subtraction are neither associative nor commutative, so their
 operand order is preserved exactly. `A / B` and `B / A` assert different things
 and must remain separate hypotheses.
 
-### What is deliberately not merged
+### Equivalence basis
 
-Two different formulas reaching the same target are two hypotheses:
+De-duplication first proves equality for monomial rational forms. Signed symbol
+exponents are folded, so `A/(B*C)`, `A/B/C`, and `(A/B)*B` reduce to the same
+identity as `A`. A second syntactic pass keeps the existing guarantees for
+additive forms.
+
+Two different formulas reaching the same target remain two hypotheses:
 
 ```text
 EURJPY = EURUSD * USDJPY
@@ -132,6 +137,7 @@ have read a contested result as a clean one.
 - The greedy subset search is not exhaustive. It is quadratic in symbol count and
   maximises the shared window, but with many candidates a different subset could
   in principle be marginally better.
-- De-duplication compares formulas, not semantics. Two formulas that are
-  algebraically equal in a way the parser does not normalise, such as
-  `(A/B)*B` against `A`, are still separate candidates.
+- Semantic equivalence is proven only for monomial rational forms over observed
+  symbols. Additive, subtractive, literal, and function forms fall back to
+  syntactic comparison, so equal-but-differently-written additive formulas remain
+  separate tests.

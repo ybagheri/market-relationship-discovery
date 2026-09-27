@@ -60,7 +60,7 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Historical candidate evaluation with discrepancy, correlation, persistence, and regime metrics
 - Deterministic chronological NumPy ridge ranking with out-of-sample RMSE
 - False-discovery control across the discovered candidate family
-- Candidate de-duplication by canonical formula before testing
+- Candidate de-duplication by proven formula equivalence, with syntactic canonicalisation as fallback
 - Cross-symbol coverage reporting and largest-shared-window analysis
 - Contested flag when ADF and KPSS verdicts disagree
 - Multi-broker dashboard with per-profile symbol resolution and health checks
