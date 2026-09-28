@@ -1,0 +1,187 @@
+# Handoff — measurement corrections, 2026-09-28
+
+This is a handoff record, written so that a later session or another system can
+resume the work without reconstructing it. It is a point-in-time snapshot; the
+[roadmap](ROADMAP.md) remains the map of where the project stands.
+
+## Where things stand
+
+Four items from **Open corrections → High** are done, committed, and pushed to
+`main`. The quality gate is green.
+
+| Check | Result |
+| --- | --- |
+| `pytest` | 324 passed, 2 skipped |
+| `ruff check .` | clean |
+| `black --check .` | clean |
+| `mypy` (strict) | clean, 70 source files |
+
+The two skips are environmental, not failures: one MT5 terminal test with no
+configured terminal path, one dashboard test with no persisted discovery report.
+
+Commits, oldest first:
+
+| Commit | Item |
+| --- | --- |
+| `a7689bc` | Read the cointegration p-value from the one-regressor distribution |
+| `be69dbd` | Block a cross-broker pair when one leg is capped by `volume_max` |
+| `6229383` | Roadmap and changelog for the two above |
+| `1c8fed8` | Value the capture over the holding window, not its first instant |
+| `ad6d7ff` | Charge every triple-swap rollover a multi-night hold crosses |
+
+Test count went from 304 at `b3f2008` to 324. Each correction added regression
+tests that fail against the code as it was before the change.
+
+## What was wrong, and what is different now
+
+### 1. The cointegration p-value used the wrong distribution
+
+`statistics/analyzer.py` ran `adfuller` on the OLS residuals and read the
+MacKinnon table for a regression with **zero** predetermined regressors. The
+residuals were produced by a regression containing **one**, so the value was
+anti-conservative by roughly a factor of two. On a pair whose residual is a near
+unit root it read 0.027 unadjusted and 0.090 adjusted, and
+`cointegrated_at_significance` followed the unadjusted one.
+
+That figure is `engle_granger_p_value`, which is what the false-discovery family
+consumes, so the correction applied across the family inherited the bias. The
+test now runs through `statsmodels.tsa.stattools.coint`; the unadjusted value is
+published as `adf_p_value_without_regressor_adjustment` so the size of the
+correction is visible rather than assumed.
+
+The fix exposed a **second condition in the same function**: a pair so nearly
+collinear that the benchmark explains almost all of the target variance makes
+`coint` return a statistic of `-inf` with a p-value of zero, which its own
+documentation calls numerically unstable rather than a test result. Reporting
+that zero would certify a cointegrated relationship the test never measured, so
+such a pair is now `unavailable` naming collinearity. The detection uses the same
+R-squared criterion `coint` applies, so genuine cointegration is still evaluated.
+
+### 2. A capped leg passed the executable gate
+
+`ABOVE_MAXIMUM` was never a blocking reason and `minimum_fill_ratio` defaulted to
+`0.0`, so a size the broker demonstrably cannot fill returned `executable = True`
+with an empty `blocking_reasons` and a binding fill ratio of 0.2. A `volume_max`
+that is not a whole multiple of `volume_step` was additionally reported as
+`filled_volume = 0.0` with `partial_fill = True`, a claim of a partial fill of
+nothing.
+
+`above_maximum` now blocks on either leg. A cap that leaves the achievable size
+below `volume_min` is refused as `below_minimum` with `limited_by` naming the cap.
+
+### 3. The captured edge was the first instant, not the average
+
+`costs/latency.py` returned the edge at the moment the round trip completed rather
+than the mean over the window in which the position is held. Once both legs are
+open the position is held until the edge closes, so the expectation is the
+average; the old figure is the best case anywhere in the window presented as the
+expectation, and under linear decay it is exactly double.
+
+Separately, the producer took the maximum edge over an episode while the model
+treated it as the episode's starting value, crediting the position with an edge
+as large as the peak across the whole window no matter when the peak arrived.
+Episodes now carry `peak_offset_ms`, the measured position of the maximum, and
+the profile rises linearly from zero to the peak at that offset before decaying.
+
+`capturable_fraction` and the capturable verdicts are **unchanged**: they answer
+*when* the position can be held and depend only on time. Only the edge magnitude
+was wrong, and a test pins that separation.
+
+### 4. A multi-night hold was not charged its triple-swap rollover
+
+The triple multiplier applied only when the whole holding period was exactly one
+night, so a position held Wednesday to Friday accrued 2x instead of 4x. Every
+triple-swap rollover inside the held interval is now counted, giving
+`nights + 2 * rollovers`. `annualized_rate` was also set to the configured
+**daily** fraction, understating an annual figure 365-fold; it now reports
+`daily * 365`, with a new `daily_rate` field publishing the configured value.
+
+## Three judgement calls that need review
+
+These are not mechanical corrections. Each changed documented behaviour, and a
+later session should confirm the reasoning rather than inherit it.
+
+**A capped leg now blocks a cross-broker pair.** The prior documentation argued
+a capped fill stays executable "because PnL scales with filled volume". That holds
+for a single position and is wrong for a pair: if broker B caps 50 lots at 10
+while broker A takes 50, the result is a net directional position on broker A, not
+the researched pair at reduced size. `EXECUTION_MODEL.md` states the reversal.
+*Worth checking:* whether any existing research report relied on a capped leg
+being reported as executable.
+
+**`minimum_fill_ratio` moved from `0.0` to `0.9`.** Rounding a request down to
+`volume_step` cannot produce a ratio at or below one half, so any threshold of
+`0.5` or less is unfalsifiable rather than merely lenient; the measured floor
+across step and size combinations is about 0.51. The old `0.0` was inert, not
+lenient. The default is exported as `costs.execution.DEFAULT_MINIMUM_FILL_RATIO`
+and shared by `CostSettings`, `CrossBrokerRequest`, and the assessor, all three of
+which had defaulted to `0.0`.
+*Worth checking:* any deployment that relied on `COSTS__MINIMUM_FILL_RATIO=0.0` to
+mean "do not gate on size" must now set it explicitly.
+
+**Two legacy tests asserted well-formedness rather than truth.** Both were
+rewritten rather than preserved.
+`test_evaluator_reports_stationarity_for_a_noisy_relationship` asserted
+`status == "available"` for a pair whose benchmark *was* the target plus noise
+three orders of magnitude below the price; it now asserts the real situation, and
+a new test confirms a genuinely cointegrated pair is still evaluated.
+`test_partial_fill_is_still_executable_but_reports_the_reduced_size` encoded the
+verdict that item 2 reverses.
+
+## Known limitation left in the documentation
+
+`EXECUTION_MODEL.md` quotes captured-edge figures from real Alpari/AMarkets runs
+that the capture correction changes. Those numbers are **labelled as produced by
+the earlier model rather than restated**, because the underlying tick data is not
+in the repository to recompute. Rerun `compare-brokers` to regenerate them. The
+capturable counts and durations in the same tables are unaffected.
+
+## Environment note
+
+No virtualenv existed in the project. One was created at `.venv` and pinned
+dependencies were installed from `requirements.lock` so the quality gate could
+run. It is covered by `.gitignore` and does not appear in `git status`.
+
+## What to do next
+
+Follow the process in the [roadmap](ROADMAP.md): run the gate, take items from
+**Open corrections** in order, each with a regression test that fails before the
+fix, move the item into its phase, add a changelog entry describing what number
+was wrong, and update the document under `docs/research/` whose convention
+changed.
+
+Remaining counts: **4 High, 7 Medium, 9 Low**, plus 2 Phase 10 items that are
+deliberately out of scope.
+
+The next four High items, in the order the roadmap lists them:
+
+1. `relationships/formula.py` — `-` inside the identifier class makes `A-B` a
+   single symbol name, so an un-spaced subtraction becomes a dependency that can
+   never exist in a panel.
+2. `market_data/contract.py` — a broker that halves `contract_size` without
+   halving `tick_value` is not describing the same instrument. 1.9.0 reports the
+   disagreement; it does not yet refuse the comparison.
+3. `discovery/engine.py` — `filter` overwrites `REQUIRES_DATA` with
+   `INSUFFICIENT_OBSERVATIONS`, and the `permutations(..., 3)` family is O(n³).
+4. `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` have no caller, and
+   the model holds a latency assumption it never applies.
+
+Two of the four remaining High items were reattributed while this work was done.
+The triple-swap defect was filed under `costs/latency.py` but both fields live in
+`FundingModel` in `costs/execution.py`; the roadmap now says so. Expect more
+attribution drift of that kind and check the file path before starting.
+
+## Things to be careful about
+
+- **Check the attribution, not just the description.** Several roadmap entries
+  name a file that no longer holds the described code.
+- **Do not accept a test that only asserts a well-formed result.** Every defect
+  in this list survived a green suite precisely because the test checked the
+  shape of the output rather than its truth. A new test should fail against the
+  pre-change code, and it should fail for the right reason.
+- **Prefer a stated reason over a silent default.** Where an input is missing or
+  unusable, the corrected code now reports the reason rather than assuming a
+  convenient value. The sensitivity sweep, for instance, drops a capture whose
+  `peak_offset_ms` is absent rather than assuming the peak sat at the start.
+- **Changing a reported figure means changing a document.** Two items here
+  altered numbers that `docs/research/` states as conventions.

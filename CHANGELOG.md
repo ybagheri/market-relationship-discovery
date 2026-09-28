@@ -4,6 +4,17 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Documentation
+
+- Added a handoff record for the 2026-09-28 correction session: what was wrong in
+  each of the four corrected items, the three judgement calls that changed
+  documented behaviour and need review, the stale observed figures that could
+  not be recomputed, and the remaining items in order. Written so a later session
+  can resume without reconstructing the work
+- Removed a duplicated Phase 0 block from `ROADMAP.fa.md` that carried an item
+  absent from the English roadmap, so the two now mirror each other's structure
+  exactly
+
 ### Fixed — funding
 
 - The triple-swap multiplier applied only when the whole holding period was

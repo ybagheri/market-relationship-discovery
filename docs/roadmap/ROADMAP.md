@@ -7,6 +7,10 @@ anything: the phases below are marked complete against the behaviour described,
 and a complete item that is listed under **Open corrections** is complete in form
 but not in fact.
 
+A point-in-time record of the most recent session's corrections, the judgement
+calls behind them, and what remains is in the
+[handoff](HANDOFF.md). The roadmap is the map; the handoff is the state of play.
+
 ## Where the project stands
 
 The research platform is feature-complete through the phases below. What is

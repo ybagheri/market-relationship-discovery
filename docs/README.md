@@ -21,5 +21,6 @@
 - [Data quality](research/DATA_QUALITY.md)
 - [Dashboard](dashboard/DASHBOARD.md)
 - [Roadmap](roadmap/ROADMAP.md)
+- [Handoff, 2026-09-28](roadmap/HANDOFF.md)
 
 Each major English document has a Persian counterpart ending in `.fa.md`.
