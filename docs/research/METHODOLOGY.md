@@ -19,14 +19,17 @@ Research classifies observations into theoretical discrepancy, executable discre
 
 ## Stationarity and cointegration
 
-Cointegration is tested with a two-step Engle-Granger style procedure. The target is regressed on the benchmark, and an augmented Dickey-Fuller test with AIC lag selection is applied to the OLS residuals using `statsmodels`. A KPSS level-stationarity test is run on the same residuals as corroboration, because both tests can reject and a disagreement is a meaningful result.
+Cointegration is tested with a two-step Engle-Granger style procedure. The target is regressed on the benchmark, and an augmented Dickey-Fuller test with AIC lag selection is applied to the OLS residuals using `statsmodels.tsa.stattools.coint`. A KPSS level-stationarity test is run on the same residuals as corroboration, because both tests can reject and a disagreement is a meaningful result.
 
-Two safeguards exist because a naive implementation of this procedure reports confident false positives:
+The step 2 p-value is the one adjusted for a single cointegrating regressor, because the residuals being tested were produced by a regression containing one. Reading the MacKinnon table for the zero-regressor case instead, as a bare `adfuller` call on the residuals does, is anti-conservative: on near unit-root pairs it reported p-values around half the correct value, and pairs whose residuals are clearly non-stationary came back significant at the 5% level. The unadjusted value is reported alongside as `adf_p_value_without_regressor_adjustment` so the size of the correction is visible rather than assumed.
+
+Three safeguards exist because a naive implementation of this procedure reports confident false positives:
 
 - At least 30 aligned observations are required. Below that the result is reported as `unavailable` with a reason.
 - A constant, non-finite, or otherwise degenerate residual series is reported as `unavailable`. A perfect formula identity leaves no residual variation to test, and an earlier approximation returned a sentinel value that was reported as strong cointegration evidence.
+- A pair that is so nearly collinear that the benchmark explains almost all of the target variance is reported as `unavailable`, naming collinearity as the reason. In that condition `coint` returns a statistic of `-inf` with a p-value of zero, which it documents as numerically unstable rather than as a test result. Reporting that zero would certify a cointegrated relationship the test never measured.
 
-Each result reports `cointegrated_at_significance`, the ADF and KPSS conclusions, whether the two tests agree, and `kpss_p_value_is_bounded`. The KPSS lookup table bounds its p-value from below, so a bounded result is flagged rather than presented as an exact probability.
+Each result reports `cointegrated_at_significance`, the ADF and KPSS conclusions, whether the two tests agree, `adf_p_value_is_regressor_adjusted`, and `kpss_p_value_is_bounded`. The KPSS lookup table bounds its p-value from below, so a bounded result is flagged rather than presented as an exact probability.
 
 A rejected null hypothesis is evidence about the historical sample only. It is not evidence of an executable edge, and it does not survive costs by itself.
 

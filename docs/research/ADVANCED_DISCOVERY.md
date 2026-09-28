@@ -36,7 +36,7 @@ Volatility is the rolling standard deviation of log returns. Low and high thresh
 
 ## Statistical diagnostics
 
-`--rolling-beta-window` controls the causal beta window. Beta stability reports valid windows, sign fractions, sign consistency, and dispersion. Cointegration uses an OLS residual ADF approximation; ADF uses a fixed-lag OLS normal approximation; KPSS uses a level CUSUM chi-square approximation. These tests are retrospective full-sample diagnostics and are not ranking features.
+`--rolling-beta-window` controls the causal beta window. Beta stability reports valid windows, sign fractions, sign consistency, and dispersion. Cointegration uses an OLS residual augmented Dickey-Fuller test whose p-value is adjusted for the single cointegrating regressor, so a candidate needs to clear a stricter bar than the unadjusted test would set; a nearly collinear pair is reported as unavailable instead. ADF uses a fixed-lag OLS normal approximation; KPSS uses a level CUSUM chi-square approximation. These tests are retrospective full-sample diagnostics and are not ranking features.
 
 ## Ranking safety
 

@@ -37,7 +37,17 @@ def test_evaluator_scores_exact_relationship() -> None:
     assert result.frame["next_abs_zscore"].iloc[-1] != result.frame["next_abs_zscore"].iloc[-1]
 
 
-def test_evaluator_reports_stationarity_for_a_noisy_relationship() -> None:
+def test_evaluator_reports_a_collinear_pair_as_unavailable_not_cointegrated() -> None:
+    """A benchmark identical to the target cannot support a cointegration test.
+
+    The synthetic value here is ``A * B`` and the observed series is that same
+    product plus noise an order of magnitude below the price, so the benchmark
+    explains the target almost exactly. ``statsmodels.coint`` reports that
+    condition with a statistic of ``-inf`` and a p-value of zero, which it
+    documents as numerically unstable rather than as a test outcome. Reporting
+    a zero p-value would certify a cointegrated relationship the test never
+    measured, so the result must be an explicit unavailable reason.
+    """
     generator = np.random.default_rng(20260926)
     index = pd.date_range("2026-09-25", periods=60, freq="h", tz="UTC")
     first = np.linspace(1.0, 1.3, 60)
@@ -57,7 +67,39 @@ def test_evaluator_reports_stationarity_for_a_noisy_relationship() -> None:
     )[0]
 
     stationarity = result.summary["cointegration_stationarity"]
+    assert stationarity["status"] == "unavailable"
+    assert "collinear" in str(stationarity["unavailable_reason"])
+    assert stationarity["adf_p_value"] is None
+    assert stationarity["cointegrated_at_significance"] is None
+
+
+def test_evaluator_reports_stationarity_for_a_cointegrated_relationship() -> None:
+    """A benchmark that does not already contain the target must still be tested.
+
+    The observed series holds a stationary spread around a cointegrating
+    relationship with the benchmark, which is the case the test is meant to
+    cover. A collinearity guard must not suppress a genuine result.
+    """
+    generator = np.random.default_rng(20260926)
+    index = pd.date_range("2026-09-25", periods=200, freq="h", tz="UTC")
+    first = np.cumsum(generator.normal(size=200)) + 100.0
+    second = np.cumsum(generator.normal(size=200)) + 50.0
+    spread = generator.normal(scale=0.2, size=200)
+    prices = pd.DataFrame(
+        {"X1": first, "X2": second, "OBSERVED": first + second + spread},
+        index=index,
+    )
+    candidate = DiscoveryCandidate(
+        "OBSERVED_X1X2", "OBSERVED", "X1 + X2", CandidateStatus.RESEARCH_CANDIDATE
+    )
+
+    result = GraphCandidateEvaluator().evaluate(
+        prices, [candidate], minimum_observations=30, regime_window=5
+    )[0]
+
+    stationarity = result.summary["cointegration_stationarity"]
     assert stationarity["status"] == "available"
+    assert stationarity["adf_p_value_is_regressor_adjusted"] is True
     assert abs(float(stationarity["engle_granger_statistic"])) < 100.0
 
 

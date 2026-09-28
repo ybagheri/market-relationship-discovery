@@ -1,3 +1,4 @@
+import math
 import warnings
 from dataclasses import dataclass
 from math import log
@@ -5,8 +6,12 @@ from math import log
 import numpy as np
 import pandas as pd
 from scipy import stats
-from statsmodels.tools.sm_exceptions import InterpolationWarning
-from statsmodels.tsa.stattools import adfuller, kpss
+from statsmodels.tools.sm_exceptions import (
+    CollinearityWarning,
+    InterpolationWarning,
+    MissingDataError,
+)
+from statsmodels.tsa.stattools import adfuller, coint, kpss
 
 from market_relationship_discovery.domain.errors import InsufficientDataError
 
@@ -103,6 +108,11 @@ class StatisticalAnalyzer:
         residuals is reported alongside it because both tests can reject, and
         disagreement is reported rather than hidden.
 
+        The p-value is the one adjusted for a single cointegrating regressor,
+        because the residuals were produced by a regression that contains one.
+        The zero-regressor value is also reported, so a reader can see what the
+        adjustment changed instead of taking the corrected figure on trust.
+
         Stationarity testing is a research diagnostic, not evidence of an
         executable edge. A cointegrated pair can still be untradable after
         spread, commission, slippage, and latency.
@@ -117,13 +127,15 @@ class StatisticalAnalyzer:
             "significance_level": significance_level,
             "observations": observations,
             "residual_observations": 0,
-            "engle_granger_method": "ols_residual_augmented_dickey_fuller",
+            "engle_granger_method": "statsmodels_coint_trend_c_autolag_aic",
             "engle_granger_statistic": None,
             "engle_granger_p_value": None,
             "cointegrated_at_significance": None,
-            "adf_method": "statsmodels_adfuller_autolag_aic",
+            "adf_method": "statsmodels_coint_autolag_aic_one_cointegrating_regressor",
             "adf_statistic": None,
             "adf_p_value": None,
+            "adf_p_value_is_regressor_adjusted": None,
+            "adf_p_value_without_regressor_adjustment": None,
             "adf_stationary_at_significance": None,
             "kpss_method": "statsmodels_kpss_level_autolag",
             "kpss_statistic": None,
@@ -155,11 +167,17 @@ class StatisticalAnalyzer:
             base["unavailable_reason"] = "residual series is constant or not finite"
             return base
 
-        adf = _augmented_dickey_fuller(residuals)
+        adf = _engle_granger(y, x, residuals)
         if adf is None:
-            base["unavailable_reason"] = "augmented Dickey-Fuller test could not be computed"
+            if _is_nearly_collinear(y, x):
+                base["unavailable_reason"] = (
+                    "target and benchmark are nearly collinear, so the cointegration "
+                    "test is not numerically reliable"
+                )
+            else:
+                base["unavailable_reason"] = "augmented Dickey-Fuller test could not be computed"
             return base
-        adf_stat, adf_p, adf_lag = adf
+        adf_stat, adf_p, adf_lag, adf_p_unadjusted = adf
         kpss_result = _kpss_level(residuals)
         if kpss_result is None:
             base["unavailable_reason"] = "KPSS test could not be computed"
@@ -168,6 +186,7 @@ class StatisticalAnalyzer:
 
         adf_stationary = bool(adf_p < significance_level)
         kpss_stationary = bool(kpss_p >= significance_level)
+        cointegrated = bool(adf_p < significance_level)
         return {
             **base,
             "status": "available",
@@ -176,9 +195,11 @@ class StatisticalAnalyzer:
             "adf_lag": adf_lag,
             "engle_granger_statistic": float(adf_stat),
             "engle_granger_p_value": float(adf_p),
-            "cointegrated_at_significance": bool(adf_p < significance_level),
+            "cointegrated_at_significance": cointegrated,
             "adf_statistic": float(adf_stat),
             "adf_p_value": float(adf_p),
+            "adf_p_value_is_regressor_adjusted": True,
+            "adf_p_value_without_regressor_adjustment": float(adf_p_unadjusted),
             "adf_stationary_at_significance": adf_stationary,
             "kpss_statistic": float(kpss_stat),
             "kpss_p_value": float(kpss_p),
@@ -222,32 +243,93 @@ class StatisticalAnalyzer:
         return pd.DataFrame(results)
 
 
-def _augmented_dickey_fuller(values: np.ndarray) -> tuple[float, float, int] | None:
-    """Run a constant-only augmented Dickey-Fuller test with automatic lag choice.
+def _engle_granger(
+    target: np.ndarray,
+    benchmark: np.ndarray,
+    residuals: np.ndarray,
+) -> tuple[float, float, int, float] | None:
+    """Run the Engle-Granger step 2 test on the regression residuals.
 
-    Returns ``(statistic, p_value, lags)`` or ``None`` when the test cannot be
-    computed. The test's own p-value and critical values are used rather than a
-    hand-rolled normal approximation, because the OLS residuals of a near
-    unit-root pair make the regression design badly conditioned and an
-    approximate p-value can report a confident false positive.
+    Returns ``(statistic, p_value, lags, unadjusted_p_value)`` or ``None`` when
+    the test cannot be computed.
+
+    Step 2 tests a residual series produced by a regression that contains one
+    predetermined regressor, so the p-value must be read from the distribution
+    adjusted for that regressor. ``statsmodels.coint`` performs the same
+    augmented Dickey-Fuller regression and reports the regressor-adjusted
+    p-value; a bare ``adfuller`` call on the residuals uses the
+    zero-regressor table, which is anti-conservative by roughly a factor of two
+    here and reports near unit-root residuals as stationary. The unadjusted
+    value is returned alongside it so the report can state how much the
+    adjustment changed the figure.
+
+    ``None`` is returned when the pair is so nearly collinear that ``coint``
+    yields a statistic of ``-inf`` with a p-value of zero. That combination is
+    a documented numerical artifact rather than a test result, and reporting it
+    would claim cointegration for a pair the test could not actually examine.
     """
-    if len(values) < 12 or not np.all(np.isfinite(values)):
+    if len(residuals) < 12 or not np.all(np.isfinite(residuals)):
         return None
+    maxlag = min(int(len(residuals) // 4), 8)
     try:
-        result = adfuller(
-            values,
-            maxlag=min(int(len(values) // 4), 8),
+        unadjusted = adfuller(
+            residuals,
+            maxlag=maxlag,
             autolag="AIC",
             regression="c",
             result_object=True,
         )
-    except (ValueError, np.linalg.LinAlgError, ZeroDivisionError, FloatingPointError):
+        with warnings.catch_warnings():
+            # A collinear pair is reported as an unavailable result by the
+            # caller, not as console noise.
+            warnings.filterwarnings("ignore", category=CollinearityWarning)
+            result = coint(target, benchmark, trend="c", maxlag=maxlag, autolag="aic")
+    except (
+        ValueError,
+        np.linalg.LinAlgError,
+        ZeroDivisionError,
+        FloatingPointError,
+        MissingDataError,
+    ):
         return None
-    statistic = float(result.statistic)
-    p_value = float(result.pvalue)
+    statistic = float(result[0])
+    p_value = float(result[1])
+    unadjusted_p_value = float(unadjusted.pvalue)
     if not np.isfinite(statistic) or not np.isfinite(p_value):
         return None
-    return statistic, p_value, int(result.lags)
+    if not np.isfinite(unadjusted_p_value):
+        unadjusted_p_value = float("nan")
+    return statistic, p_value, int(unadjusted.lags), unadjusted_p_value
+
+
+def _is_nearly_collinear(target: np.ndarray, benchmark: np.ndarray) -> bool:
+    """Return whether the benchmark explains the target almost exactly.
+
+    ``statsmodels.coint`` signals this case with a statistic of ``-inf`` and a
+    p-value of zero, which it documents as numerically unstable rather than as
+    a test outcome. Reporting that zero as cointegration evidence would claim a
+    result the test never produced, so the caller reports the pair as
+    unavailable and names collinearity as the reason.
+
+    The criterion matches the one ``coint`` applies, so this detects the
+    condition that made the test unusable rather than a stricter one of its
+    own: a near-perfect fit at ``1 - 100 * sqrt(eps)`` or above.
+    """
+    try:
+        design = np.column_stack([np.ones(len(benchmark)), benchmark])
+        coefficients, residuals, _, _ = np.linalg.lstsq(design, target, rcond=None)
+    except (ValueError, np.linalg.LinAlgError, FloatingPointError):
+        return False
+    residual_sum = (
+        float(np.sum(residuals**2))
+        if residuals.size
+        else float(np.sum((target - design @ coefficients) ** 2))
+    )
+    total_sum = float(np.sum((target - float(np.mean(target))) ** 2))
+    if total_sum <= 0.0:
+        return False
+    r_squared = 1.0 - residual_sum / total_sum
+    return bool(r_squared >= 1.0 - 100.0 * math.sqrt(np.finfo(float).eps))
 
 
 def _kpss_level(values: np.ndarray) -> tuple[float, float, bool] | None:

@@ -21,6 +21,12 @@ The family is the set of candidate stationarity tests produced by the advanced
 discovery run. For each candidate with a usable augmented Dickey-Fuller result,
 the reported `engle_granger_p_value` becomes one member of the family.
 
+That p-value is the Engle-Granger one, adjusted for a single cointegrating
+regressor. A correction applied to an anti-conservative input inherits that
+bias: the family was corrected, but each member entered it looking more
+significant than it was. Candidates whose pair is nearly collinear produce no
+usable result and are excluded.
+
 Candidates whose stationarity test never ran are **excluded** and listed
 separately. An absent result is not evidence. Including a missing result as a
 large p-value would suppress the correction for the candidates that did run, so

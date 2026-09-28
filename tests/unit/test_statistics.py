@@ -65,8 +65,8 @@ def test_cointegration_stationarity_reports_residual_diagnostics() -> None:
 
     assert result["status"] == "available"
     assert result["unavailable_reason"] is None
-    assert result["engle_granger_method"] == "ols_residual_augmented_dickey_fuller"
-    assert result["adf_method"] == "statsmodels_adfuller_autolag_aic"
+    assert result["engle_granger_method"] == "statsmodels_coint_trend_c_autolag_aic"
+    assert result["adf_method"] == "statsmodels_coint_autolag_aic_one_cointegrating_regressor"
     assert result["kpss_method"] == "statsmodels_kpss_level_autolag"
     assert result["cointegrated_at_significance"] is True
     assert result["stationarity_tests_agree"] is True
@@ -92,6 +92,51 @@ def test_cointegrated_random_walk_pair_is_not_reported_as_cointegrated() -> None
     assert 0.0 <= float(result["engle_granger_p_value"]) <= 1.0
     assert result["cointegrated_at_significance"] is False
     assert result["stationarity_tests_agree"] is True
+
+
+def test_engle_granger_p_value_is_adjusted_for_the_cointegrating_regressor() -> None:
+    """The reported p-value must come from the one-regressor distribution.
+
+    Engle-Granger step 2 tests a residual series that was produced by a
+    regression with one predetermined regressor, so the p-value must be read
+    from the MacKinnon table adjusted for that regressor. Using the
+    zero-regressor table understated the p-value by roughly a factor of two,
+    which reported near-unit-root pairs as cointegrated and inflated the
+    false-discovery family that consumes this value.
+    """
+    generator = np.random.default_rng(20260926)
+    benchmark = np.cumsum(generator.normal(size=400)) + 100.0
+    target = 2.0 * benchmark + np.cumsum(generator.normal(scale=0.02, size=400))
+
+    result = StatisticalAnalyzer.cointegration_stationarity(pd.Series(target), pd.Series(benchmark))
+
+    assert result["status"] == "available"
+    assert result["engle_granger_method"] == "statsmodels_coint_trend_c_autolag_aic"
+    assert result["adf_p_value_is_regressor_adjusted"] is True
+    assert float(result["engle_granger_p_value"]) > float(
+        result["adf_p_value_without_regressor_adjustment"]
+    )
+
+
+def test_regressor_adjusted_p_value_does_not_certify_a_near_unit_root_pair() -> None:
+    """A pair whose residual is a near unit root must not be reported cointegrated.
+
+    The unadjusted p-value read 0.027 on this pair and rejected stationarity at
+    the 5% level, reporting a cointegrated relationship from a residual series
+    that is a near unit root. The adjusted p-value rejects the claim, and the
+    verdict must follow the adjusted value.
+    """
+    generator = np.random.default_rng(0)
+    benchmark = np.cumsum(generator.normal(size=400)) + 100.0
+    target = 2.0 * benchmark + np.cumsum(generator.normal(scale=0.02, size=400))
+
+    result = StatisticalAnalyzer.cointegration_stationarity(pd.Series(target), pd.Series(benchmark))
+
+    assert result["status"] == "available"
+    assert float(result["adf_p_value_without_regressor_adjustment"]) < 0.05
+    assert float(result["adf_p_value"]) >= 0.05
+    assert result["cointegrated_at_significance"] is False
+    assert result["adf_stationary_at_significance"] is False
 
 
 def test_stationarity_diagnostics_report_a_reason_when_unavailable() -> None:
