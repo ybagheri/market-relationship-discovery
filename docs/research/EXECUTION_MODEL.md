@@ -46,12 +46,46 @@ side alone.
   off-step orders rather than rounding them up,
 - sizes above `volume_max` are capped and reported as `above_maximum`,
 - sizes below `volume_min` are refused as `below_minimum`,
+- a `volume_max` that is not a whole multiple of `volume_step` is rounded down
+  as well, and if that leaves the achievable size below `volume_min` the size is
+  refused as `below_minimum` with `limited_by` naming the cap, rather than
+  reported as a partial fill of zero,
 - an absent contract specification yields `unknown_contract`.
 
-A capped fill remains *executable*, because PnL scales with filled volume. The
-reduced size is reported through `binding_fill_ratio` and the fill objects
-rather than being hidden. `minimum_fill_ratio` is the control for callers that
-require a minimum achievable size.
+## A capped leg is not a smaller opportunity
+
+A capped leg **blocks** the cross-broker pair. `above_maximum` is a blocking
+reason, not an advisory one.
+
+The earlier reasoning was that PnL scales with filled volume, so a capped fill
+stays executable. That holds for a single position, and it is wrong for this
+module, which always assesses *two* legs. If broker B caps a 50-lot request at
+10 lots while broker A takes its 50, the result is not the researched pair at
+reduced size — it is a 40-lot net directional position on broker A. The
+platform has no model for the risk of that residual, and the discrepancy was
+computed for a specific size, so reporting the pair as executable claimed an
+edge the position does not have.
+
+The reduced size is still reported through `binding_fill_ratio` and the fill
+objects; it is blocked rather than hidden.
+
+## The fill-ratio threshold
+
+`minimum_fill_ratio` is compared against the binding fill ratio of the two legs.
+Its default was `0.0`, a floor that no fill ratio can fall below, so the check
+appeared in every report and could never block anything.
+
+Rounding a request down to `volume_step` cannot produce a ratio at or below one
+half: a request that rounds down to a single step is by definition larger than
+that step, and the observed floor across step and size combinations is about
+0.51. So **any threshold of `0.5` or less is unfalsifiable**, not merely lenient.
+The default is now `0.9`, exported as `costs.execution.DEFAULT_MINIMUM_FILL_RATIO`
+and shared by `CostSettings`, `CrossBrokerRequest`, and the assessor so the three
+cannot drift apart.
+
+0.9 rejects a size the broker can only fill in a materially reduced form, while
+still tolerating an off-step request that the broker rounds harmlessly: a 0.123
+request under a 0.01 step fills 0.12 and stays executable.
 
 ## Funding
 
@@ -69,8 +103,9 @@ discrepancy unprofitable.
 `ExecutionAssessor` combines margin and fill feasibility. It separates two
 different situations that are easy to conflate:
 
-- **Known infeasibility** — a size the broker cannot accept, or a fill ratio
-  below the configured minimum. This blocks the opportunity.
+- **Known infeasibility** — a size the broker cannot accept, including a leg
+  capped by `volume_max`, or a fill ratio below the configured minimum. This
+  blocks the opportunity.
 - **Unknown capital** — margin cannot be determined. This does *not* delete the
   observation, because an unknown margin is a confidence problem rather than
   proof of infeasibility. It is surfaced by appending `_capital_unverified` to
@@ -382,6 +417,6 @@ COSTS__VOLUME=1.0
 COSTS__LEVERAGE=500
 COSTS__FUNDING_ENABLED=true
 COSTS__FUNDING_DAILY_RATE=0.0004
-COSTS__MINIMUM_FILL_RATIO=0.5
+COSTS__MINIMUM_FILL_RATIO=0.9
 COSTS__HOLDING_DAYS=1
 ```

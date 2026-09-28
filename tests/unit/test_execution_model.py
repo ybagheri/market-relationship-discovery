@@ -227,13 +227,16 @@ def test_execution_is_executable_when_margin_is_derived_and_size_fits() -> None:
     assert assessment.binding_fill_ratio == pytest.approx(1.0)
 
 
-def test_partial_fill_is_still_executable_but_reports_the_reduced_size() -> None:
-    """A broker-side cap reduces size without destroying the opportunity.
+def test_a_capped_leg_blocks_the_cross_broker_pair() -> None:
+    """A leg the broker cannot fill in full makes the pair unexecutable.
 
-    PnL scales with filled volume, so a capped fill remains executable. The
-    reduced size is reported through ``binding_fill_ratio`` and the fill objects
-    rather than being hidden, and ``minimum_fill_ratio`` is the control for
-    callers that require a minimum size.
+    The research computed a discrepancy for a specific size. If one broker caps
+    that size, the two legs are no longer matched: the capped side holds far
+    less than the other, so the position is not a smaller version of the
+    researched pair but a net directional bet. Reporting that as executable let
+    a size the broker demonstrably cannot accept through the gate, because
+    ``ABOVE_MAXIMUM`` was never a blocking reason and ``minimum_fill_ratio``
+    defaulted to ``0.0``, which no fill can fall below.
     """
     assessor = ExecutionAssessor(
         MarginModel(leverage=500),
@@ -250,11 +253,100 @@ def test_partial_fill_is_still_executable_but_reports_the_reduced_size() -> None
         3000.0,
     )
 
-    assert assessment.executable is True
-    assert assessment.blocking_reasons == ()
+    assert assessment.executable is False
+    assert any("volume_max" in reason for reason in assessment.blocking_reasons)
+    # The reduced size is still reported rather than dropped.
     assert assessment.fill_b.status is VolumeStatus.ABOVE_MAXIMUM
     assert assessment.fill_b.filled_volume == pytest.approx(10.0)
     assert assessment.binding_fill_ratio == pytest.approx(0.2)
+
+
+def test_the_default_fill_ratio_threshold_is_not_inert() -> None:
+    """A partial fill must be judged against a threshold that can reject.
+
+    The default was ``0.0``, a floor no fill ratio can fall below, so the check
+    appeared in the report but could never block anything. Rounding down to
+    ``volume_step`` cannot produce a ratio at or below one half, so a default of
+    ``0.0`` or ``0.5`` would be equally unfalsifiable; the default has to sit
+    above that bound to mean anything.
+    """
+    assessor = ExecutionAssessor(
+        MarginModel(leverage=500),
+        FillSimulator(),
+        leverage=500,
+    )
+
+    blocked = assessor.assess(
+        specification(volume_min=0.01, volume_step=0.5, volume_max=1000.0),
+        specification(volume_min=0.01, volume_step=0.5, volume_max=1000.0),
+        2.5,
+        2.9,
+        3000.0,
+        3000.0,
+    )
+
+    assert blocked.executable is False
+    assert any("fill ratio" in reason for reason in blocked.blocking_reasons)
+    assert blocked.binding_fill_ratio < 0.9
+
+
+def test_step_rounding_within_the_default_threshold_stays_executable() -> None:
+    """A threshold that rejects a 0.25% rounding loss would be a blocking error.
+
+    The corrected default must reject a materially unfillable size without
+    turning an off-step request that the broker rounds harmlessly into a
+    refusal, because that would be a different defect: reporting a rounding
+    artefact as proof of infeasibility.
+    """
+    assessor = ExecutionAssessor(
+        MarginModel(leverage=500),
+        FillSimulator(),
+        leverage=500,
+    )
+
+    assessment = assessor.assess(
+        specification(volume_min=0.01, volume_step=0.01, volume_max=1000.0),
+        specification(volume_min=0.01, volume_step=0.01, volume_max=1000.0),
+        0.123,
+        0.123,
+        3000.0,
+        3000.0,
+    )
+
+    assert assessment.executable is True
+    assert assessment.blocking_reasons == ()
+    assert assessment.fill_a.filled_volume == pytest.approx(0.12)
+    assert assessment.binding_fill_ratio == pytest.approx(0.12 / 0.123)
+
+
+def test_a_cap_that_rounds_below_the_broker_minimum_fills_nothing() -> None:
+    """``volume_max`` that is not a step multiple must not yield a zero fill.
+
+    A cap of ``0.05`` under a ``0.1`` step rounds down to zero, and the result
+    was reported as ``above_maximum`` with ``filled_volume = 0.0`` and
+    ``partial_fill = True``: a claim of a partial fill of nothing. The
+    achievable size is below the broker minimum, so the size is refused and the
+    cap is named as the reason.
+    """
+    contract = specification(volume_min=0.01, volume_step=0.1, volume_max=0.05)
+
+    estimate = FillSimulator().estimate(contract, 0.2)
+
+    assert estimate.status is VolumeStatus.BELOW_MINIMUM
+    assert estimate.filled_volume == 0.0
+    assert estimate.fill_ratio == 0.0
+    assert "volume_max" in str(estimate.limited_by)
+
+
+def test_a_cap_rounding_to_the_minimum_is_still_a_capped_fill() -> None:
+    """Rounding the cap must not invent a refusal where a legal size exists."""
+    contract = specification(volume_min=0.1, volume_step=0.1, volume_max=0.15)
+
+    estimate = FillSimulator().estimate(contract, 1.0)
+
+    assert estimate.status is VolumeStatus.ABOVE_MAXIMUM
+    assert estimate.filled_volume == pytest.approx(0.1)
+    assert estimate.limited_by == "volume_max"
 
 
 def test_execution_is_blocked_when_the_fill_ratio_is_below_the_minimum() -> None:

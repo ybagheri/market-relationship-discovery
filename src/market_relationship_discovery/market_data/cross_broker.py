@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from market_relationship_discovery.costs.execution import (
+    DEFAULT_MINIMUM_FILL_RATIO,
     ExecutionAssessment,
     ExecutionAssessor,
     FillSimulator,
@@ -73,7 +74,7 @@ class CrossBrokerRequest:
     tick_aggregation: TickAggregation = TickAggregation.LAST
     volume: float = 1.0
     leverage: int | None = None
-    minimum_fill_ratio: float = 0.0
+    minimum_fill_ratio: float = DEFAULT_MINIMUM_FILL_RATIO
     latency_per_leg_ms: float = 50.0
     adverse_move_allowance: float = 0.0
     minimum_capturable_fraction: float = 0.25

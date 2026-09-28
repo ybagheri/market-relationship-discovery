@@ -3,6 +3,8 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from market_relationship_discovery.costs.execution import DEFAULT_MINIMUM_FILL_RATIO
+
 
 class MT5Settings(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -104,7 +106,7 @@ class CostSettings(BaseModel):
     leverage: int | None = Field(default=None, gt=0)
     funding_enabled: bool = True
     funding_daily_rate: float = Field(default=0.0, ge=0)
-    minimum_fill_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    minimum_fill_ratio: float = Field(default=DEFAULT_MINIMUM_FILL_RATIO, ge=0.0, le=1.0)
     minimum_capturable_fraction: float = Field(default=0.25, ge=0.0, le=1.0)
     adverse_move_allowance: float = Field(default=0.0, ge=0)
     holding_days: int = Field(default=1, ge=0, le=365)

@@ -6,6 +6,7 @@ from typing import cast
 
 import pandas as pd
 
+from market_relationship_discovery.costs.execution import DEFAULT_MINIMUM_FILL_RATIO
 from market_relationship_discovery.costs.latency import RoundTripAssumption
 from market_relationship_discovery.costs.measurement import LatencySource
 from market_relationship_discovery.costs.sensitivity import (
@@ -43,7 +44,7 @@ class CrossBrokerExperimentService:
         tick_aggregation: TickAggregation = TickAggregation.LAST,
         volume: float = 1.0,
         leverage: int | None = None,
-        minimum_fill_ratio: float = 0.0,
+        minimum_fill_ratio: float = DEFAULT_MINIMUM_FILL_RATIO,
         symbol_a: str | None = None,
         symbol_b: str | None = None,
         latency_per_leg_ms: float = 50.0,

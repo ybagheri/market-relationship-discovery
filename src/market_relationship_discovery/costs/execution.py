@@ -23,6 +23,14 @@ from enum import StrEnum
 
 from market_relationship_discovery.market_data.contract import ContractSpecification
 
+#: Smallest share of the requested size that both legs must be able to fill.
+#:
+#: Rounding a request down to ``volume_step`` cannot produce a ratio at or below
+#: one half, so any threshold of ``0.5`` or less can never reject anything. This
+#: value sits above that bound, which is what makes the check able to block, and
+#: it still tolerates an off-step request that the broker rounds harmlessly.
+DEFAULT_MINIMUM_FILL_RATIO = 0.9
+
 
 class MarginSource(StrEnum):
     """Where a margin figure came from.
@@ -188,8 +196,9 @@ class FillSimulator:
     """Reduce a requested volume to what a broker would actually accept.
 
     Brokers reject volumes that are not multiples of ``volume_step`` and cap
-    exposure at ``volume_max``. A size above that cap is a partial fill, not an
-    opportunity, so it is reported rather than silently truncated.
+    exposure at ``volume_max``. A size above that cap is reported rather than
+    silently truncated, and a cap that leaves nothing fillable is refused
+    instead of being described as a partial fill of zero.
     """
 
     def estimate(
@@ -219,6 +228,18 @@ class FillSimulator:
             )
         if requested_volume > specification.volume_max:
             capped = self._round_down(specification.volume_max, step)
+            if capped < specification.volume_min:
+                # The cap is not a whole step, so the largest size the broker
+                # can legally accept is below its own minimum. Reporting this as
+                # a capped fill would describe a fill of nothing as a partial
+                # fill, so the size is refused and the cap is named.
+                return FillEstimate(
+                    status=VolumeStatus.BELOW_MINIMUM,
+                    requested_volume=requested_volume,
+                    filled_volume=0.0,
+                    limited_by="volume_max_rounds_below_volume_min",
+                    partial_fill=True,
+                )
             return FillEstimate(
                 status=VolumeStatus.ABOVE_MAXIMUM,
                 requested_volume=requested_volume,
@@ -364,10 +385,18 @@ class ExecutionAssessor:
 
     A candidate is refused when either broker demonstrably cannot fill the
     requested size, or when the achievable size falls below the configured
-    minimum. When capital requirements cannot be determined the verdict is
-    reported as unverified rather than assumed affordable, but the observation is
-    not deleted: an unknown margin is a confidence problem, not proof of
-    infeasibility.
+    minimum fraction. When capital requirements cannot be determined the verdict
+    is reported as unverified rather than assumed affordable, but the
+    observation is not deleted: an unknown margin is a confidence problem, not
+    proof of infeasibility.
+
+    ``minimum_fill_ratio`` is compared against the binding fill ratio. Rounding a
+    request down to ``volume_step`` can never yield a ratio at or below one
+    half, because a request that rounds down to a single step is by definition
+    larger than that step, so any threshold of ``0.5`` or less can never reject
+    anything. The default is therefore above that bound and rejects a size the
+    broker can only fill in a materially reduced form, while still tolerating
+    an off-step request that the broker rounds harmlessly.
     """
 
     def __init__(
@@ -375,7 +404,7 @@ class ExecutionAssessor:
         margin_model: MarginModel,
         fill_simulator: FillSimulator,
         leverage: int | None = None,
-        minimum_fill_ratio: float = 0.0,
+        minimum_fill_ratio: float = DEFAULT_MINIMUM_FILL_RATIO,
     ) -> None:
         if not 0.0 <= minimum_fill_ratio <= 1.0:
             raise ValueError("minimum_fill_ratio must be between zero and one")
@@ -421,6 +450,19 @@ class ExecutionAssessor:
             blocking.append("requested size is below the broker A minimum volume")
         if fill_b.status is VolumeStatus.BELOW_MINIMUM:
             blocking.append("requested size is below the broker B minimum volume")
+        if fill_a.status is VolumeStatus.ABOVE_MAXIMUM:
+            # A capped leg leaves the two sides holding different sizes. That is
+            # not a scaled-down version of the researched pair but a net
+            # directional position, so it cannot be reported as executable.
+            blocking.append(
+                "broker A volume_max is below the requested size, so the two legs "
+                "would not be matched"
+            )
+        if fill_b.status is VolumeStatus.ABOVE_MAXIMUM:
+            blocking.append(
+                "broker B volume_max is below the requested size, so the two legs "
+                "would not be matched"
+            )
         binding = min(fill_a.fill_ratio, fill_b.fill_ratio)
         if fill_a.status is not VolumeStatus.UNKNOWN_CONTRACT and (
             fill_b.status is not VolumeStatus.UNKNOWN_CONTRACT
