@@ -1,12 +1,30 @@
 # Roadmap
 
-Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
+Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`, `[!] Known defect`.
+
+This file is the map of where the project stands. Read it before changing
+anything: the phases below are marked complete against the behaviour described,
+and a complete item that is listed under **Open corrections** is complete in form
+but not in fact.
+
+## Where the project stands
+
+The research platform is feature-complete through the phases below. What is
+deliberately absent is order execution, which is out of scope by design and
+recorded as such in `SECURITY.md`.
+
+The current work is not new capability. It is measurement correctness. A full
+audit of the pipeline found a class of defects that share one shape: the code
+produced a number that looked valid, carried it into a report, and let it be read
+as evidence. A passing test suite did not catch any of them, because in every
+case the test asserted that the pipeline produced a well-formed result, not that
+the result was true. Version 1.9.0 corrects the ones that were found; the
+remaining ones are listed below rather than left implicit.
 
 ## Phase 0 — Foundation
 
 - [x] Audit the initially empty repository
 - [x] Establish package, typed configuration, and logging
-- [x] Establish deterministic test suite
 - [x] Create English and Persian documentation
 
 ## Phase 1 — MT5 Connectivity
@@ -30,6 +48,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Multiple broker profiles and sequential historical collection
 - [x] Process-isolated parallel broker collection
 - [x] Synchronized cross-broker comparison
+- [x] Chronological ordering established once at load, with a monotonicity check
+- [x] Non-finite and empty frames rejected explicitly rather than passing price checks
 
 ## Phase 3 — Synthetic Pricing
 
@@ -53,6 +73,8 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Latency and adverse-move sensitivity sweep with fragility classification
 - [x] Measured round-trip latency from an execution log, replacing the assumption
 - [x] Per-broker symbol labels so cross-broker research survives differing names
+- [x] Opportunity episodes bounded by wall-clock continuity, not row adjacency
+- [x] Cross-broker edge valued once, with leg disagreement reported
 - [~] Queue position and book depth, which research data cannot observe
 
 ## Phase 5 — Statistical Research
@@ -68,11 +90,18 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Candidate-family de-duplication by canonical formula
 - [x] Contested flag when stationarity tests disagree
 - [x] Semantics-aware formula equivalence beyond syntactic canonicalisation
+- [!] ADF p-value is not adjusted for the cointegrating regressor
+- [!] Regime frequencies are pinned by the quantile method rather than measured
+- [!] Redundant and misleading multiplicity report fields
 
 ## Phase 6 — Discovery Engine
 
 - [x] Candidate generation framework
 - [x] Data-driven ranking and robustness filters
+- [x] Causal ranking features only; no whole-sample statistic enters the model
+- [x] One malformed candidate degrades to a status instead of aborting the run
+- [!] `A-B` tokenises as a single symbol name
+- [!] `generate` emits unevaluable targets and inflates `REQUIRES_DATA`
 
 ## Phase 7 — Backtesting
 
@@ -83,6 +112,13 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Experiment IDs, source hashes, and JSON reports
 - [x] Circular block-bootstrap Monte Carlo robustness
 - [x] Wider-spread, slippage, latency, and combined stress scenarios
+- [x] Drawdown measured from the starting equity, consistent across both paths
+- [x] Win rate and average return measured over the trades actually taken
+- [x] Overlapping test windows de-duplicated in the aggregate
+- [x] Stress scenarios that cannot improve on the baseline
+- [!] Validation fold metrics are computed and never used
+- [!] `minimum_train_observations` gates on trade count, not train observations
+- [!] A NaN episode duration yields a `capturable` verdict
 
 ## Phase 8 — Dashboard
 
@@ -94,6 +130,10 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Execution and capital verdict surfaced from persisted reports
 - [x] Script-level render tests through Streamlit AppTest
 - [x] Evaluated discovery results surfaced with significance, contested flags, and coverage
+- [x] Absent, mistyped, and non-finite report fields render as unknown, never as zero
+- [x] Unrecognized fragility classes are not reported as a passing result
+- [!] Unreadable report files are indistinguishable from a missing one
+- [!] A single unavailable symbol discards every row in the monitor
 
 ## Phase 9 — Advanced Research
 
@@ -107,8 +147,106 @@ Status: `[ ] Planned`, `[~] In progress`, `[x] Completed`.
 - [x] Machine-learning-assisted ranking
 - [x] Two live demo brokers verified independently through profile-aware diagnostics
 - [x] Cross-broker studies across differing broker symbol names
+- [!] Collected datasets may retain duplicate tick timestamps
+- [!] Manifest window is taken from raw inputs, not the aligned sample
 
 ## Phase 10 — Optional Execution
 
 - [ ] Not implemented and explicitly out of scope; a separate execution package and authorization are required
 - [ ] If separately authorized later: demo-only, kill switch, exposure/loss limits, audit trail
+
+## Open corrections
+
+Every item here was found by the audit and has not been fixed. Each produced a
+plausible-looking number rather than an error, which is why it survived a
+green test suite. They are ordered by how much a reader could be misled.
+
+### High — a reported figure is wrong
+
+- [ ] `statistics/analyzer.py` — the ADF p-value uses the MacKinnon table for a
+      regression with zero predetermined regressors. Engle–Granger step 2 requires
+      the distribution adjusted for one cointegrating regressor, so the p-value is
+      anti-conservative, and it is exactly what feeds the false-discovery family.
+      Use `statsmodels.tsa.stattools.coint` or `arch.unitroot.EngleGranger`
+- [ ] `costs/execution.py` — `ABOVE_MAXIMUM` is never a blocking reason and
+      `minimum_fill_ratio` defaults to `0.0`, so a size the broker demonstrably
+      cannot fill passes the `executable` gate. A `volume_max` that is not a
+      multiple of `volume_step` can also yield a fill below the broker minimum
+- [ ] `costs/latency.py` — the capture formula returns the edge at the moment the
+      round trip completes rather than the mean over the remaining window, and the
+      producer takes the peak from anywhere in the episode while the model assumes
+      it occurs at the start
+- [ ] `costs/latency.py` — triple swap applies only when the holding period is
+      exactly one night, so a position held across the standard Wednesday rollover
+      accrues 1× instead of 3×. `annualized_rate` is also set to the daily rate
+- [ ] `relationships/formula.py` — `-` inside the identifier class makes `A-B` a
+      single symbol name, so an un-spaced subtraction becomes a dependency that
+      can never exist in a panel
+- [ ] `market_data/contract.py` — a broker that halves `contract_size` without
+      halving `tick_value` is not describing the same instrument. 1.9.0 reports the
+      disagreement; it does not yet refuse the comparison
+- [ ] `discovery/engine.py` — `filter` overwrites `REQUIRES_DATA` with
+      `INSUFFICIENT_OBSERVATIONS`, and the `permutations(..., 3)` family is O(n³)
+- [ ] `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` have no caller, and
+      the model holds a latency assumption it never applies
+
+### Medium — a failure is presented as a favourable result
+
+- [ ] `parallel_collection.py` — raising inside the executor drains the pool on
+      shutdown while workers keep writing datasets, and `DataQualityError` is
+      retried three times, each attempt minting a new `dataset_id` and orphaning
+      the previous output
+- [ ] `parallel_collection.py` — a `DemoSafetyError` in parallel mode is wrapped
+      as `ParallelCollectionError`, so a safety refusal is indistinguishable by
+      type from a transient connection error
+- [ ] `market_data/panel.py` — `read_csv` infers dtypes, so a symbol code like
+      `000300` becomes the integer `300` and can never join to a broker label
+- [ ] `validation/quality.py` — a string price column raises `TypeError` instead
+      of `DataQualityError`, and duplicate counting runs across the whole frame,
+      so a legitimate two-symbol tick file is reported invalid
+- [ ] `cli.py` — `symbol-specs` writes a JSON list, which `compare-brokers` rejects
+      whenever more than one symbol was requested
+- [ ] `market_data/symbols.py` — alias matching is substring-based, so `XAUUSD`
+      matches `XAUUSDmicro`, and the winner is whichever symbol the broker listed
+      first
+- [ ] `market_data/alignment.py` — `align_timeseries` is unused and returns
+      unmatched rows with a `NaT` delay; the two alignment implementations disagree
+
+### Low — hygiene with real consequences
+
+- [ ] `config/settings.py` — `DataSettings.timezone` is half of a critical
+      `doctor` verdict that no data path honours; `cache_enabled` and
+      `cache_directory` are read by nothing; `latency_log_statistic` is an
+      unvalidated string the CLI ignores
+- [ ] `config/settings.py` — two broker profiles may point at the same terminal
+      and collect it twice under different labels
+- [ ] `statistics/analyzer.py` — `correlation` accepts three observations;
+      `half_life` has no plausibility bound; `lead_lag` has no documented sign
+      convention or significance; `rolling_correlation` has no caller
+- [ ] `statistics/analyzer.py` and `backtesting/multi_stage.py` — two identical
+      copies of the rolling z-score used as model input
+- [ ] `backtesting/engine.py` — the no-look-ahead guarantee rests on an
+      undocumented column convention: that `gross_edges[t]` is the return earned
+      over `[t, t+1]`. If it is the edge realised at `t`, `shift(-1)` is itself the
+      look-ahead
+- [ ] `backtesting/walk_forward.py` — `self._splitter` stores the class, not an
+      instance, so there is no seam for a test double
+- [ ] `infrastructure/storage/quotes.py` — the Parquet file is moved to its final
+      path before the manifest is written, so a manifest failure orphans a dataset
+- [ ] `cli.py` — `_serializable` raises a context-free `TypeError` for NumPy
+      scalars; `_dashboard` has no child-process lifecycle management
+- [ ] `market_data/cross_broker.py` — `maximum_*_crossable_edge` is not gated on
+      the execution verdict, so it can report a crossable edge beside
+      `crossable_observations = 0`
+
+## How to continue
+
+1. Run the quality gate first: `pytest`, `ruff check .`, `black --check .`, `mypy`.
+2. Take items from **Open corrections** in order. Each is a small, self-contained
+   change with a regression test that fails before it.
+3. Move the item from **Open corrections** to its phase as `[x]`, and add a
+   `CHANGELOG.md` entry describing what number was wrong, not just what changed.
+4. If a change alters a reported figure, update the corresponding document under
+   `docs/research/`. Those documents state conventions, not just usage, and a
+   convention that changes without them being updated is how the defects above
+   survived.

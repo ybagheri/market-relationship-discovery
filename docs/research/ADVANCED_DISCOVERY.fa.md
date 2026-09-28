@@ -24,6 +24,12 @@
 7. پیش‌بینی و رتبه‌بندی candidateها در observationهای بعدی بر اساس میانگین z-score مطلق پیش‌بینی‌شده.
 8. نوشتن گزارش `EXP-*.json` با hash منبع، پارامترها، regimeها، edgeهای گراف، خلاصه candidateها، ranking و محدودیت‌ها.
 
+## featureهای ranking
+
+هر feature فقط از observationهای تا همان timestamp خودش و قبل از آن محاسبه می‌شود، چون feature خلاصه‌شده روی کل سری، دوره ارزیابی را لو می‌دهد و امتیاز out-of-sample را بی‌معنا می‌کند. مجموعه feature شامل z-score مطلق، نوسان اختلاف، سه نشانگر regime علی، و همبستگی Pearson با پنجره expanding بین actual و synthetic است.
+
+همبستگی expanding در `MINIMUM_EXPANDING_OBSERVATIONS` رد اول تعریف‌نشده است و هرگاه هر یک از دو سری در پنجره واریانس نداشته باشد نیز تعریف‌نشده می‌ماند. این ردیف‌ها به‌جای پر شدن، از مدل کنار گذاشته می‌شوند تا نبودِ اختلاف اندازه‌گیری‌شده هرگز به‌عنوان امتیاز کامل ثبت نشود. z-scoreهای warm-up نیز در frame ارزیابی تعریف‌نشده باقی می‌مانند.
+
 ## regime
 
 نوسان، انحراف معیار rolling بازده log است. آستانه‌های کم و زیاد quantileهای expanding از نوسان مشاهده‌شده تا همان timestamp هستند؛ بنابراین داده آینده برچسب‌های قبلی را تغییر نمی‌دهد. segment قیمت ثابت normal volatility برچسب می‌گیرد.
@@ -34,6 +40,6 @@
 
 ## ایمنی ranking
 
-مدل ridge قطعی است، seed تصادفی ندارد و به scikit-learn نیاز ندارد. `next_abs_zscore` فقط outcome برچسب‌گذاری‌شده برای train/evaluation است و هرگز feature ورودی نیست. observation ناکافی status صریح می‌گیرد و از فهرست ranked حذف می‌شود.
+مدل ridge قطعی است، seed تصادفی ندارد و به scikit-learn نیاز ندارد. `next_abs_zscore` فقط outcome برچسب‌گذاری‌شده برای train/evaluation است و هرگز feature ورودی نیست. آمار خلاصه در سطح candidate برای خواننده گزارش می‌شود ولی ورودی مدل نیست: یک مقدار واحد در کل ردیف‌های آن candidate اطلاعاتی ندارد و اگر روی کل نمونه محاسبه شود، دوره ارزیابی را لو می‌دهد. observation ناکافی status صریح می‌گیرد و از فهرست ranked حذف می‌شود.
 
 خروجی فقط ترتیب پژوهشی است، نه ادعای سودآوری. bar data اجرای tick را ثابت نمی‌کند و گزارش funding، کمیسیون، margin، slippage، latency، partial fill یا قوانین broker-specific را مدل نمی‌کند.

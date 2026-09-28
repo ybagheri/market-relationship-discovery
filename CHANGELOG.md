@@ -2,6 +2,115 @@
 
 All notable changes follow semantic versioning.
 
+## [1.9.0] - 2026-09-28
+
+This release corrects measurement defects found in a full audit of the research
+pipeline. Every item below produced a number that looked valid but was wrong, or
+turned a failure into a favourable-looking result. The 274 tests at 1.8.1 passed
+while all of these were present.
+
+### Fixed — cross-broker measurement
+
+- Event-time alignment searched an unsorted array. A feed whose rows arrived out
+  of chronological order matched each tick to the wrong neighbour, silently
+  discarded observations, reported the delay as zero, and could report a
+  physically impossible opportunity rate of 3600/hour. Timestamps are now sorted
+  once with a monotonicity check
+- Opportunity episodes were grouped by adjacent row index rather than by
+  wall-clock time, so two crossable instants minutes apart were reported as one
+  long opportunity and then declared `capturable` against the round trip
+- Episode continuity now uses the feed's own tick cadence, exposed as
+  `maximum_episode_gap_ms`; an episode with a single observation reports zero
+  duration
+- Non-finite and empty broker frames are rejected explicitly instead of passing
+  the price checks or being reported as a symbol mismatch
+- Persisted preview column order no longer varies with `PYTHONHASHSEED`
+
+### Fixed — money and risk figures
+
+- `ContractEdgeNormalizer` valued the combined two-leg edge against both legs
+  and summed them, roughly doubling a symmetric opportunity. A cross-broker
+  position realizes the price difference once; the two legs are now reported as
+  the two independent valuations they are, and their disagreement beyond 5%
+  raises `_contract_legs_disagree` instead of being added
+- `confidence_max_drawdown` read the wrong quantile for a negative-signed series
+  and reported the shallowest of the worst cases as the confidence bound, milder
+  than a typical drawdown
+- `ResearchBacktester` measured drawdown without a zero seed, so a curve opening
+  below its own high reported no drawdown at all, and disagreed with the Monte
+  Carlo simulator that computes the same quantity correctly
+- `win_rate` and `average_return` were averaged over every bar while
+  `opportunities` counted only traded bars. They are now measured over the trades
+  taken, with `observation_win_rate` added for the all-bars population
+- Adverse/favourable excursions were sums of gross values rather than
+  peak-to-trough excursions, on a different basis from the drawdown beside them
+- Walk-forward aggregates concatenated overlapping test windows, reporting a
+  larger out-of-sample sample than existed and a drawdown over a doubled,
+  out-of-order equity path
+- The adverse-move sensitivity sweep never identified its own baseline, so every
+  sweep reported `nominal` regardless of result, and its curve was flat along the
+  axis being swept
+- A missed trade in the Monte Carlo stress scenarios refunded its cost, which
+  discounted the scenario's cost multiplier by the missed fraction and could make
+  a stress scenario beat the baseline
+
+### Fixed — look-ahead and single-candidate fragility
+
+- The ridge ranker trained on `pearson`, `spearman`, and `half_life` summarised
+  over each candidate's whole series, so the out-of-sample score was computed
+  against features containing the evaluation period. Replaced with an
+  expanding-window correlation computed causally per row
+- A ninth ranking feature was identically `1.0` for every row and is removed
+- Warm-up z-scores filled with `0.0`, recording the absence of a discrepancy as a
+  perfect score; they are now undefined and excluded by the ranker
+- The expanding correlation was numerically unstable on price-level data and
+  could flip sign; it is now centred before accumulation, clipped to its own
+  bounds, and tested against a direct pandas computation
+- One non-positive price or one zero denominator aborted an entire discovery run
+  instead of degrading a single candidate, which affected every additive
+  relationship whose target crosses zero
+- A zero denominator now invalidates one observation rather than the whole
+  candidate
+
+### Fixed — demo-only guarantee
+
+- The verified `DEMO` account mode was cached for the life of the adapter. The
+  terminal is a separate long-lived process that can be re-logged-in mid-session,
+  so a snapshot cached that long kept certifying an account the operator had
+  switched away from, and that mode is written into every dataset manifest.
+  Re-verified on a configurable TTL, `MT5__ACCOUNT_VERIFICATION_TTL_SECONDS`
+- `is_connected` only tested that an import succeeded; it now probes the terminal
+  so a session closed elsewhere is not reported as connected
+- `DemoSafetyError` was collapsed into a generic connection failure in both
+  `doctor` and the dashboard, sending an operator to debug a working terminal.
+  It now has its own `demo_safety_refused` status and its own banner
+- `doctor` raised `ImportError` when the `MetaTrader5` package was absent — the
+  exact case the check exists to report
+- A failed terminal shutdown is logged rather than raised, because `disconnect`
+  also runs on context exit
+- Reconnecting no longer keeps the previous session's handle and snapshot
+
+### Fixed — malformed reports rendered as findings
+
+- `as_count` and `as_float` returned `0.0` for absent fields, rendering a report
+  with no assumptions block as "round trip 0 ms" — the most capturable result the
+  model can produce — and stating that no episode outlasted the round trip
+- `as_count` raised on JSON `NaN`, which Python's `json` module emits by default
+- A candidate missing from the multiplicity family was reported as having failed
+  correction, presenting a schema problem as a rigorous negative result
+- An unrecognized fragility class fell through to "the verdict holds across the
+  whole swept range"
+- `step_observations=0` was silently replaced with the test size
+
+### Added
+
+- `maximum_episode_gap_ms` request field, and the resolved value in the manifest
+- `normalized_pnl_legs_agree` and `normalized_pnl_leg_disagreement_ratio`
+- `test_windows_overlap` and `duplicate_test_trades_removed` on walk-forward
+  results
+- `observation_win_rate` alongside the trade-level `win_rate`
+- `hypothesis_recorded` in the discovery candidate frame
+
 ## [1.8.1] - 2026-09-27
 
 ### Added

@@ -24,6 +24,12 @@ Long input is pivoted into a wide panel. Timestamps are parsed as UTC, panels ar
 7. Predict and rank candidates on later observations by mean predicted next absolute z-score.
 8. Write an `EXP-*.json` report with source hash, parameters, regimes, graph edges, candidate summaries, ranking metadata, and limitations.
 
+## Ranking features
+
+Every feature is computed from observations up to and including its own timestamp, because a feature summarised over a candidate's whole series encodes the evaluation period and would make the out-of-sample score meaningless. The feature set is the absolute z-score, discrepancy volatility, three causal regime indicators, and an expanding-window Pearson correlation between actual and synthetic.
+
+The expanding correlation is undefined during its first `MINIMUM_EXPANDING_OBSERVATIONS` rows and whenever either series has no variance in the window. Those rows are excluded from the model rather than filled, so the absence of a measured discrepancy is never recorded as a perfect score. Warm-up z-scores are likewise left undefined in the evaluation frame.
+
 ## Regimes
 
 Volatility is the rolling standard deviation of log returns. Low and high thresholds are expanding quantiles of volatility observed by that timestamp, so future data cannot change earlier labels. A constant-price segment is labeled normal volatility.
@@ -34,6 +40,6 @@ Volatility is the rolling standard deviation of log returns. Low and high thresh
 
 ## Ranking safety
 
-The ridge model is deterministic, uses no random seed, and does not import or require scikit-learn. `next_abs_zscore` is an outcome label used only for training/evaluation of the ranker, never as an input feature. Insufficient observations produce explicit candidate status and are excluded from the ranked list.
+The ridge model is deterministic, uses no random seed, and does not import or require scikit-learn. `next_abs_zscore` is an outcome label used only for training/evaluation of the ranker, never as an input feature. Candidate-level summary statistics are reported for the reader but are not model inputs: a single value per candidate carries no information across its rows and, computed over the full sample, would leak the evaluation period. Insufficient observations produce explicit candidate status and are excluded from the ranked list.
 
 The output is a research ordering, not a profitability claim. Bar data does not establish tick execution, and the report does not model funding, commission, margin, slippage, latency, partial fills, or broker-specific rules.

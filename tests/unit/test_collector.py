@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from market_relationship_discovery import __version__
 from market_relationship_discovery.application.collector import (
     CollectionRequest,
     HistoricalCollector,
@@ -76,7 +77,7 @@ def test_collector_writes_parquet_and_reproducible_manifest(tmp_path: Path) -> N
     manifest = repository.read_manifest(stored.manifest_path)
     assert len(frame) == 3
     assert manifest["broker_profile"] == "broker_a"
-    assert manifest["software_version"] == "1.8.1"
+    assert manifest["software_version"] == __version__
     assert manifest["quality"]["invalid_bars"] == 0
     assert manifest["file_name"] == stored.data_path.name
     assert str(tmp_path) not in str(manifest)

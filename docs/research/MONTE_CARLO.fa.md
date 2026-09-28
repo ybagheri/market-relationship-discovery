@@ -10,6 +10,15 @@
 
 simulator میانگین و median edge خالص کل، quantile پایین و بالای confidence، احتمال نتیجه شبیه‌سازی‌شده مثبت، expected shortfall، بدترین نتیجه، drawdown میانه و سطح confidence، میانگین win rate و میانگین تعداد trade مشاهده‌شده را گزارش می‌دهد.
 
+## قرارداد علامت در metricهای توزیع
+
+edge خالص کل و drawdown با علامت‌های مخالف ذخیره می‌شوند و دو کران confidence باید همین الگو را دنبال کنند:
+
+- `lower_confidence_quantile` دم پایین edge خالص کل است، یعنی سمت بدبینانه برای یک بازده.
+- `confidence_max_drawdown` دم پایین توزیع drawdown است، چون drawdownها منفی یا صفرند. بنابراین سمت بدبینانه quantile *منفی‌تر* است، نه quantile بالاتر.
+
+هر دو نامنفی‌رو به صفرند، اما این دو کران قابل مقایسه نیستند: یکی عمق افت peak-to-trough را می‌سنجد و دیگری نتیجه کل مسیر. اگر `confidence_max_drawdown` ملایم‌تر از `median_max_drawdown` باشد یعنی کران از دم اشتباه خوانده شده است، بنابراین جفت گزارش‌شده باید `confidence_max_drawdown <= median_max_drawdown <= 0` را برآورده کند.
+
 ## سناریوهای stress
 
 سناریوهای named، تبدیل‌های بدون بعد روی tradeهای پژوهشی ثبت‌شده‌اند:

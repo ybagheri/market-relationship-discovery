@@ -8,14 +8,53 @@ A Python quantitative research platform for discovering and validating market re
 
 ## Project status
 
-Foundation through advanced deterministic research phases implemented. The platform now includes causal volatility regimes, formula dependency-graph discovery, bar-panel candidate evaluation, chronological NumPy ridge ranking, two-terminal process-isolated collection, symmetric event-time matching, contract-aware PnL normalization, walk-forward, and Monte Carlo robustness. Live execution remains disabled.
+The research platform is feature-complete through the documented phases. Live
+execution remains disabled and out of scope.
 
-Symbol discovery searches the whole broker catalog by name, description, and alias, and reports which rule matched. Stationarity and cointegration use `statsmodels` augmented Dickey-Fuller and KPSS tests, require at least 30 aligned observations, and return an explicit reason instead of a result when the data cannot support the test.
+**Current work is measurement correctness, not new capability.** A full audit of
+the pipeline found a class of defects that all behaved the same way: the code
+produced a number that looked valid, carried it into a report, and let it be read
+as evidence. A passing test suite did not catch any of them, because the tests
+asserted that the pipeline produced a well-formed result, not that the result was
+true. Version 1.9.0 corrects the ones that were found.
+
+Corrected in 1.9.0, each with a regression test:
+
+- Cross-broker alignment searched unsorted data, matching ticks to the wrong
+  neighbours and silently discarding observations
+- Opportunity episodes were grouped by row adjacency, so two separate instants
+  were reported as one long, capturable opportunity
+- The combined cross-broker edge was valued against both legs and summed,
+  roughly doubling a symmetric opportunity
+- `confidence_max_drawdown` read the wrong quantile and reported a bound milder
+  than a typical drawdown
+- Drawdown was measured without a zero seed, so a curve opening below its own
+  high reported no drawdown
+- Win rate was averaged over every bar rather than over the trades taken
+- Walk-forward aggregates double-counted overlapping test windows
+- The ridge ranker trained on statistics summarised over each candidate's whole
+  series, contaminating the out-of-sample score
+- The demo-only check was cached for the life of the adapter, so a terminal
+  re-logged-in mid-session kept certifying itself
+- A `DemoSafetyError` was reported as an ordinary connection failure
+- Absent or malformed report fields were rendered as zero, which turned a parse
+  failure into a statement about the market
+
+The defects still open are listed under **Open corrections** in
+[the roadmap](docs/roadmap/ROADMAP.md) rather than left implicit, along with the
+conventions each document states.
+
+Symbol discovery searches the whole broker catalog by name, description, and
+alias, and reports which rule matched. Stationarity and cointegration use
+`statsmodels` augmented Dickey-Fuller and KPSS tests, require at least 30 aligned
+observations, and return an explicit reason instead of a result when the data
+cannot support the test.
 
 ## Capabilities
 
 - Read-only MetaTrader 5 data adapter for ticks, bars, symbols, account, and terminal metadata
 - Explicit demo-account refusal before the connection is accepted
+- The verified demo account mode is re-checked on a configurable TTL, because the terminal can be re-logged-in without restarting
 - UTC-normalized bid, ask, mid, and spread domain model
 - Generic arithmetic formula engine for synthetic relationships
 - Separation of theoretical and bid/ask-aware executable discrepancies
@@ -29,11 +68,13 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Parquet tick/bar datasets with reproducibility manifests
 - Historical bar relationship research that never claims tick execution
 - Next-observation backtesting that excludes same-timestamp edge leakage
-- Walk-forward train/validation/test folds with train-only threshold selection
+- Walk-forward train/validation/test folds with train-only threshold selection, and overlapping test windows counted once
 - Causal multi-stage signals, feature builders, and stage-level reporting
 - Experiment IDs, source hashes, parameters, and JSON provenance reports
-- Circular block-bootstrap Monte Carlo with reproducible random seeds
-- Wider-spread, slippage, latency, and combined stress scenarios
+- Circular block-bootstrap Monte Carlo robustness with reproducible random seeds
+- Drawdown measured from the starting equity, consistent between the backtester and the simulator
+- Win rate and average return measured over the trades actually taken
+- Wider-spread, slippage, latency, and combined stress scenarios that cannot improve on the baseline
 - Nearest-timestamp cross-broker synchronization with explicit delay and unmatched counts
 - Tick-only bid/ask crossable research after configurable additional cost
 - Cross-broker opportunity frequency, duration, and two-source provenance
@@ -49,8 +90,11 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Sensitivity sweep reporting how far a capture verdict travels from its assumption
 - Execution feasibility verdict with separate blocking and advisory reasons
 - Per-broker symbol labels so cross-broker research survives differing names
-- Symmetric mutual-nearest event-time matching with no duplicate quote reuse
+- Symmetric mutual-nearest event-time matching with no duplicate quote reuse, over chronologically verified data
+- Event-time matching refuses unsorted input rather than pairing ticks with the wrong neighbour
+- Opportunity episodes bounded by wall-clock continuity, with a configurable gap
 - Explicit raw tick preservation and configurable timestamp aggregation
+- Cross-broker edge valued once, with cross-leg disagreement reported rather than summed
 - Relationship catalog and candidate generation framework
 - Streamlit research dashboard with a permanent demo/research warning
 - Interactive discrepancy and broker comparison charts from persisted experiment reports
@@ -58,7 +102,7 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Directed formula dependency-graph expansion with bounded depth
 - Bar price-panel loading from wide or long CSV/Parquet
 - Historical candidate evaluation with discrepancy, correlation, persistence, and regime metrics
-- Deterministic chronological NumPy ridge ranking with out-of-sample RMSE
+- Deterministic chronological NumPy ridge ranking with out-of-sample RMSE, over causal features only
 - False-discovery control across the discovered candidate family
 - Candidate de-duplication by proven formula equivalence, with syntactic canonicalisation as fallback
 - Cross-symbol coverage reporting and largest-shared-window analysis
@@ -66,12 +110,18 @@ Symbol discovery searches the whole broker catalog by name, description, and ali
 - Multi-broker dashboard with per-profile symbol resolution and health checks
 - Discovery dashboard separating evaluated evidence from the declared catalog
 - Rolling beta stability and retrospective cointegration/stationarity diagnostics
+- Dashboard views render an absent, mistyped, or non-finite report field as unknown, never as a measured zero
+- Dashboard reports a demo-safety refusal distinctly from a connection failure
 
 ## Safety model
 
 The current stage has no `order_send` or equivalent execution operation. A discrepancy is not called risk-free arbitrage unless the data timestamps, contract specifications, execution path, and costs support that conclusion. A mid-price difference alone is only a theoretical discrepancy.
 
 Required configuration keeps `demo_only=true`. The adapter disconnects and raises an error if the MT5 account mode cannot be proven to be `DEMO`.
+
+That proof is a time-of-check, and the terminal is a separate long-lived process an operator can re-log-in to a different account without restarting. The account is therefore re-verified once `MT5__ACCOUNT_VERIFICATION_TTL_SECONDS` (default 300) has elapsed, so a session that changes account mid-run does not keep certifying itself, and every dataset manifest records the mode as it was at the time it was written. `is_connected` probes the terminal rather than testing for an imported handle, so a session closed elsewhere is not reported as connected. A failed terminal shutdown is logged rather than raised, because `disconnect` also runs on context exit and must not replace the result of the caller's work.
+
+`DemoSafetyError` is reported distinctly from a connection failure in `doctor` and in the dashboard (`demo_safety_refused`). The refusal means the terminal connected and the account was not provably demo, which is the platform working as intended rather than a setup problem.
 
 ## Architecture
 
@@ -194,7 +244,7 @@ mypy
 - [Event-time synchronization](docs/research/EVENT_TIME.md)
 - [Dashboard](docs/dashboard/DASHBOARD.md)
 - [Advanced discovery](docs/research/ADVANCED_DISCOVERY.md)
-- [Roadmap](docs/roadmap/ROADMAP.md)
+- [Roadmap, with the open corrections still outstanding](docs/roadmap/ROADMAP.md)
 - [Security policy](SECURITY.md)
 
 ## Limitations

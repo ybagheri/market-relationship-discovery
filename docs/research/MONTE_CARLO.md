@@ -10,6 +10,15 @@ Monte Carlo analysis measures how a historical trade sequence behaves under resa
 
 The simulator reports mean and median total net edge, lower and upper confidence quantiles, probability of a positive simulated result, expected shortfall, worst result, median and confidence-level drawdown, mean win rate, and mean observed trades.
 
+## Sign conventions in the distribution metrics
+
+Total net edge and drawdown are stored with opposite signs, and the two confidence bounds must follow suit:
+
+- `lower_confidence_quantile` is the lower tail of total net edge, the pessimistic end for a return.
+- `confidence_max_drawdown` is the lower tail of the drawdown distribution, because drawdowns are negative or zero. The pessimistic end is therefore the *more negative* quantile, not the higher one.
+
+Both are negative or zero, and a reader comparing the two should note that a drawdown bound is not comparable to a return bound: the first measures the depth of a peak-to-trough decline, the second the total result over the whole path. A `confidence_max_drawdown` milder than `median_max_drawdown` would mean the bound was read from the wrong tail, so the reported pair is expected to satisfy `confidence_max_drawdown <= median_max_drawdown <= 0`.
+
 ## Stress scenarios
 
 Named scenarios are dimensionless transformations of recorded research trades:
