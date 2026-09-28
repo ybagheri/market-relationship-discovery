@@ -49,6 +49,16 @@ class OpportunityDirection(StrEnum):
     BUY_B_SELL_A = "buy_b_sell_a"
 
 
+# Fallback continuity threshold, used only when the sample is too short to
+# estimate the feed's own tick cadence.
+DEFAULT_EPISODE_GAP_MS = 1000.0
+
+# An episode ends once the silence is this many times wider than a typical
+# inter-tick gap, which separates "the edge persisted" from "the feed went quiet
+# and the edge reappeared later".
+EPISODE_GAP_SPACING_MULTIPLE = 50.0
+
+
 @dataclass(frozen=True, slots=True)
 class CrossBrokerRequest:
     broker_a: str
@@ -69,6 +79,10 @@ class CrossBrokerRequest:
     minimum_capturable_fraction: float = 0.25
     latency_source: LatencySource = LatencySource.ASSUMED
     latency_sample_count: int = 0
+    # Appended rather than inserted: the request is built positionally in the
+    # application layer, so a field added in the middle would silently shift
+    # every later argument.
+    maximum_episode_gap_ms: int | None = None
 
     def __post_init__(self) -> None:
         if not self.broker_a or not self.broker_b or not self.symbol:
@@ -96,6 +110,39 @@ class CrossBrokerRequest:
             raise ValueError("adverse_move_allowance cannot be negative")
         if not 0.0 <= self.minimum_capturable_fraction <= 1.0:
             raise ValueError("minimum_capturable_fraction must be between zero and one")
+        if self.maximum_episode_gap_ms is not None and self.maximum_episode_gap_ms < 0:
+            raise ValueError("maximum_episode_gap_ms cannot be negative")
+
+    @property
+    def episode_gap_ms(self) -> float:
+        """Configured wall-clock gap separating one episode from the next."""
+        if self.maximum_episode_gap_ms is not None:
+            return self.maximum_episode_gap_ms
+        return DEFAULT_EPISODE_GAP_MS
+
+    def resolved_episode_gap_ms(self, aligned: pd.DataFrame) -> float:
+        """The gap actually used, derived from the feed's own tick cadence.
+
+        The alignment tolerance is a *matching* tolerance: it says two quotes may
+        describe the same instant. It says nothing about how long a trader could
+        have held a position, so it cannot be reused as a continuity threshold —
+        a normal tick feed quotes far more often than that, and reusing it would
+        shatter every real episode into single observations.
+
+        A gap therefore ends an episode once it is much wider than the feed's own
+        typical spacing, which adapts to a dense tick stream and to a sparse
+        minute-bar feed alike. A caller who knows the feed's cadence can set
+        ``maximum_episode_gap_ms`` and skip the estimate entirely.
+        """
+        if self.maximum_episode_gap_ms is not None:
+            return float(self.maximum_episode_gap_ms)
+        if len(aligned) < 3:
+            return float(DEFAULT_EPISODE_GAP_MS)
+        spacing = aligned["timestamp"].diff().dt.total_seconds() * 1000.0
+        typical = float(spacing[spacing > 0].median())
+        if not isfinite(typical) or typical <= 0.0:
+            return float(DEFAULT_EPISODE_GAP_MS)
+        return max(typical * EPISODE_GAP_SPACING_MULTIPLE, float(self.max_alignment_delay_ms))
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +198,8 @@ class CrossBrokerSummary:
     broker_b_volume_per_broker_a_volume: float | None
     mean_normalized_net_pnl: float | None
     maximum_normalized_net_pnl: float | None
+    normalized_pnl_legs_agree: bool | None
+    normalized_pnl_leg_disagreement_ratio: float | None
     execution: ExecutionAssessment | None
     latency: LatencyCaptureReport | None
 
@@ -188,8 +237,8 @@ class CrossBrokerComparisonEngine:
         if request.synchronization_mode is SynchronizationMode.ANCHOR_A:
             right = right.assign(_right_timestamp=right["timestamp"])
             aligned = pd.merge_asof(
-                left.sort_values("timestamp"),
-                right.sort_values("timestamp"),
+                left,
+                right,
                 left_on="timestamp",
                 right_on="timestamp",
                 direction="nearest",
@@ -230,7 +279,7 @@ class CrossBrokerComparisonEngine:
 
     @staticmethod
     def _duplicate_count(frame: pd.DataFrame, kind: ComparisonKind) -> int:
-        if kind is not ComparisonKind.TICK:
+        if kind is not ComparisonKind.TICK or "timestamp" not in frame.columns:
             return 0
         return int(pd.to_datetime(frame["timestamp"], utc=True, errors="raise").duplicated().sum())
 
@@ -243,14 +292,24 @@ class CrossBrokerComparisonEngine:
         tick_aggregation: TickAggregation,
     ) -> pd.DataFrame:
         required = {"timestamp", "symbol"}
-        price_columns = {"bid", "ask"} if kind is ComparisonKind.TICK else {"close"}
-        missing = (required | price_columns) - set(frame.columns)
+        # A tuple, not a set: set iteration order varies with PYTHONHASHSEED, which
+        # would make the persisted aligned-preview column order differ between runs.
+        price_columns = ("bid", "ask") if kind is ComparisonKind.TICK else ("close",)
+        missing = (set(required) | set(price_columns)) - set(frame.columns)
         if missing:
             raise DataQualityError(f"broker {side} data is missing columns: {sorted(missing)}")
         result = frame.copy()
         result["timestamp"] = pd.to_datetime(result["timestamp"], utc=True, errors="raise")
         if result["timestamp"].isna().any():
             raise DataQualityError(f"broker {side} timestamps must be valid")
+        # Event-time matching requires a sorted series. A single MT5 request is not
+        # guaranteed to return rows in chronological order, and searching an
+        # unsorted array silently pairs each tick with the wrong neighbour instead
+        # of failing, so the ordering is established once here rather than being
+        # compensated for in each alignment mode.
+        result = result.sort_values("timestamp", kind="stable").reset_index(drop=True)
+        if not result["timestamp"].is_monotonic_increasing:
+            raise DataQualityError(f"broker {side} timestamps must be chronologically ordered")
         duplicate_timestamps = int(result["timestamp"].duplicated().sum())
         if duplicate_timestamps and (
             kind is ComparisonKind.BAR or tick_aggregation is TickAggregation.NONE
@@ -258,20 +317,30 @@ class CrossBrokerComparisonEngine:
             raise DataQualityError(f"broker {side} timestamps must be unique")
         if duplicate_timestamps and tick_aggregation is TickAggregation.LAST:
             result = result.drop_duplicates("timestamp", keep="last")
+        if result.empty:
+            raise DataQualityError(f"broker {side} returned no rows for symbol {symbol}")
         symbols = set(result["symbol"].astype(str))
         if symbols != {symbol}:
             raise DataQualityError(f"broker {side} data must contain only symbol {symbol}")
         if kind is ComparisonKind.TICK:
             for column in ("bid", "ask"):
                 result[column] = pd.to_numeric(result[column], errors="raise")
+            # Non-finite prices satisfy every comparison below, so they must be
+            # rejected explicitly rather than left to propagate into the edge
+            # columns as a silently discarded direction.
+            if not np.isfinite(result[["bid", "ask"]].to_numpy()).all():
+                raise DataQualityError(f"broker {side} tick prices must be finite")
             if (result["bid"] <= 0).any() or (result["ask"] < result["bid"]).any():
                 raise DataQualityError(f"broker {side} tick prices are invalid")
         else:
             result["close"] = pd.to_numeric(result["close"], errors="raise")
+            if not np.isfinite(result["close"].to_numpy()).all():
+                raise DataQualityError(f"broker {side} close prices must be finite")
             if (result["close"] <= 0).any():
                 raise DataQualityError(f"broker {side} close prices are invalid")
-        result = result[["timestamp", "symbol", *price_columns]]
-        return result.rename(columns={column: f"{side}_{column}" for column in price_columns})
+        return result[["timestamp", "symbol", *price_columns]].rename(
+            columns={column: f"{side}_{column}" for column in price_columns}
+        )
 
     @staticmethod
     def _symmetric_align(
@@ -365,16 +434,26 @@ class CrossBrokerComparisonEngine:
             ]
             aligned["normalized_net_pnl"] = [item.net_pnl for item in normalized]
             volume_ratio = normalized[0].broker_b_volume if normalized else None
+            # The two legs describe one position, so they should value it
+            # identically. When they do not, the specifications are mutually
+            # inconsistent and the reported PnL rests on one of them.
+            legs_agree = all(item.legs_agree for item in normalized)
+            worst_ratio = max(
+                (item.leg_disagreement_ratio for item in normalized),
+                default=0.0,
+            )
         else:
             aligned["normalized_net_pnl"] = np.nan
             volume_ratio = None
+            legs_agree = None
+            worst_ratio = None
         potential = aligned["net_crossable_edge"] > 0
         blocked_count = int((potential & contract_blocks).sum())
         aligned["is_crossable"] = potential if not contract_blocks else False
         execution = self._execution_assessment(aligned, request)
         if execution is not None and not execution.executable:
             aligned["is_crossable"] = False
-        opportunities = self._episodes(aligned)
+        opportunities = self._episodes(aligned, request.resolved_episode_gap_ms(aligned))
         latency = self._latency_capture(opportunities, request)
         crossable = aligned[aligned["is_crossable"]]
         period_hours = self._period_hours(aligned)
@@ -398,6 +477,11 @@ class CrossBrokerComparisonEngine:
             classification = f"{classification}_capital_unverified"
         if latency is not None and not latency.survives:
             classification = f"{classification}_not_capturable_within_latency"
+        if legs_agree is False:
+            # Reported alongside the PnL it qualifies: the two legs are supposed
+            # to value one position identically, so a disagreement means the
+            # specifications are inconsistent, not that the edge is larger.
+            classification = f"{classification}_contract_legs_disagree"
         summary = CrossBrokerSummary(
             broker_a=request.broker_a,
             broker_b=request.broker_b,
@@ -451,6 +535,8 @@ class CrossBrokerComparisonEngine:
             maximum_normalized_net_pnl=(
                 float(aligned["normalized_net_pnl"].max()) if normalization_available else None
             ),
+            normalized_pnl_legs_agree=legs_agree,
+            normalized_pnl_leg_disagreement_ratio=worst_ratio,
             execution=execution,
             latency=latency,
         )
@@ -578,20 +664,29 @@ class CrossBrokerComparisonEngine:
             broker_b_volume_per_broker_a_volume=None,
             mean_normalized_net_pnl=None,
             maximum_normalized_net_pnl=None,
+            normalized_pnl_legs_agree=None,
+            normalized_pnl_leg_disagreement_ratio=None,
             execution=None,
             latency=None,
         )
         return CrossBrokerAnalysis(summary, (), aligned)
 
     @staticmethod
-    def _episodes(aligned: pd.DataFrame) -> tuple[CrossBrokerOpportunity, ...]:
+    def _episodes(
+        aligned: pd.DataFrame,
+        maximum_gap_ms: float,
+    ) -> tuple[CrossBrokerOpportunity, ...]:
         positive = aligned[aligned["is_crossable"]]
         if positive.empty:
             return ()
-        groups = positive.groupby(
-            (positive.index.to_series().diff() != 1).cumsum(),
-            sort=True,
-        )
+        # An episode is a continuous run in time, not a run of adjacent rows. Two
+        # crossable observations separated by a quiet period are two separate
+        # instants, and no position is held across the gap between them. Grouping
+        # on index adjacency would report that hole as one long opportunity and
+        # then hand the inflated duration to the latency model as if it were
+        # capturable.
+        gaps = positive["timestamp"].diff() > pd.Timedelta(milliseconds=maximum_gap_ms)
+        groups = positive.groupby(gaps.cumsum(), sort=True)
         opportunities: list[CrossBrokerOpportunity] = []
         for _, episode in groups:
             maximum = episode.loc[episode["net_crossable_edge"].idxmax()]
@@ -623,7 +718,12 @@ class CrossBrokerComparisonEngine:
 
     @staticmethod
     def _period_hours(aligned: pd.DataFrame) -> float:
+        """Wall-clock hours the aligned sample spans.
+
+        Read from the first and last aligned timestamp rather than the row
+        positions, so the rate cannot be inflated by an unsorted sample.
+        """
         if len(aligned) < 2:
             return 1.0 / 3600.0
-        seconds = (aligned["timestamp"].iloc[-1] - aligned["timestamp"].iloc[0]).total_seconds()
+        seconds = (aligned["timestamp"].max() - aligned["timestamp"].min()).total_seconds()
         return max(float(seconds) / 3600.0, 1.0 / 3600.0)

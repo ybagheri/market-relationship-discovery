@@ -105,6 +105,10 @@ class CrossBrokerExperimentService:
                 "symbol_b": resolved_symbol_b,
                 "comparison_kind": comparison_kind.value,
                 "max_alignment_delay_ms": max_alignment_delay_ms,
+                "configured_episode_gap_ms": request.episode_gap_ms,
+                "resolved_episode_gap_ms": request.resolved_episode_gap_ms(
+                    analysis.aligned_observations
+                ),
                 "additional_cost": additional_cost,
                 "contract_a_file_name": (contract_a_path.name if contract_a_path else None),
                 "contract_b_file_name": (contract_b_path.name if contract_b_path else None),
