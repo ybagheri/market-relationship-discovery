@@ -64,8 +64,23 @@ def run_doctor(settings: Settings, broker_profile: str = "default") -> list[Chec
         )
         symbols = adapter.symbols(visible_only=False)
         checks.append(_symbol_check("Relevant symbol discovery", symbols, symbol_mapping, label))
-    except (MT5ConnectionError, DemoSafetyError, ValueError) as exc:
+    except DemoSafetyError as exc:
+        # The terminal connected; the account is what could not be proven demo.
+        # Reporting that as a connection failure points the operator at the wrong
+        # component.
+        checks.append(CheckResult(f"MT5 connection{label}", True, "connected", True))
+        checks.append(CheckResult(f"Account mode{label}", False, str(exc), True))
+    except (MT5ConnectionError, ValueError) as exc:
         checks.append(CheckResult(f"MT5 connection{label}", False, str(exc), True))
+    except ImportError as exc:
+        # _package_check already recorded the missing dependency; without this
+        # the diagnostic tool dies with a traceback in its most common failure
+        # state, which is the state it exists to report.
+        checks.append(
+            CheckResult(
+                f"MT5 connection{label}", False, f"MetaTrader5 is not importable: {exc}", True
+            )
+        )
     finally:
         if adapter is not None:
             adapter.disconnect()

@@ -18,6 +18,10 @@ class MT5Settings(BaseModel):
     tick_lookback_hours: int = Field(default=24, ge=1, le=8760)
     tick_max_lookback_hours: int = Field(default=168, ge=1, le=8760)
     symbol_mapping: dict[str, str] = Field(default_factory=dict)
+    # How long a verified DEMO account mode stays trusted. The terminal is a
+    # separate process an operator can re-log-in without restarting, so the
+    # guarantee is re-checked rather than cached for the life of the adapter.
+    account_verification_ttl_seconds: int = Field(default=300, ge=1, le=86400)
 
     @field_validator("login", mode="before")
     @classmethod

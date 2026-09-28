@@ -200,6 +200,11 @@ def test_candidate_frame_joins_significance_onto_candidates(tmp_path: Path) -> N
 
 
 def test_candidate_frame_marks_a_candidate_missing_from_the_family(tmp_path: Path) -> None:
+    """A candidate with no multiplicity record must not read as a failed test.
+
+    Demoting it to ``False`` would state that the candidate was examined and
+    rejected, when in fact the report simply does not describe it.
+    """
     payload = json.loads(json.dumps(DISCOVERY_REPORT))
     payload["results"]["multiplicity"]["hypotheses"] = [
         {
@@ -216,7 +221,9 @@ def test_candidate_frame_marks_a_candidate_missing_from_the_family(tmp_path: Pat
 
     by_name = dict(zip(frame["name"], frame["survived_correction"], strict=True))
     assert by_name["EURGBP_SYNTHETIC"] is True
-    assert by_name["XAUEUR_SYNTHETIC"] is False
+    assert by_name["XAUEUR_SYNTHETIC"] is None
+    recorded = dict(zip(frame["name"], frame["hypothesis_recorded"], strict=True))
+    assert recorded == {"EURGBP_SYNTHETIC": True, "XAUEUR_SYNTHETIC": False}
 
 
 def test_coverage_frame_marks_which_symbols_were_analysed(tmp_path: Path) -> None:
@@ -240,14 +247,22 @@ def test_frames_survive_a_report_with_no_candidates(tmp_path: Path) -> None:
 
 def test_typed_readers_tolerate_unexpected_json() -> None:
     assert as_count(3) == 3
-    assert as_count("3") == 0
-    assert as_count(None) == 0
-    assert as_count(True) == 0
     assert as_float(0.25) == 0.25
-    assert as_float("x", 0.05) == 0.05
     assert as_records([{"a": 1}, "skip", 3]) == [{"a": 1}]
     assert as_str_list(["a", None, 2]) == ["a", "2"]
     assert as_str_list("not a list") == []
+
+
+def test_unreadable_fields_return_none_so_a_view_cannot_state_a_finding() -> None:
+    """Absent, mistyped, and non-finite fields are all "not recorded".
+
+    JSON permits NaN and infinity, so a well-formed report file can still carry a
+    value no measurement should produce.
+    """
+    for value in ("3", None, True, float("nan"), float("inf")):
+        assert as_count(value) is None
+        assert as_float(value) is None
+    assert as_count(0) == 0, "a recorded zero is a measurement, not a missing value"
 
 
 def test_significance_figure_plots_raw_and_adjusted(tmp_path: Path) -> None:

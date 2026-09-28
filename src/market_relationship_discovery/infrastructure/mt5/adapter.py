@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
+from logging import getLogger
 from types import ModuleType
 from typing import Any
 
@@ -15,6 +16,8 @@ from market_relationship_discovery.domain.errors import (
 from market_relationship_discovery.domain.market import Bar, Quote
 from market_relationship_discovery.market_data.contract import ContractSpecification
 from market_relationship_discovery.market_data.symbols import SymbolDescriptor
+
+logger = getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,16 +54,26 @@ class MT5Adapter:
         self._settings = settings
         self._module: ModuleType | None = None
         self._account: AccountSnapshot | None = None
+        self._verified_at: datetime | None = None
 
     @property
     def is_connected(self) -> bool:
-        return self._module is not None
+        # The handle existing only proves an import succeeded. Probing the
+        # terminal detects a session that was closed or logged out elsewhere,
+        # which would otherwise keep reporting as connected.
+        if self._module is None:
+            return False
+        return self._module.terminal_info() is not None
 
     def connect(self) -> None:
         if self._settings.terminal_path is None:
             raise MT5ConnectionError("MT5 terminal path is not configured")
         if not self._settings.terminal_path.is_file():
             raise MT5ConnectionError(f"MT5 terminal does not exist: {self._settings.terminal_path}")
+        # A previous session on this adapter would keep its terminal handle and
+        # its account snapshot alive, so the demo check below would be verifying
+        # a connection that is no longer the one in use.
+        self.disconnect()
         module = import_module("MetaTrader5")
         arguments: dict[str, Any] = {
             "path": str(self._settings.terminal_path),
@@ -78,15 +91,35 @@ class MT5Adapter:
         self._module = module
         try:
             self._account = self._read_account()
+            self._verified_at = datetime.now(tz=UTC)
         except Exception:
-            self.disconnect()
+            self._force_disconnect()
             raise
 
     def disconnect(self) -> None:
+        # Reported rather than raised. This runs from __exit__, so raising here
+        # would replace the result of the work the caller actually did with a
+        # complaint about a terminal that refused to close.
+        if self._module is not None and self._module.shutdown() is False:
+            error_code, description = self._module.last_error()
+            logger.warning(
+                "event=mt5_shutdown_incomplete error_code=%s description=%s",
+                error_code,
+                description,
+            )
+        self._force_disconnect()
+
+    def _force_disconnect(self) -> None:
+        """Drop the session without reporting the shutdown result.
+
+        Used on failure paths, where a terminal that will not close cleanly must
+        not mask the error that is already being raised.
+        """
         if self._module is not None:
             self._module.shutdown()
         self._module = None
         self._account = None
+        self._verified_at = None
 
     def __enter__(self) -> MT5Adapter:
         self.connect()
@@ -108,9 +141,24 @@ class MT5Adapter:
         )
 
     def account_info(self) -> AccountSnapshot:
-        if self._account is None:
+        """Return the account snapshot, re-verifying the demo guarantee.
+
+        The check is a time-of-check, and the terminal is a separate long-lived
+        process that an operator can re-log-in to a different account without
+        restarting. A cached snapshot would keep reporting DEMO after that
+        happened, and every dataset manifest records it. The account is therefore
+        re-read once the cached verification has aged out.
+        """
+        if self._account is None or self._verification_expired():
             self._account = self._read_account()
+            self._verified_at = datetime.now(tz=UTC)
         return self._account
+
+    def _verification_expired(self) -> bool:
+        if self._verified_at is None:
+            return True
+        elapsed = datetime.now(tz=UTC) - self._verified_at
+        return elapsed >= timedelta(seconds=self._settings.account_verification_ttl_seconds)
 
     def symbols(self, visible_only: bool = True) -> list[str]:
         return [descriptor.name for descriptor in self.symbol_details(visible_only=visible_only)]
@@ -387,7 +435,7 @@ class MT5Adapter:
             leverage=int(value.leverage) if value.leverage is not None else None,
         )
         if self._settings.demo_only and snapshot.mode != "DEMO":
-            self.disconnect()
+            self._force_disconnect()
             raise DemoSafetyError(
                 "Connected account is not demonstrably DEMO; research connection refused"
             )

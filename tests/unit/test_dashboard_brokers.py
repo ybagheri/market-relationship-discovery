@@ -22,8 +22,9 @@ from market_relationship_discovery.dashboard.brokers import (
     quote_rows,
     resolve_monitor_symbols,
 )
+from market_relationship_discovery.domain.errors import DemoSafetyError
 from market_relationship_discovery.domain.market import Quote
-from market_relationship_discovery.infrastructure.mt5.adapter import AccountSnapshot
+from market_relationship_discovery.infrastructure.mt5.adapter import AccountSnapshot, MT5Adapter
 
 ALPARI_A_SYMBOLS = ["XAUUSD", "XAGUSD", "XAUEUR", "EURUSD", "GBPUSD", "USDJPY", "BITCOIN"]
 ALPARI_B_SYMBOLS = ["XAUUSD", "XAGUSD", "XAUEUR", "EURUSD", "GBPUSD", "USDJPY", "BTCUSD"]
@@ -197,3 +198,33 @@ def test_health_payload_is_serializable() -> None:
 
     assert payload["profile"] == DEFAULT_PROFILE
     assert payload["status"] == ProfileStatus.NOT_CONFIGURED.value
+
+
+def test_a_demo_safety_refusal_is_not_reported_as_a_connection_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: object,
+) -> None:
+    """The refusal is the platform working, so it needs its own status.
+
+    Filing it as ``failed`` is indistinguishable from a terminal that will not
+    open, and an operator would go looking for a setup problem that does not
+    exist while an unproven account sits behind the refusal.
+    """
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    settings = Settings(
+        _env_file=None,
+        mt5={"terminal_path": str(terminal)},
+    )
+
+    def refuse(*_: object, **__: object) -> None:
+        raise DemoSafetyError("Connected account is not demonstrably DEMO")
+
+    monkeypatch.setattr(MT5Adapter, "connect", refuse)
+
+    health = profile_health(settings, DEFAULT_PROFILE)
+
+    assert health.status is ProfileStatus.DEMO_SAFETY_REFUSED
+    assert health.status is not ProfileStatus.FAILED
+    assert "DEMO" in health.detail
+    assert health.is_demo is False

@@ -121,18 +121,22 @@ def _render_latency(latency: dict[str, object], report: dict[str, object]) -> No
     episodes = as_count(latency.get("episodes"))
     capturable = as_count(latency.get("capturable"))
     assumptions = latency.get("assumptions")
-    round_trip = as_float(_as_float_dict(assumptions).get("round_trip_ms"), 0.0)
+    round_trip = as_float(_as_float_dict(assumptions).get("round_trip_ms"))
+    if round_trip is None:
+        # A zero here is the most capturable result the model can produce, so a
+        # missing assumption must never be rendered as an instantaneous round trip.
+        st.warning("This report does not record a round-trip latency assumption.")
     st.write(
-        f"Episodes **{episodes}** | capturable **{capturable}** | "
-        f"marginal **{as_count(latency.get('marginal'))}** | "
-        f"not capturable **{as_count(latency.get('not_capturable'))}** | "
-        f"round trip **{round_trip} ms**"
+        f"Episodes **{_shown(episodes)}** | capturable **{_shown(capturable)}** | "
+        f"marginal **{_shown(as_count(latency.get('marginal')))}** | "
+        f"not capturable **{_shown(as_count(latency.get('not_capturable')))}** | "
+        f"round trip **{_shown(round_trip, ' ms')}**"
     )
     st.write(
-        f"Median episode **{as_float(latency.get('median_duration_ms')):.0f} ms** | "
-        f"longest **{as_float(latency.get('maximum_duration_ms')):.0f} ms** | "
-        f"mean peak edge **{as_float(latency.get('mean_peak_edge')):.6f}** | "
-        f"mean captured edge **{as_float(latency.get('mean_captured_edge')):.6f}**"
+        f"Median episode **{_shown(as_float(latency.get('median_duration_ms')), ' ms')}** | "
+        f"longest **{_shown(as_float(latency.get('maximum_duration_ms')), ' ms')}** | "
+        f"mean peak edge **{_shown(as_float(latency.get('mean_peak_edge')), precision=6)}** | "
+        f"mean captured edge **{_shown(as_float(latency.get('mean_captured_edge')), precision=6)}**"
     )
     if capturable == 0:
         st.error(
@@ -162,6 +166,20 @@ def _render_latency(latency: dict[str, object], report: dict[str, object]) -> No
     _render_sensitivity(cast(dict[str, object], report.get("latency_sensitivity", {})))
 
 
+def _shown(value: float | int | None, suffix: str = "", precision: int = 0) -> str:
+    """Render a report value, marking an absent one instead of inventing a number."""
+    if value is None:
+        return "not recorded"
+    if precision:
+        return f"{value:.{precision}f}{suffix}"
+    return f"{value:g}{suffix}"
+
+
+def _percent(value: object) -> str:
+    number = as_float(value)
+    return "an unrecorded share" if number is None else f"{number * 100:.0f}%"
+
+
 def _render_sensitivity(sensitivity: dict[str, object]) -> None:
     """Show how far the capture verdict travels from the configured assumption.
 
@@ -180,14 +198,14 @@ def _render_sensitivity(sensitivity: dict[str, object]) -> None:
     baseline = as_float(sensitivity.get("baseline_value"))
     st.write(
         f"Swept **{sensitivity.get('axis')}** around the configured baseline "
-        f"**{baseline:g}** | fragility **{fragility}** | "
+        f"**{_shown(baseline)}** | fragility **{fragility}** | "
         f"baseline survives **{sensitivity.get('baseline_survives')}**"
     )
     if fragility == "nominal":
         st.warning(
             "The verdict survives arithmetically but captures a negligible share: "
-            f"{as_float(sensitivity.get('baseline_capturable_fraction')) * 100:.0f}% of episodes "
-            f"and {as_float(sensitivity.get('baseline_captured_share')) * 100:.0f}% of the peak "
+            f"{_percent(sensitivity.get('baseline_capturable_fraction'))} of episodes "
+            f"and {_percent(sensitivity.get('baseline_captured_share'))} of the peak "
             "edge. Treating that as a result would overstate it."
         )
     elif fragility in {"sensitive", "knife_edge"}:
@@ -198,8 +216,16 @@ def _render_sensitivity(sensitivity: dict[str, object]) -> None:
         )
     elif fragility == "always_fails":
         st.error("No swept value leaves a capturable episode.")
-    else:
+    elif fragility == "always_holds":
         st.success("The verdict holds across the whole swept range.")
+    else:
+        # Deliberately never the success branch. An unrecognised value means the
+        # report was written by a different version, and a parse failure must not
+        # be presented as a robustness confirmation.
+        st.warning(
+            f"Fragility class **{fragility}** is not recognised by this version, so the "
+            "sweep cannot be summarised. Inspect the swept values below."
+        )
     points = as_records(sensitivity.get("points"))
     if points:
         st.dataframe(
@@ -255,12 +281,24 @@ with overview:
         rows = [profile_health(settings, item.name).to_dict() for item in profiles]
         st.dataframe(rows, width="stretch")
         unknown = [row for row in rows if row["status"] == ProfileStatus.CONNECTED_UNKNOWN_MODE]
+        refused = [row for row in rows if row["status"] == ProfileStatus.DEMO_SAFETY_REFUSED]
+        if refused:
+            # The strongest of the two: the adapter deliberately closed the
+            # connection rather than proceed on an unproven account.
+            st.error(
+                "Research connection refused; the account was not demonstrably DEMO: "
+                + ", ".join(str(row["profile"]) for row in refused)
+            )
         if unknown:
             st.error(
                 "A connected account could not be verified as DEMO: "
-                ", ".join(str(row["profile"]) for row in unknown)
+                + ", ".join(str(row["profile"]) for row in unknown)
             )
-        elif all(row["status"] == ProfileStatus.CONNECTED_DEMO for row in rows):
+        if (
+            not refused
+            and not unknown
+            and all(row["status"] == ProfileStatus.CONNECTED_DEMO for row in rows)
+        ):
             st.success("Every configured profile is connected and demonstrably DEMO.")
 
     st.subheader("Selected profile")
@@ -344,7 +382,10 @@ with discovery:
         coverage = cast(dict[str, object], loaded["coverage"])
         deduplication = cast(dict[str, object], loaded["deduplication"])
 
-        alpha = as_float(multiplicity.get("alpha"), 0.05)
+        alpha = as_float(multiplicity.get("alpha"))
+        if alpha is None:
+            st.warning("This report does not record the significance level it used.")
+            alpha = 0.05
         st.write(
             f"Method **{multiplicity.get('method')}** at alpha **{alpha}** | "
             f"tests **{multiplicity.get('tests')}** | "

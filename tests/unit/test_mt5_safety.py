@@ -23,9 +23,16 @@ class FakeMT5:
         self.initialized = True
         return True
 
-    def shutdown(self) -> None:
+    def terminal_info(self) -> SimpleNamespace:
+        return SimpleNamespace(name="DemoTerminal", company="Demo", build=1, path="")
+
+    def last_error(self) -> tuple[int, str]:
+        return 0, "ok"
+
+    def shutdown(self) -> bool:
         self.shutdown_called = True
         self.initialized = False
+        return True
 
     def account_info(self) -> SimpleNamespace:
         return SimpleNamespace(
@@ -92,9 +99,6 @@ class FakeMT5:
             trade_tick_value_profit=1.0,
             margin_initial=0.0,
         )
-
-    def last_error(self) -> tuple[int, str]:
-        return 0, "ok"
 
 
 def test_demo_account_is_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -267,3 +271,78 @@ def test_unknown_account_mode_is_refused(tmp_path: Path, monkeypatch: pytest.Mon
         adapter.connect()
 
     assert fake.shutdown_called is True
+
+
+def test_the_demo_guarantee_is_reverified_after_the_cache_ages_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A terminal re-logged-in mid-session must not keep reporting DEMO.
+
+    The account check is a time-of-check and the terminal is a separate
+    long-lived process, so a snapshot cached for the life of the adapter would
+    keep certifying an account the operator has already switched away from. The
+    snapshot is also written into every dataset manifest.
+    """
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = FakeMT5(0)
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal, account_verification_ttl_seconds=1))
+    adapter.connect()
+    assert adapter.account_info().mode == "DEMO"
+
+    # The operator switches the terminal to a live account without restarting it.
+    fake.trade_mode = 1
+    assert adapter.account_info().mode == "DEMO", "a fresh verification is still cached"
+
+    adapter._verified_at = datetime.now(UTC) - timedelta(seconds=120)
+
+    with pytest.raises(DemoSafetyError):
+        adapter.account_info()
+    assert fake.shutdown_called is True
+
+
+def test_a_dead_terminal_is_not_reported_as_connected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``is_connected`` must not mean only that an import succeeded."""
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = FakeMT5(0)
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+    adapter.connect()
+    assert adapter.is_connected is True
+
+    fake.terminal_info = lambda: None
+
+    assert adapter.is_connected is False
+    adapter.disconnect()
+    assert adapter.is_connected is False
+
+
+def test_reconnecting_does_not_keep_the_previous_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second connect must not verify a handle left over from the first."""
+    terminal = tmp_path / "terminal64.exe"
+    terminal.write_bytes(b"")
+    fake = FakeMT5(0)
+    monkeypatch.setattr(
+        "market_relationship_discovery.infrastructure.mt5.adapter.import_module", lambda _: fake
+    )
+    adapter = MT5Adapter(MT5Settings(terminal_path=terminal))
+    adapter.connect()
+
+    adapter.connect()
+
+    # The stale session was shut down before the new one was opened.
+    assert fake.shutdown_called is True
+    adapter.disconnect()

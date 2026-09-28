@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import cast
 
@@ -34,9 +35,11 @@ class DiscoveryReportRef:
     experiment_id: str
     created_at: str
     source_file_name: str
-    candidate_count: int
-    retained_after_correction: int
-    contested: int
+    # Optional because a report that predates a field, or a partial one, must be
+    # listed as unknown rather than counted as zero.
+    candidate_count: int | None
+    retained_after_correction: int | None
+    contested: int | None
 
 
 def list_comparison_reports(reports_directory: Path) -> tuple[ComparisonReportRef, ...]:
@@ -199,12 +202,16 @@ def candidate_frame(path: Path) -> pd.DataFrame:
     frame["adjusted_p_value"] = frame["name"].map(
         lambda name: hypotheses.get(str(name), {}).get("adjusted_p_value")
     )
+    # Absent is not False. Collapsing a missing multiplicity record into False
+    # would present a schema or truncation problem as a rigorous negative
+    # result: every candidate silently demoted to "failed multiple testing".
     frame["survived_correction"] = frame["name"].map(
-        lambda name: bool(hypotheses.get(str(name), {}).get("survived_correction", False))
+        lambda name: _optional_flag(hypotheses.get(str(name)), "survived_correction")
     )
     frame["contested"] = frame["name"].map(
-        lambda name: bool(hypotheses.get(str(name), {}).get("contested", False))
+        lambda name: _optional_flag(hypotheses.get(str(name)), "contested")
     )
+    frame["hypothesis_recorded"] = frame["name"].map(lambda name: str(name) in hypotheses)
     for column in ("raw_p_value", "adjusted_p_value"):
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
     summary_columns = {
@@ -247,25 +254,43 @@ def _as_dict(value: object) -> dict[str, object]:
     return cast(dict[str, object], value) if isinstance(value, dict) else {}
 
 
+def _optional_flag(hypothesis: object, key: str) -> object:
+    """Read a report flag, keeping "absent" distinguishable from ``False``.
+
+    ``None`` means the field was not in the report. A view that cannot tell the
+    two apart will state a conclusion the data does not support.
+    """
+    if not isinstance(hypothesis, dict):
+        return None
+    value = hypothesis.get(key)
+    return None if value is None else bool(value)
+
+
 def _as_list(value: object) -> list[object]:
     return cast(list[object], value) if isinstance(value, list) else []
 
 
-def as_count(value: object) -> int:
-    """Read a count from a report field, defaulting to zero.
+def as_count(value: object) -> int | None:
+    """Read a count from a report field, or ``None`` when it is not recorded.
 
-    Reports are JSON, so a count may be absent or a non-numeric value. Reading
-    it defensively keeps a partially written report from breaking a view.
+    A missing or non-numeric field returns ``None`` rather than zero. Zero is a
+    measurement, and defaulting to it lets a truncated or differently shaped
+    report be rendered as a finding: "no episode outlasted the round trip" is a
+    statement about the market, not about a missing key. JSON also permits NaN
+    and infinity, which ``int()`` rejects outright.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return 0
+        return None
+    if not isfinite(float(value)):
+        return None
     return int(value)
 
 
-def as_float(value: object, default: float = 0.0) -> float:
+def as_float(value: object) -> float | None:
+    """Read a numeric report field, or ``None`` when it is not recorded."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return default
-    return float(value)
+        return None
+    return float(value) if isfinite(float(value)) else None
 
 
 def as_records(value: object) -> list[dict[str, object]]:

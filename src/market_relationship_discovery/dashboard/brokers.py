@@ -34,6 +34,11 @@ MAX_MONITOR_SYMBOLS = 8
 class ProfileStatus(StrEnum):
     CONNECTED_DEMO = "connected_demo"
     CONNECTED_UNKNOWN_MODE = "connected_unknown_mode"
+    # Distinct from FAILED on purpose. A demo-safety refusal means the terminal
+    # connected and the account was not provably demo, which is the single most
+    # important event this platform reports. Filing it as a setup failure sends
+    # an operator to debug a terminal that is working exactly as intended.
+    DEMO_SAFETY_REFUSED = "demo_safety_refused"
     FAILED = "failed"
     NOT_CONFIGURED = "not_configured"
 
@@ -184,7 +189,9 @@ def profile_health(settings: Settings, profile_name: str) -> ProfileHealth:
                 tradable_symbols=tradable,
                 catalog_symbols=len(catalog),
             )
-    except (MT5ConnectionError, DemoSafetyError, ValueError) as exc:
+    except DemoSafetyError as exc:
+        return ProfileHealth(profile_name, ProfileStatus.DEMO_SAFETY_REFUSED, str(exc))
+    except (MT5ConnectionError, ValueError) as exc:
         return ProfileHealth(profile_name, ProfileStatus.FAILED, str(exc))
     except Exception as exc:
         return ProfileHealth(profile_name, ProfileStatus.FAILED, str(exc))
