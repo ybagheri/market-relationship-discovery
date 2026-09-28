@@ -328,6 +328,30 @@ def test_a_time_gap_separates_opportunity_episodes() -> None:
     assert analysis.summary.maximum_opportunity_duration_ms == 0.0
 
 
+def test_the_episode_records_where_its_peak_was_observed() -> None:
+    """The latency model needs the peak's position, not only its size.
+
+    The maximum over an episode is taken from whichever tick happened to be
+    widest, which can be anywhere in the window. A consumer that treats the peak
+    as the episode's starting value credits the position with an edge as large
+    as the peak for the whole episode, so the offset has to travel with the
+    measurement rather than being assumed.
+    """
+    broker_a = tick_frame([(1.1000, 1.1002)] * 4, [0, 1000, 2000, 3000])
+    broker_b = tick_frame(
+        [(1.1004, 1.1006), (1.1006, 1.1008), (1.1012, 1.1014), (1.1005, 1.1007)],
+        [0, 1000, 2000, 3000],
+    )
+
+    analysis = CrossBrokerComparisonEngine().compare(broker_a, broker_b, request())
+
+    opportunity = analysis.opportunities[0]
+    assert opportunity.duration_ms == 3000.0
+    # The widest gap is the third tick, two seconds into a three-second episode.
+    assert opportunity.peak_offset_ms == pytest.approx(2000.0)
+    assert 0.0 < opportunity.peak_offset_ms < opportunity.duration_ms
+
+
 def test_a_continuous_run_stays_one_episode() -> None:
     """Ticking through an opportunity without a gap is still a single episode."""
     broker_a = tick_frame([(1.1000, 1.1002), (1.1001, 1.1003), (1.1002, 1.1004)], [0, 20, 40])

@@ -136,10 +136,12 @@ def test_latency_degrades_monotonically() -> None:
 def test_episodes_can_be_rebuilt_from_a_persisted_report() -> None:
     payload = {
         "captures": [
-            {"label": "A", "duration_ms": 1000.0, "peak_edge": 0.2},
-            {"label": "B", "duration_ms": 0.0, "peak_edge": 0.1},
-            {"label": "C", "duration_ms": None, "peak_edge": 0.1},
-            {"label": "D", "duration_ms": 500.0, "peak_edge": 0.0},
+            {"label": "A", "duration_ms": 1000.0, "peak_edge": 0.2, "peak_offset_ms": 250.0},
+            {"label": "B", "duration_ms": 0.0, "peak_edge": 0.1, "peak_offset_ms": 0.0},
+            {"label": "C", "duration_ms": None, "peak_edge": 0.1, "peak_offset_ms": 0.0},
+            {"label": "D", "duration_ms": 500.0, "peak_edge": 0.0, "peak_offset_ms": 10.0},
+            {"label": "E", "duration_ms": 800.0, "peak_edge": 0.1, "peak_offset_ms": 900.0},
+            {"label": "F", "duration_ms": 800.0, "peak_edge": 0.1, "peak_offset_ms": None},
             "not a mapping",
         ]
     }
@@ -148,6 +150,31 @@ def test_episodes_can_be_rebuilt_from_a_persisted_report() -> None:
 
     assert [item.label for item in rebuilt] == ["A", "B"]
     assert rebuilt[0].duration_ms == 1000.0
+    assert rebuilt[0].peak_offset_ms == 250.0
+
+
+def test_a_report_without_the_peak_offset_yields_no_episodes() -> None:
+    """An unmeasurable peak position must not be assumed to be the episode start.
+
+    Assuming an absent ``peak_offset_ms`` is zero reinstates the assumption the
+    capture model was corrected for, and a sweep built on that would quietly
+    contradict the baseline it is compared against. Skipping follows the
+    convention this reader already uses for other absent fields.
+    """
+    payload = {"captures": [{"label": "A", "duration_ms": 1000.0, "peak_edge": 0.2}]}
+
+    assert LatencySensitivityAnalyzer().episodes_from_report(payload) == ()
+
+
+def test_an_offset_outside_its_episode_is_dropped_rather_than_raising() -> None:
+    """A persisted report is an input; one bad row must not abort a sweep."""
+    payload = {
+        "captures": [
+            {"label": "A", "duration_ms": 1000.0, "peak_edge": 0.2, "peak_offset_ms": 4000.0}
+        ]
+    }
+
+    assert LatencySensitivityAnalyzer().episodes_from_report(payload) == ()
 
 
 def test_a_report_with_no_captures_yields_no_episodes() -> None:

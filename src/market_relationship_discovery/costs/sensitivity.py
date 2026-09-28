@@ -28,6 +28,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from itertools import pairwise
+from math import isfinite
 
 from market_relationship_discovery.costs.latency import (
     Episode,
@@ -254,17 +255,31 @@ class LatencySensitivityAnalyzer:
                     continue
                 duration = item.get("duration_ms")
                 peak = item.get("peak_edge")
+                offset = item.get("peak_offset_ms")
                 if not isinstance(duration, (int, float)) or isinstance(duration, bool):
                     continue
                 if not isinstance(peak, (int, float)) or isinstance(peak, bool):
                     continue
+                if not isinstance(offset, (int, float)) or isinstance(offset, bool):
+                    # Absent rather than assumed to be zero. Defaulting a missing
+                    # offset to the start of the episode is the assumption this
+                    # model was corrected for, and a sweep that reintroduced it
+                    # would quietly contradict the baseline it is compared with.
+                    continue
                 if float(peak) <= 0:
+                    continue
+                if not isfinite(offset) or not 0.0 <= float(offset) <= float(duration):
+                    # A persisted report is an input, not a measurement taken
+                    # here. An offset that cannot lie inside its own episode
+                    # means the record is unusable, and raising would let one
+                    # bad row abort a sweep instead of dropping it.
                     continue
                 episodes.append(
                     Episode(
                         label=str(item.get("label") or f"EP{index:03d}"),
                         duration_ms=float(duration),
                         peak_edge=float(peak),
+                        peak_offset_ms=float(offset),
                     )
                 )
         return tuple(episodes)

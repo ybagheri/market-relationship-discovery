@@ -55,17 +55,26 @@ class Episode:
 
     ``duration_ms`` and ``peak_edge`` come from the cross-broker analysis, so the
     model consumes measurement rather than inventing it.
+
+    ``peak_offset_ms`` is where inside the episode the peak was observed. The
+    maximum over an episode is not necessarily at its start: crediting the
+    whole episode with an edge as large as the peak assumes the peak occurred
+    first, and the model cannot use the peak as a starting value without knowing
+    when it arrives.
     """
 
     label: str
     duration_ms: float
     peak_edge: float
+    peak_offset_ms: float = 0.0
 
     def __post_init__(self) -> None:
         if self.duration_ms < 0:
             raise ValueError("duration_ms cannot be negative")
         if not self.peak_edge > 0:
             raise ValueError("peak_edge must be positive for a capturable episode")
+        if not 0.0 <= self.peak_offset_ms <= self.duration_ms:
+            raise ValueError("peak_offset_ms must fall inside the episode")
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +133,7 @@ class EpisodeCapture:
     label: str
     duration_ms: float
     peak_edge: float
+    peak_offset_ms: float
     round_trip_ms: float
     capturable_fraction: float
     captured_edge: float
@@ -144,6 +154,7 @@ class EpisodeCapture:
             "label": self.label,
             "duration_ms": self.duration_ms,
             "peak_edge": self.peak_edge,
+            "peak_offset_ms": self.peak_offset_ms,
             "round_trip_ms": self.round_trip_ms,
             "capturable_fraction": self.capturable_fraction,
             "captured_edge": self.captured_edge,
@@ -197,14 +208,82 @@ class LatencyCaptureReport:
         }
 
 
+def _mean_edge_over_window(
+    peak_edge: float,
+    peak_offset_ms: float,
+    duration_ms: float,
+    round_trip_ms: float,
+) -> float:
+    """Mean edge across the window in which the position is held.
+
+    The profile is a tent: zero at the start, ``peak_edge`` at
+    ``peak_offset_ms``, zero at ``duration_ms``. The position is held from
+    ``round_trip_ms`` to ``duration_ms``, so the mean is the integral over that
+    window divided by its width.
+
+    The two segments are integrated separately, because the peak offset can fall
+    on either side of the round trip:
+
+    * rising segment, ``peak * t / offset``, whose integral is
+      ``peak * (b**2 - a**2) / (2 * offset)``,
+    * decaying segment, ``peak * (duration - t) / (duration - offset)``, whose
+      integral is ``peak * (duration * (b - a) - (b**2 - a**2) / 2) /
+      (duration - offset)``.
+
+    A peak at the very start reduces this to ``peak * (duration - round_trip) /
+    (2 * duration)``, exactly half the value the edge holds when the round trip
+    completes, which is the correction being made.
+    """
+    if duration_ms <= 0.0 or duration_ms <= round_trip_ms:
+        return 0.0
+    window = duration_ms - round_trip_ms
+    offset = min(max(peak_offset_ms, 0.0), duration_ms)
+    total = 0.0
+    if offset > 0.0:
+        upper = min(offset, duration_ms)
+        if upper > round_trip_ms:
+            total += peak_edge * (upper**2 - round_trip_ms**2) / (2.0 * offset)
+    decay_width = duration_ms - offset
+    if decay_width > 0.0:
+        lower = max(round_trip_ms, offset)
+        if duration_ms > lower:
+            total += (
+                peak_edge
+                * (duration_ms * (duration_ms - lower) - (duration_ms**2 - lower**2) / 2.0)
+                / decay_width
+            )
+    return total / window
+
+
 class LatencyCaptureModel:
     """Estimate how much of a measured episode survives a round trip.
 
-    The capturable fraction is the share of the episode's life during which the
-    position could still be open when the round trip completes, which under
-    linear decay is ``(duration - round_trip) / duration``. An episode shorter
-    than the round trip captures nothing at all, because the edge closes before
-    the trade can be completed.
+    Two separate questions are answered, and conflating them is what made the
+    earlier figure optimistic.
+
+    **When can the position be held?** The capturable fraction is the share of
+    the episode's life during which the position could be open once the round
+    trip completes, which is ``(duration - round_trip) / duration``. An episode
+    shorter than the round trip captures nothing at all, because the edge closes
+    before the trade can be completed. This is a statement about time and it
+    does not depend on the shape of the edge.
+
+    **How much edge is in that window?** The expected capture is the mean of the
+    edge over the window, not its value at the first instant. Once both legs are
+    open the position is held until the edge closes, so the edge available is
+    the average of what remains across the window. Returning the value at the
+    moment the round trip completes reports the best case in the window as if it
+    were the expectation, and under linear decay it is exactly double the mean.
+
+    ## The edge profile
+
+    Two things are measured: the peak value, and when it occurred. The episode
+    ends with the edge at zero. The profile therefore rises linearly from zero
+    to the peak at its measured offset and decays linearly to zero at the end.
+    That tent is the lowest profile consistent with the measurements, since the
+    edge cannot exceed its own maximum, and it is an assumption rather than a
+    measurement: the rise is not observed, only bounded. It is stated here
+    rather than applied silently.
     """
 
     def assess(
@@ -223,7 +302,12 @@ class LatencyCaptureModel:
                 fraction = 0.0
             else:
                 fraction = (episode.duration_ms - round_trip) / episode.duration_ms
-            captured = episode.peak_edge * fraction
+            captured = _mean_edge_over_window(
+                episode.peak_edge,
+                episode.peak_offset_ms,
+                episode.duration_ms,
+                round_trip,
+            )
             net = captured - assumption.adverse_move_allowance
             if fraction <= 0.0 or net <= 0.0:
                 status = CaptureStatus.NOT_CAPTURABLE
@@ -236,6 +320,7 @@ class LatencyCaptureModel:
                     label=episode.label,
                     duration_ms=episode.duration_ms,
                     peak_edge=episode.peak_edge,
+                    peak_offset_ms=episode.peak_offset_ms,
                     round_trip_ms=round_trip,
                     capturable_fraction=fraction,
                     captured_edge=captured,

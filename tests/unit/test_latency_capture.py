@@ -23,6 +23,84 @@ def episode(label: str, duration_ms: float, peak_edge: float = 1.0) -> Episode:
     return Episode(label=label, duration_ms=duration_ms, peak_edge=peak_edge)
 
 
+def test_captured_edge_is_the_mean_over_the_remaining_window() -> None:
+    """The expected edge is the average over the window, not its first instant.
+
+    Once both legs are open at the round trip, the position is held until the
+    edge closes, so the expected capture is the mean of the decaying edge across
+    that window. Returning the value at the moment the round trip completes
+    reports the best case available in the window and, under linear decay, is
+    exactly double the mean.
+    """
+    report = LatencyCaptureModel().assess(
+        [episode("EP000", 1000.0, peak_edge=1.0)],
+        RoundTripAssumption(latency_per_leg_ms=50, legs=2),
+    )
+
+    capture = report.captures[0]
+    # Linear decay from 1.0 at the start to zero at 1000 ms, averaged over the
+    # 900 ms the position is actually held.
+    assert capture.captured_edge == pytest.approx(0.45)
+    assert capture.captured_edge < capture.peak_edge * capture.capturable_fraction
+
+
+def test_a_peak_late_in_the_episode_is_not_treated_as_occurring_at_the_start() -> None:
+    """The peak's position in the episode must enter the model.
+
+    The producer takes the maximum over the whole episode, which can occur at any
+    point. The previous formula multiplied the peak by the surviving share of the
+    episode's life, which credits the position with an edge as large as the peak
+    for the entire window regardless of when the peak arrived. Here that
+    optimistic figure is 0.9, and the profile that has to reach the peak and can
+    only decay afterwards averages 0.549.
+    """
+    report = LatencyCaptureModel().assess(
+        [Episode(label="EP000", duration_ms=1000.0, peak_edge=1.0, peak_offset_ms=900.0)],
+        RoundTripAssumption(latency_per_leg_ms=50, legs=2),
+    )
+
+    capture = report.captures[0]
+    # Rising from zero at the start to the peak at 900 ms, then decaying to zero
+    # by 1000 ms, averaged over the 900 ms the position is held.
+    assert capture.captured_edge == pytest.approx(0.549382, abs=1e-6)
+    assert capture.captured_edge < capture.peak_edge * capture.capturable_fraction
+
+
+def test_peak_offset_is_reported_with_the_capture() -> None:
+    report = LatencyCaptureModel().assess(
+        [Episode(label="EP000", duration_ms=1000.0, peak_edge=0.4, peak_offset_ms=250.0)],
+        RoundTripAssumption(latency_per_leg_ms=50, legs=2),
+    )
+
+    payload = report.captures[0].to_dict()
+
+    assert payload["peak_offset_ms"] == pytest.approx(250.0)
+
+
+def test_peak_offset_outside_the_episode_is_refused() -> None:
+    with pytest.raises(ValueError, match="peak_offset_ms"):
+        Episode(label="EP", duration_ms=100.0, peak_edge=1.0, peak_offset_ms=-1.0)
+    with pytest.raises(ValueError, match="peak_offset_ms"):
+        Episode(label="EP", duration_ms=100.0, peak_edge=1.0, peak_offset_ms=101.0)
+
+
+def test_the_window_verdict_is_unchanged_by_the_edge_profile() -> None:
+    """``capturable_fraction`` describes the window, not the edge.
+
+    The verdict has always been a share of the episode's life during which the
+    position can be open. Correcting the edge figure must not quietly turn a
+    duration question into a magnitude question.
+    """
+    report = LatencyCaptureModel().assess(
+        [Episode(label="EP000", duration_ms=6000.0, peak_edge=0.21, peak_offset_ms=4000.0)],
+        RoundTripAssumption(latency_per_leg_ms=50, legs=2, minimum_capturable_fraction=0.25),
+    )
+
+    capture = report.captures[0]
+    assert capture.capturable_fraction == pytest.approx((6000.0 - 100.0) / 6000.0)
+    assert capture.status is CaptureStatus.CAPTURABLE
+
+
 def test_round_trip_multiplies_latency_by_legs() -> None:
     assert RoundTripAssumption(latency_per_leg_ms=50, legs=2).round_trip_ms == 100.0
     assert RoundTripAssumption(latency_per_leg_ms=20, legs=3).round_trip_ms == 60.0

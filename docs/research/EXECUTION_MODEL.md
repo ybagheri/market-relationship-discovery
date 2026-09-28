@@ -172,9 +172,40 @@ actually takes. It introduces no new data: the durations come from the episodes
 the cross-broker comparison already measured.
 
 The capturable fraction is the share of an episode's life during which the
-position could still be open when the round trip completes, which under linear
-decay is `(duration − round_trip) / duration`. An episode shorter than the round
-trip captures nothing, because the edge closes before the trade completes.
+position could still be open when the round trip completes, which is
+`(duration − round_trip) / duration`. An episode shorter than the round trip
+captures nothing, because the edge closes before the trade completes. This is a
+statement about **time** and does not depend on the shape of the edge.
+
+The captured edge is a separate quantity, and it is the **mean** of the edge
+across the window in which the position is held, not its value at the first
+instant. Once both legs are open the position is held until the edge closes, so
+the edge available is the average of what remains. The earlier formula returned
+the value at the moment the round trip completed, which is the best case
+anywhere in the window presented as the expectation; under linear decay it is
+exactly double the mean.
+
+### The edge profile, and where the peak sits
+
+The comparison reports the maximum edge over an episode together with **where in
+the episode it occurred** (`peak_offset_ms`). The episode ends with the edge at
+zero. The profile therefore rises linearly from zero to the peak at its measured
+offset, then decays linearly to zero at the end.
+
+That tent is the lowest profile consistent with the measurements, because the
+edge cannot exceed its own maximum. The rising segment is an assumption rather
+than a measurement — it is bounded, not observed — and it is stated here rather
+than applied silently.
+
+`peak_offset_ms` matters because the previous model multiplied the peak by the
+surviving share of the episode's life, which credited the position with an edge
+as large as the peak across the whole window no matter when the peak arrived. On
+a 1000 ms episode with a 100 ms round trip and a peak of 1.0 arriving at 900 ms,
+that optimistic figure is 0.9; the tent profile averages 0.549.
+
+A report whose captures lack `peak_offset_ms` cannot be reproduced faithfully,
+so the sensitivity sweep drops those episodes rather than assuming the peak sat
+at the start and quietly contradicting the baseline it is compared against.
 
 | Verdict | Meaning |
 | --- | --- |
@@ -198,8 +229,14 @@ per side, 16 measured episodes:
 Reporting "16 opportunities" without this was misleading by roughly an order of
 magnitude. The median episode lasted **zero** milliseconds: most crossable
 observations were a single aligned tick. At a 100 ms round trip only the two
-episodes that persisted for six seconds could be acted on at all, and the mean
-capturable edge fell to about 13 percent of the peak.
+episodes that persisted for six seconds could be acted on at all.
+
+The captured-edge column in that table was produced by the earlier model and is
+left as recorded rather than restated: the corrected model returns roughly half
+of it for a peak at the episode start and less for a peak that arrives late, and
+the underlying tick data is not in the repository to recompute. Rerun
+`compare-brokers` to regenerate the figures. The capturable counts and durations
+are unaffected, because those depend on the window rather than the edge profile.
 
 This is the clearest argument for reporting feasibility alongside opportunity
 counts. The episode count is real; the question is whether any of it survives
@@ -207,9 +244,10 @@ the time it takes to act.
 
 ### Assumptions and limits
 
-Decay is modelled as **linear**. A different decay shape would change the
-captured fraction, and assuming a shape while presenting the result as measured
-would be dishonest, so the simplest assumption is used and stated.
+Decay is modelled as **linear** on each side of the peak. A different decay shape
+would change the captured edge, and assuming a shape while presenting the result
+as measured would be dishonest, so the simplest assumption consistent with the
+measurements is used and stated.
 
 The adverse-move allowance defaults to zero and is a configured input, not an
 estimate. It is reported visibly so it cannot be mistaken for a measured
@@ -309,8 +347,10 @@ conclusion.
 
 Run **without** contract specifications, the same data produces
 `crossable_research_contract_unverified_capital_unverified` with 97 percent of
-observations crossable, ten opportunity episodes, a median episode of 65
-seconds, and 91 percent of the mean peak edge captured at a 100 ms round trip.
+observations crossable and ten opportunity episodes with a median episode of 65
+seconds, of which a substantial share survived a 100 ms round trip. The
+captured share of the peak edge quoted in earlier revisions of this document is
+not restated here, for the reason given above.
 
 That contrast is the point. Omitting a check does not make the finding weaker; it
 removes the label that says the finding is unverified. Both runs were made, and
@@ -363,7 +403,9 @@ fifth of the peak edge.
 ### Observed on two live instruments
 
 Both runs used the same grid from 1 ms to 10,000 ms per leg, against a 50 ms
-baseline.
+baseline. The captured-edge columns are reproduced as recorded under the earlier
+model and are not restated, for the reason given above; the capturable counts
+are unaffected because they depend on the window rather than the edge profile.
 
 **XAUUSD — `nominal`, fragile**
 
@@ -377,9 +419,11 @@ baseline.
 
 The binary verdict holds from a 2 ms round trip all the way to 2000 ms, so a
 naive stability check would call this stable. It is not. Only 2 of 16 episodes
-are capturable, and the captured share of the edge falls from 14.6 percent to
-0.6 percent while the binary answer never changes. The sweep is what makes that
-visible.
+are capturable, and the captured share of the edge falls by more than an order of
+magnitude across the grid while the binary answer never changes. The sweep is
+what makes that visible. The corrected model lowers the captured edge further
+without changing the verdicts, so the fragility classification is if anything
+understated here.
 
 **BTCUSD — `always_holds`, not fragile**
 

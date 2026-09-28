@@ -73,6 +73,8 @@ remaining ones are listed below rather than left implicit.
 - [x] `minimum_fill_ratio` default above the unfalsifiable 0.5 bound, shared across settings, request, and assessor
 - [x] A `volume_max` that is not a step multiple reports the refused size instead of a zero fill
 - [x] Latency capture against measured episode duration with a capturability gate
+- [x] Captured edge reported as the mean over the holding window, not its first instant
+- [x] Episode peak carries its measured offset instead of being assumed to occur at the start
 - [x] Latency and adverse-move sensitivity sweep with fragility classification
 - [x] Measured round-trip latency from an execution log, replacing the assumption
 - [x] Per-broker symbol labels so cross-broker research survives differing names
@@ -178,15 +180,21 @@ with filled volume, which is true of one leg and wrong of a cross-broker pair,
 where a cap on one side leaves a net directional position. `above_maximum` is
 now a blocking reason. `EXECUTION_MODEL.md` states the corrected convention.
 
+The capture-formula item separates two quantities the model had merged. The
+capturable fraction answers *when* the position can be held and depends only on
+time, so the verdicts are unchanged. The captured edge answers *how much* is in
+that window, and the old formula reported the value at the first instant rather
+than the mean across it, which is twice the expectation under linear decay. The
+producer also took the peak from anywhere in the episode while the model treated
+it as the starting value, so episodes now carry the measured offset.
+
 ### High — a reported figure is wrong
 
-- [ ] `costs/latency.py` — the capture formula returns the edge at the moment the
-      round trip completes rather than the mean over the remaining window, and the
-      producer takes the peak from anywhere in the episode while the model assumes
-      it occurs at the start
 - [ ] `costs/latency.py` — triple swap applies only when the holding period is
       exactly one night, so a position held across the standard Wednesday rollover
-      accrues 1× instead of 3×. `annualized_rate` is also set to the daily rate
+      accrues 1× instead of 3×. `annualized_rate` is also set to the daily rate.
+      Both fields live in `FundingModel` in `costs/execution.py`, not in
+      `latency.py`
 - [ ] `relationships/formula.py` — `-` inside the identifier class makes `A-B` a
       single symbol name, so an un-spaced subtraction becomes a dependency that
       can never exist in a panel

@@ -158,6 +158,10 @@ class CrossBrokerOpportunity:
     mean_net_edge: float
     maximum_normalized_net_pnl: float | None
     mean_normalized_net_pnl: float | None
+    # Where inside the episode the maximum was observed. The latency model
+    # cannot use the peak as a starting value without knowing when it arrives,
+    # and a report that omits this cannot be reproduced faithfully.
+    peak_offset_ms: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -559,6 +563,7 @@ class CrossBrokerComparisonEngine:
                 label=f"{opportunity.direction.value}:{opportunity.start.isoformat()}",
                 duration_ms=opportunity.duration_ms,
                 peak_edge=opportunity.maximum_net_edge,
+                peak_offset_ms=opportunity.peak_offset_ms,
             )
             for opportunity in opportunities
             if opportunity.maximum_net_edge > 0
@@ -699,6 +704,9 @@ class CrossBrokerComparisonEngine:
                     start=start,
                     end=end,
                     duration_ms=max(0.0, (end - start).total_seconds() * 1000.0),
+                    peak_offset_ms=max(
+                        0.0, (maximum["timestamp"] - start).total_seconds() * 1000.0
+                    ),
                     observations=len(episode),
                     maximum_gross_edge=float(maximum["gross_crossable_edge"]),
                     maximum_net_edge=float(maximum["net_crossable_edge"]),

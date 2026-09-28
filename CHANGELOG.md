@@ -4,6 +4,33 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — latency capture
+
+- The captured edge was the value at the instant the round trip completed, not
+  the mean over the window in which the position is actually held. Once both
+  legs are open the position is held until the edge closes, so the expectation
+  is the average of what remains; the old figure is the best case anywhere in
+  the window presented as the expected one, and under linear decay it is exactly
+  double. On a 1000 ms episode with a 100 ms round trip and a peak of 1.0 at the
+  start, the reported captured edge was 0.9 and is now 0.45
+- The producer took the maximum edge over an episode and the model assumed it
+  occurred at the start, so the model credited the position with an edge as large
+  as the peak across the whole window no matter when the peak arrived. Episodes
+  now carry `peak_offset_ms`, the measured position of the maximum, and the
+  profile rises linearly from zero to the peak at that offset before decaying,
+  which is the lowest profile consistent with the measurements. On the same
+  episode with the peak arriving at 900 ms, the optimistic figure of 0.9 becomes
+  0.549. The rising segment is an assumption, not a measurement, and is stated
+  in the module and in `EXECUTION_MODEL.md`
+- `capturable_fraction` and the capturable verdicts are unchanged: they describe
+  the window, not the edge profile. Only the edge magnitude is corrected
+- A persisted capture report without `peak_offset_ms` cannot be reproduced
+  faithfully, so the sensitivity sweep drops those episodes rather than assuming
+  the peak sat at the start and quietly contradicting its own baseline. An
+  offset that cannot lie inside its episode is dropped for the same reason
+  instead of raising, following the reader's existing convention for other
+  absent fields
+
 ### Fixed — execution feasibility
 
 - `ABOVE_MAXIMUM` was never a blocking reason, so a leg the broker demonstrably
