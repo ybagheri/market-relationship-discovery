@@ -7,7 +7,7 @@ import pandas as pd
 
 from market_relationship_discovery.backtesting.multi_stage import CausalFeatureBuilder
 from market_relationship_discovery.discovery.engine import CandidateStatus, DiscoveryCandidate
-from market_relationship_discovery.domain.errors import DataQualityError
+from market_relationship_discovery.domain.errors import DataQualityError, InsufficientDataError
 from market_relationship_discovery.relationships.formula import Expression, FormulaParser
 from market_relationship_discovery.statistics.analyzer import StatisticalAnalyzer
 from market_relationship_discovery.statistics.regime import RegimeDetector
@@ -35,19 +35,42 @@ class GraphCandidateEvaluator:
     ) -> list[EvaluatedCandidate]:
         if minimum_observations < 3:
             raise ValueError("minimum_observations must be at least three")
-        return [
-            self._evaluate_candidate(
-                prices,
-                candidate,
-                minimum_observations,
-                regime_window,
-                regime_low_quantile,
-                regime_high_quantile,
-                rolling_beta_window,
-                statistical_significance,
-            )
-            for candidate in candidates
-        ]
+        evaluated: list[EvaluatedCandidate] = []
+        failures: list[str] = []
+        for candidate in candidates:
+            try:
+                evaluated.append(
+                    self._evaluate_candidate(
+                        prices,
+                        candidate,
+                        minimum_observations,
+                        regime_window,
+                        regime_low_quantile,
+                        regime_high_quantile,
+                        rolling_beta_window,
+                        statistical_significance,
+                    )
+                )
+            except (ValueError, DataQualityError, InsufficientDataError) as exc:
+                # One malformed series must not destroy every other candidate in
+                # the run. An additive relationship such as ``A - B`` crosses zero
+                # by construction, and a single bad print in one symbol would
+                # otherwise abort the entire experiment.
+                failures.append(f"{candidate.name}: {exc}")
+                evaluated.append(
+                    EvaluatedCandidate(
+                        replace(
+                            candidate,
+                            status=CandidateStatus.REQUIRES_DATA,
+                        ),
+                        pd.DataFrame(),
+                        {
+                            "status": CandidateStatus.REQUIRES_DATA.value,
+                            "unavailable_reason": str(exc),
+                        },
+                    )
+                )
+        return evaluated
 
     def _evaluate_candidate(
         self,
@@ -112,7 +135,10 @@ class GraphCandidateEvaluator:
             statistical_significance,
         )
         zscore = CausalFeatureBuilder.rolling_zscore(discrepancy, min(20, len(discrepancy)))
-        zscore = zscore.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        # Warm-up rows and zero-variance windows stay undefined. Filling them with
+        # zero would report the absence of a discrepancy as a perfect score, both
+        # in the frame and in any model trained on it.
+        zscore = zscore.replace([np.inf, -np.inf], np.nan)
         discrepancy_volatility = (
             discrepancy.rolling(window=20, min_periods=5).std(ddof=0).fillna(0.0)
         )
@@ -148,7 +174,7 @@ class GraphCandidateEvaluator:
             "mean_absolute_discrepancy": mean_absolute_discrepancy,
             "rmse": rmse,
             "p95_absolute_discrepancy": float(discrepancy.abs().quantile(0.95)),
-            "latest_zscore": float(zscore.iloc[-1]),
+            "latest_zscore": (float(zscore.iloc[-1]) if np.isfinite(zscore.iloc[-1]) else None),
             "regime_counts": regime.summary()["counts"],
             "beta_stability": rolling_beta.summary,
             "cointegration_stationarity": cointegration,
@@ -188,8 +214,12 @@ def _evaluate_expression(expression: Expression, prices: pd.DataFrame) -> pd.Ser
         case "multiply":
             return left * right
         case "divide":
+            # A single zero print invalidates that observation, not the whole
+            # experiment. Raising here would let one bad bar in one symbol delete
+            # every candidate in the run, so the division is suppressed and the
+            # affected rows are dropped downstream as non-finite.
             if (right == 0).any():
-                raise DataQualityError("formula denominator cannot be zero")
+                return left / right.replace(0.0, np.nan)
             return left / right
         case _:
             raise DataQualityError("unsupported formula operation")
