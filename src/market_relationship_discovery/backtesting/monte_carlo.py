@@ -66,6 +66,11 @@ class ScenarioSimulationResult:
     metrics: DistributionMetrics
 
 
+# Share of a missed trade's cost that is still paid when the order does not
+# fill. The order was submitted, so the cost is incurred, but no round-trip
+# charge is applied to a position that was never opened.
+MISSED_TRADE_COST_RECOVERY = 1.0
+
 STRESS_SCENARIOS: dict[str, StressScenario] = {
     "baseline": StressScenario("baseline"),
     "wider_spread": StressScenario("wider_spread", cost_multiplier=1.5),
@@ -113,7 +118,14 @@ class MonteCarloRobustnessSimulator:
                 simulated_cost = (
                     costs[sampled_indices] * scenario.cost_multiplier + scenario.additional_cost
                 )
-                net = np.where(keep, simulated_gross - simulated_cost, 0.0)
+                # A missed trade is not free. The signal was taken and the order
+                # did not fill in time, so the attempt was paid for and the
+                # position was not established. Charging nothing would also
+                # discount the scenario's cost multiplier by the missed fraction,
+                # which can leave a stress scenario looking better than the
+                # baseline it is supposed to be worse than.
+                missed_net = -simulated_cost * MISSED_TRADE_COST_RECOVERY
+                net = np.where(keep, simulated_gross - simulated_cost, missed_net)
                 equity = np.cumsum(net)
                 drawdown = equity - np.maximum.accumulate(np.r_[0.0, equity])[1:]
                 totals[scenario.name][simulation] = float(net.sum())
@@ -171,7 +183,11 @@ class MonteCarloRobustnessSimulator:
             expected_shortfall=float(tail.mean()),
             worst_total_net_edge=float(totals.min()),
             median_max_drawdown=float(np.median(drawdowns)),
-            confidence_max_drawdown=float(np.quantile(drawdowns, 1.0 - tail_probability)),
+            # Drawdowns are stored as negative numbers, so the deep tail is the
+            # *lower* quantile. Reading the upper one would report the shallowest
+            # of the worst cases as the confidence bound, which is milder than a
+            # typical drawdown.
+            confidence_max_drawdown=float(np.quantile(drawdowns, tail_probability)),
             mean_win_rate=float(win_rates.mean()),
             mean_observed_trades=float(observations.mean()),
         )

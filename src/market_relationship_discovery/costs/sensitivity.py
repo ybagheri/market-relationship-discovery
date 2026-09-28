@@ -205,7 +205,7 @@ class LatencySensitivityAnalyzer:
                 minimum_capturable_fraction=baseline.minimum_capturable_fraction,
             )
             report = self._model.assess(episodes, assumption)
-            points.append(self._point(report, value, baseline))
+            points.append(self._point(report, value, baseline, baseline.latency_per_leg_ms))
         return self._report(SensitivityAxis.LATENCY_PER_LEG_MS, baseline.latency_per_leg_ms, points)
 
     def sweep_adverse_move(
@@ -229,7 +229,11 @@ class LatencySensitivityAnalyzer:
                 minimum_capturable_fraction=baseline.minimum_capturable_fraction,
             )
             report = self._model.assess(episodes, assumption)
-            points.append(self._point(report, value, baseline))
+            points.append(
+                self._point(
+                    report, value, baseline, baseline.adverse_move_allowance, swept="allowance"
+                )
+            )
         return self._report(
             SensitivityAxis.ADVERSE_MOVE_ALLOWANCE,
             baseline.adverse_move_allowance,
@@ -270,18 +274,30 @@ class LatencySensitivityAnalyzer:
         report: LatencyCaptureReport,
         value: float,
         baseline: RoundTripAssumption,
+        baseline_value: float,
+        swept: str = "latency",
     ) -> SweepPoint:
-        share = report.mean_captured_edge / report.mean_peak_edge if report.mean_peak_edge else 0.0
+        # The allowance only reduces what survives the round trip, so on that axis
+        # the meaningful share is of the *net* captured edge. Using the gross
+        # figure would draw a flat curve along the very axis being swept, and a
+        # reader could not see the allowance eroding the result.
+        captured = (
+            report.mean_net_captured_edge if swept == "allowance" else report.mean_captured_edge
+        )
+        share = captured / report.mean_peak_edge if report.mean_peak_edge else 0.0
         return SweepPoint(
             value=value,
             round_trip_ms=report.round_trip_ms,
             capturable=report.capturable,
             marginal=report.marginal,
             not_capturable=report.not_capturable,
-            mean_captured_edge=report.mean_captured_edge,
+            mean_captured_edge=captured,
             captured_share_of_peak=share,
             survives=report.survives,
-            is_baseline=value == baseline.latency_per_leg_ms,
+            # Compared against the value on the axis actually being swept, not
+            # against the latency field. Otherwise no point is ever the baseline
+            # and every sweep reports itself as absent from its own grid.
+            is_baseline=value == baseline_value,
         )
 
     @staticmethod

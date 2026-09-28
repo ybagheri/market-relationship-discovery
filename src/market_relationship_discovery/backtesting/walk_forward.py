@@ -51,6 +51,8 @@ class WalkForwardResult:
     folds: tuple[WalkForwardFold, ...]
     aggregate_test_metrics: BacktestMetrics
     completed_folds: int
+    test_windows_overlap: bool
+    duplicate_test_trades_removed: int
 
 
 class WalkForwardSplitter:
@@ -64,11 +66,26 @@ class WalkForwardSplitter:
             < 1
         ):
             raise ValueError("walk-forward window sizes must be positive")
-        step = config.step_observations or config.test_observations
+        # ``0`` is a value a caller can pass, so it is tested explicitly rather
+        # than being absorbed by a truthiness fallback and silently replaced.
+        step = (
+            config.test_observations
+            if config.step_observations is None
+            else config.step_observations
+        )
         if step < 1:
             raise ValueError("step_observations must be positive")
         self._config = config
         self._step = step
+
+    @property
+    def test_windows_overlap(self) -> bool:
+        """Whether consecutive folds score the same bars more than once.
+
+        Stepping by less than the test size re-tests observations that a previous
+        fold already scored. The aggregate must not count them twice.
+        """
+        return self._step < self._config.test_observations
 
     def split(self, index: pd.DatetimeIndex) -> tuple[WalkForwardWindow, ...]:
         if not isinstance(index, pd.DatetimeIndex):
@@ -153,19 +170,41 @@ class WalkForwardValidator:
                 )
             )
         completed = tuple(fold for fold in folds if fold.status == "completed")
-        test_trades = tuple(
-            trade
-            for fold in completed
-            for trade in sorted(
-                fold.test_trades,
-                key=lambda item: str(item.execution_timestamp),
-            )
+        ordered = sorted(
+            (trade for fold in completed for trade in fold.test_trades),
+            key=lambda item: str(item.execution_timestamp),
         )
+        test_trades = self._deduplicate_overlaps(ordered, splitter.test_windows_overlap)
         return WalkForwardResult(
             folds=tuple(folds),
             aggregate_test_metrics=self._backtester.summarize_trades(test_trades),
             completed_folds=len(completed),
+            test_windows_overlap=splitter.test_windows_overlap,
+            duplicate_test_trades_removed=len(ordered) - len(test_trades),
         )
+
+    @staticmethod
+    def _deduplicate_overlaps(
+        trades: list[NoLookAheadTrade],
+        windows_overlap: bool,
+    ) -> tuple[NoLookAheadTrade, ...]:
+        """Keep one trade per execution bar when test windows overlap.
+
+        Stepping by less than the test size scores the same bar in several folds.
+        Concatenating the folds would then inflate the sample size, the edge, and
+        the drawdown of the headline aggregate while looking like a larger
+        out-of-sample record than it is.
+        """
+        if not windows_overlap:
+            return tuple(trades)
+        seen: set[object] = set()
+        unique: list[NoLookAheadTrade] = []
+        for trade in trades:
+            if trade.execution_timestamp in seen:
+                continue
+            seen.add(trade.execution_timestamp)
+            unique.append(trade)
+        return tuple(unique)
 
     def _run_fold(
         self,

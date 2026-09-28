@@ -18,6 +18,7 @@ class BacktestMetrics:
     maximum_favorable_excursion: float
     drawdown: float
     cost_percentage: float | None
+    observation_win_rate: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,16 @@ class NoLookAheadTrade:
     def net_edge(self) -> float:
         return self.gross_edge - self.cost
 
+    @property
+    def was_taken(self) -> bool:
+        """Whether this trade carried a positive gross edge.
+
+        A negative gross edge is not an opportunity that failed, it is the cost
+        of being in the market, so metrics distinguishing trades from idle bars
+        use this rather than the sign of the net edge.
+        """
+        return self.gross_edge > 0.0
+
 
 @dataclass(frozen=True, slots=True)
 class NoLookAheadResult:
@@ -45,24 +56,36 @@ class ResearchBacktester:
         if len(aligned) and (aligned.iloc[:, 1] < 0).any():
             raise ValueError("costs cannot be negative")
         net = aligned.iloc[:, 0] - aligned.iloc[:, 1]
-        opportunities = int((aligned.iloc[:, 0] > 0).sum())
+        taken = (aligned.iloc[:, 0] > 0).to_numpy()
+        opportunities = int(taken.sum())
         equity = net.cumsum()
-        drawdown = equity - equity.cummax()
+        # The running peak is seeded with the starting equity of zero. Without it
+        # a curve that opens below its own high never registers a decline, so a
+        # strategy that loses money first reports no drawdown at all.
+        drawdown = equity - np.maximum.accumulate(np.r_[0.0, equity.to_numpy()])[1:]
+        traded_net = net[taken]
         return BacktestMetrics(
             observations=len(aligned),
             opportunities=opportunities,
             gross_edge=float(aligned.iloc[:, 0].sum()),
             net_edge=float(net.sum()),
-            win_rate=float((net > 0).mean()) if len(net) else None,
-            average_return=float(net.mean()) if len(net) else None,
-            maximum_adverse_excursion=float(np.minimum(aligned.iloc[:, 0].to_numpy(), 0).sum()),
-            maximum_favorable_excursion=float(np.maximum(aligned.iloc[:, 0].to_numpy(), 0).sum()),
+            # Measured over the trades that were actually taken. Averaging over
+            # every bar would dilute the rate toward zero and would mean
+            # something different here than on the trade-level path.
+            win_rate=float((traded_net > 0).mean()) if len(traded_net) else None,
+            average_return=float(traded_net.mean()) if len(traded_net) else None,
+            maximum_adverse_excursion=float(np.minimum(net.to_numpy(), 0).sum()),
+            maximum_favorable_excursion=float(np.maximum(net.to_numpy(), 0).sum()),
             drawdown=float(drawdown.min()) if len(drawdown) else 0.0,
             cost_percentage=(
                 float(aligned.iloc[:, 1].sum() / aligned.iloc[:, 0].sum() * 100.0)
                 if float(aligned.iloc[:, 0].sum()) != 0
                 else None
             ),
+            # The rate over every observation, kept because the two paths through
+            # this record are compared in reports and a reader needs to see which
+            # population each number describes.
+            observation_win_rate=float((net > 0).mean()) if len(net) else None,
         )
 
     def run_next_observation(

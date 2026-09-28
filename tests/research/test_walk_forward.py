@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from market_relationship_discovery.backtesting.walk_forward import (
     WalkForwardConfig,
@@ -66,6 +67,37 @@ def test_fold_backtest_does_not_execute_into_next_split() -> None:
             and trade.execution_timestamp <= fold.window.test_end
             for trade in fold.test_trades
         )
+
+
+def test_overlapping_test_windows_are_not_double_counted_in_the_aggregate() -> None:
+    """Stepping by less than the test size re-scores the same bars.
+
+    Concatenating the folds would report a larger out-of-sample sample than
+    exists, along with an edge and a drawdown computed over a doubled,
+    out-of-order equity path.
+    """
+    data = frame(40)
+    overlapping = WalkForwardConfig(4, 3, 4, 2, thresholds=(0.0,))
+    disjoint = WalkForwardConfig(4, 3, 4, 4, thresholds=(0.0,))
+
+    result = WalkForwardValidator().run(data, overlapping, "signal", "gross_edge", "cost")
+    baseline = WalkForwardValidator().run(data, disjoint, "signal", "gross_edge", "cost")
+
+    assert result.test_windows_overlap is True
+    assert result.duplicate_test_trades_removed > 0
+    distinct = {trade.execution_timestamp for fold in result.folds for trade in fold.test_trades}
+    assert result.aggregate_test_metrics.observations <= len(distinct)
+    # The disjoint run is the honest measure of the same strategy.
+    assert baseline.test_windows_overlap is False
+    assert baseline.duplicate_test_trades_removed == 0
+    assert result.aggregate_test_metrics.gross_edge == pytest.approx(
+        baseline.aggregate_test_metrics.gross_edge, rel=0.35
+    )
+
+
+def test_a_zero_step_is_rejected_rather_than_silently_replaced() -> None:
+    with pytest.raises(ValueError, match="step_observations must be positive"):
+        WalkForwardSplitter(WalkForwardConfig(4, 3, 4, 0))
 
 
 def test_insufficient_training_is_reported_without_test_selection() -> None:
