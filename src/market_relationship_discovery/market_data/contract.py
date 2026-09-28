@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 from math import isclose, isfinite
 from typing import Any
+
+# Relative tolerance within which the two legs' valuations of the same position
+# are considered consistent. Broker specifications are reported at finite
+# precision, so exact equality is not a reasonable expectation.
+LEG_AGREEMENT_TOLERANCE = 0.05
 
 
 class ContractCompatibilityStatus(StrEnum):
@@ -88,6 +93,20 @@ class NormalizedContractEdge:
     net_pnl: float
     broker_a_pnl: float
     broker_b_pnl: float
+    legs_agree: bool
+
+    @property
+    def leg_disagreement_ratio(self) -> float:
+        """Relative gap between the two independent valuations of one position.
+
+        Both legs describe the *same* realized profit, so a large gap means the
+        two contract specifications are mutually inconsistent rather than that
+        the profit is uncertain.
+        """
+        scale = max(abs(self.broker_a_pnl), abs(self.broker_b_pnl))
+        if scale == 0.0:
+            return 0.0
+        return abs(self.broker_a_pnl - self.broker_b_pnl) / scale
 
 
 class ContractEdgeNormalizer:
@@ -105,20 +124,27 @@ class ContractEdgeNormalizer:
         broker_b_volume = (
             broker_a_volume * specification_a.contract_size / specification_b.contract_size
         )
+        # A cross-broker position realizes the price difference *once*: buy one
+        # leg, sell the other, and the whole spread is the profit. The two legs
+        # are therefore two independent valuations of the same money, not two
+        # amounts to add. Summing them would roughly double a symmetric
+        # opportunity and mis-weight an asymmetric one.
         broker_a_pnl = (
             net_edge * broker_a_volume * specification_a.tick_value / specification_a.tick_size
         )
         broker_b_pnl = (
             net_edge * broker_b_volume * specification_b.tick_value / specification_b.tick_size
         )
-        return NormalizedContractEdge(
+        edge = NormalizedContractEdge(
             broker_a_volume=broker_a_volume,
             broker_b_volume=broker_b_volume,
             net_edge=net_edge,
-            net_pnl=broker_a_pnl + broker_b_pnl,
+            net_pnl=broker_a_pnl,
             broker_a_pnl=broker_a_pnl,
             broker_b_pnl=broker_b_pnl,
+            legs_agree=False,
         )
+        return replace(edge, legs_agree=edge.leg_disagreement_ratio <= LEG_AGREEMENT_TOLERANCE)
 
 
 class ContractSpecificationAnalyzer:
