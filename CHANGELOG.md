@@ -4,6 +4,23 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — funding
+
+- The triple-swap multiplier applied only when the whole holding period was
+  exactly one night, so a position held from Wednesday to Friday was charged 2x
+  instead of 3x for the Wednesday rollover plus 1x for the night after — a third
+  of what it owed. Every triple-swap rollover inside the held interval is now
+  counted, giving `nights + 2 * rollovers`, and a hold long enough to cross two
+  rollovers is charged for both
+- `annualized_rate` was set to the configured **daily** fraction, so a field
+  named for an annual figure understated the annual cost 365-fold and invited
+  comparison against an annual rate quoted elsewhere. It now reports
+  `daily * 365`, and a new `daily_rate` field publishes the configured figure so
+  the report is unambiguous. Both report `None` when no rate is configured
+  rather than `0.0`, because zero overnight funding is not a measurement of
+  free capital, and a period that accrues nothing still reports the rate so
+  "closed in the same session" stays distinguishable from "no rate configured"
+
 ### Fixed — latency capture
 
 - The captured edge was the value at the instant the round trip completed, not

@@ -196,6 +196,72 @@ def test_triple_swap_applies_on_the_configured_rollover_weekday() -> None:
     assert cost.cost == pytest.approx(100000.0 * 0.0005 * 3)
 
 
+def test_triple_swap_counts_every_rollover_in_a_multi_night_hold() -> None:
+    """A hold spanning the rollover must be charged the triple on that night.
+
+    The multiplier only applied when the whole holding period was exactly one
+    night, so a position held two nights from Wednesday accrued 2x instead of
+    3x for the Wednesday rollover plus 1x for the night after. Every rollover
+    weekday inside the held interval has to be counted.
+    """
+    model = FundingModel(daily_rate_fraction=0.0005, triple_swap_weekday=2)
+    wednesday = date(2026, 9, 23)
+    assert wednesday.weekday() == 2
+
+    cost = model.cost(specification(), 100000.0, wednesday, date(2026, 9, 25))
+
+    assert cost.nights == 2
+    assert cost.applied_triple_swap is True
+    # 1x for Thursday plus the 3x Wednesday rollover.
+    assert cost.cost == pytest.approx(100000.0 * 0.0005 * 4)
+
+
+def test_a_long_hold_crossing_two_rollovers_charges_both() -> None:
+    model = FundingModel(daily_rate_fraction=0.0005, triple_swap_weekday=2)
+
+    cost = model.cost(specification(), 100000.0, date(2026, 9, 23), date(2026, 10, 1))
+
+    assert cost.nights == 8
+    # Eight nights, two of which fall on the triple-swap weekday.
+    assert cost.cost == pytest.approx(100000.0 * 0.0005 * (8 + 2 * 2))
+
+
+def test_a_hold_that_misses_the_rollover_is_not_triple_charged() -> None:
+    model = FundingModel(daily_rate_fraction=0.0005, triple_swap_weekday=2)
+
+    cost = model.cost(specification(), 100000.0, date(2026, 9, 24), date(2026, 9, 27))
+
+    assert cost.nights == 3
+    assert cost.applied_triple_swap is False
+    assert cost.cost == pytest.approx(100000.0 * 0.0005 * 3)
+
+
+def test_the_reported_rate_is_annualized_not_daily() -> None:
+    """A field named ``annualized_rate`` must not hold the daily rate.
+
+    The configured figure is a daily fraction. Reporting it under a field named
+    for an annual figure invites a reader to compare it against an annual rate
+    elsewhere, and it understates the annual cost by a factor of 365.
+    """
+    model = FundingModel(daily_rate_fraction=0.0005)
+
+    cost = model.cost(specification(), 100000.0, date(2026, 9, 25), date(2026, 9, 26))
+
+    assert cost.daily_rate == pytest.approx(0.0005)
+    assert cost.annualized_rate == pytest.approx(0.0005 * 365.0)
+    assert cost.annualized_rate != pytest.approx(0.0005)
+
+
+def test_an_unconfigured_rate_is_reported_as_unknown_not_as_zero() -> None:
+    """No daily rate means the annual figure is unknown, not free."""
+    model = FundingModel(daily_rate_fraction=0.0)
+
+    cost = model.cost(specification(), 100000.0, date(2026, 9, 25), date(2026, 9, 26))
+
+    assert cost.annualized_rate is None
+    assert cost.daily_rate is None
+
+
 def test_funding_can_be_disabled() -> None:
     model = FundingModel(daily_rate_fraction=0.0005, enabled=False)
 

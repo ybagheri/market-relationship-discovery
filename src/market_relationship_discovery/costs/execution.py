@@ -31,6 +31,9 @@ from market_relationship_discovery.market_data.contract import ContractSpecifica
 #: it still tolerates an off-step request that the broker rounds harmlessly.
 DEFAULT_MINIMUM_FILL_RATIO = 0.9
 
+#: Days used to express a daily funding fraction as an annual one.
+DAYS_PER_YEAR = 365.0
+
 
 class MarginSource(StrEnum):
     """Where a margin figure came from.
@@ -102,18 +105,28 @@ class FillEstimate:
 
 @dataclass(frozen=True, slots=True)
 class FundingCost:
-    """Holding cost accrued over a period."""
+    """Holding cost accrued over a period.
+
+    ``daily_rate`` is the configured fraction and ``annualized_rate`` is that
+    figure expressed over a year. Both are reported because a single field
+    named for the annual figure but holding the daily one invites a reader to
+    compare it against an annual rate quoted elsewhere, and understates the
+    annual cost by a factor of 365. Both are ``None`` when no rate is
+    configured, which is unknown rather than free.
+    """
 
     cost: float
     nights: int
     applied_triple_swap: bool
     annualized_rate: float | None
+    daily_rate: float | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
             "cost": self.cost,
             "nights": self.nights,
             "applied_triple_swap": self.applied_triple_swap,
+            "daily_rate": self.daily_rate,
             "annualized_rate": self.annualized_rate,
         }
 
@@ -326,17 +339,57 @@ class FundingModel:
         A position opened and closed inside the same day accrues nothing, which
         is why the cross-broker research layer applies funding per opportunity
         episode rather than per tick observation.
+
+        Funding rolls over once per night, and the rollover on a configured
+        weekday is charged three times. Every such rollover inside the held
+        interval is counted, not only the case where the whole hold is a single
+        night: a position kept from Wednesday to Friday crosses the Wednesday
+        rollover and owes the triple on that night, and counting rollovers only
+        when the hold is exactly one night reported a third of what it owed.
         """
         nights = max(0, (end - start).days)
         if nights == 0 or not self._enabled or self._daily_rate == 0.0:
-            return FundingCost(0.0, 0, False, self._daily_rate or None)
+            return self._no_accrual(0, 0)
         if notional is None or specification is None:
-            return FundingCost(0.0, nights, False, self._daily_rate)
-        multiplier = 1.0
-        if nights == 1 and start.weekday() == self._triple_swap_weekday:
-            multiplier = 3.0
-        accrued = abs(notional) * self._daily_rate * nights * multiplier
-        return FundingCost(accrued, nights, multiplier > 1.0, self._daily_rate)
+            return self._no_accrual(nights, 0)
+        triple_rollovers = self._triple_rollovers(start, nights)
+        # Each rollover costs one night's rate; a triple-swap one costs three.
+        charged_nights = nights + 2 * triple_rollovers
+        accrued = abs(notional) * self._daily_rate * charged_nights
+        return FundingCost(
+            cost=accrued,
+            nights=nights,
+            applied_triple_swap=triple_rollovers > 0,
+            daily_rate=self._daily_rate,
+            annualized_rate=self._daily_rate * DAYS_PER_YEAR,
+        )
+
+    def _no_accrual(self, nights: int, triple_rollovers: int) -> FundingCost:
+        """A period that accrued nothing, still reporting the configured rate.
+
+        The rate is reported because the absence of a cost can mean two
+        different things: the position was closed in the same session, or no
+        rate is configured. Reporting the rate keeps those apart.
+        """
+        return FundingCost(
+            cost=0.0,
+            nights=nights,
+            applied_triple_swap=triple_rollovers > 0,
+            daily_rate=self._daily_rate or None,
+            annualized_rate=(self._daily_rate * DAYS_PER_YEAR) if self._daily_rate else None,
+        )
+
+    def _triple_rollovers(self, start: date, nights: int) -> int:
+        """Count the triple-swap rollovers falling inside the held interval.
+
+        The rollovers occur on each night from ``start`` up to but not including
+        ``end``, so the interval is the ``nights`` dates beginning at ``start``.
+        """
+        return sum(
+            1
+            for offset in range(nights)
+            if (start + timedelta(days=offset)).weekday() == self._triple_swap_weekday
+        )
 
     def horizon_days(self, start: date, days: int) -> date:
         if days < 0:

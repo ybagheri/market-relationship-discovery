@@ -68,6 +68,8 @@ remaining ones are listed below rather than left implicit.
 - [x] Leverage-derived margin with explicit source labelling
 - [x] Volume step and maximum fill feasibility with partial-fill reporting
 - [x] Overnight funding accrual including the triple-swap rollover
+- [x] Every triple-swap rollover inside a multi-night hold counted
+- [x] Funding reports the daily rate and its annualized equivalent separately
 - [x] Execution feasibility verdict integrated into the cross-broker summary
 - [x] A `volume_max`-capped leg blocks the pair instead of passing the `executable` gate
 - [x] `minimum_fill_ratio` default above the unfalsifiable 0.5 bound, shared across settings, request, and assessor
@@ -190,11 +192,6 @@ it as the starting value, so episodes now carry the measured offset.
 
 ### High — a reported figure is wrong
 
-- [ ] `costs/latency.py` — triple swap applies only when the holding period is
-      exactly one night, so a position held across the standard Wednesday rollover
-      accrues 1× instead of 3×. `annualized_rate` is also set to the daily rate.
-      Both fields live in `FundingModel` in `costs/execution.py`, not in
-      `latency.py`
 - [ ] `relationships/formula.py` — `-` inside the identifier class makes `A-B` a
       single symbol name, so an un-spaced subtraction becomes a dependency that
       can never exist in a panel

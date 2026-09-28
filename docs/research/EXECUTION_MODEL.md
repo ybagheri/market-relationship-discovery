@@ -98,6 +98,29 @@ Funding is deliberately a function of holding time. Folding it into a flat
 per-trade constant would hide the holding-time risk that makes a small
 discrepancy unprofitable.
 
+### Counting the rollovers in a multi-night hold
+
+**Every** triple-swap rollover inside the held interval is counted, not only the
+case where the entire hold is a single night. A position held from Wednesday to
+Friday crosses the Wednesday rollover and owes the triple on that night; the
+total is `nights + 2 × rollovers`. Counting the triple only when the whole hold
+was one night charged a Wednesday-to-Friday hold at 2× instead of 4×.
+
+The interval is the `nights` dates beginning at `start`; the rollover on the
+night of `end` belongs to the position that is still open, not to this one.
+
+### The reported rate
+
+`daily_rate` is the configured fraction and `annualized_rate` is that figure
+expressed over a year (`daily × 365`). Both are reported. A single field named
+for the annual figure but holding the daily one invites a comparison against an
+annual rate quoted elsewhere and understates the annual cost 365-fold.
+
+When no rate is configured both report `None` rather than `0.0`. Zero overnight
+funding is not a measurement of free capital, and reporting a rate of zero
+would state it as one. A period that accrues nothing still reports the rate, so
+"closed in the same session" stays distinguishable from "no rate configured".
+
 ## Verdicts and classification
 
 `ExecutionAssessor` combines margin and fill feasibility. It separates two
