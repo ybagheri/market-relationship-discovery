@@ -2,6 +2,62 @@
 
 All notable changes follow semantic versioning.
 
+## [Unreleased]
+
+### Fixed — execution feasibility
+
+- `ABOVE_MAXIMUM` was never a blocking reason, so a leg the broker demonstrably
+  cannot fill in full passed the `executable` gate and the pair was reported as
+  executable. A 50-lot request capped at 10 lots on one broker, with the other
+  leg taking its full size, returned `executable = True` with an empty
+  `blocking_reasons` and a binding fill ratio of 0.2. That is not the researched
+  pair at reduced size: it is a net directional position on the uncapped broker,
+  and the discrepancy was computed for a specific size. `above_maximum` is now
+  a blocking reason on either leg. This reverses a documented verdict — the
+  earlier reasoning that PnL scales with filled volume is true of a single leg
+  and wrong of a cross-broker pair — so `EXECUTION_MODEL.md` states the
+  corrected convention, and the reduced size is still reported through
+  `binding_fill_ratio` rather than discarded
+- `minimum_fill_ratio` defaulted to `0.0`, a floor no fill ratio can fall below,
+  so the check appeared in every report and could never block anything. Rounding
+  a request down to `volume_step` cannot produce a ratio at or below one half,
+  so any threshold of `0.5` or less is unfalsifiable rather than merely
+  lenient; the observed floor across step and size combinations is about 0.51.
+  The default is now `0.9`, exported as
+  `costs.execution.DEFAULT_MINIMUM_FILL_RATIO` and shared by `CostSettings`,
+  `CrossBrokerRequest`, and the assessor so the three cannot drift apart. A
+  configuration that relied on `0.0` or `0.5` to mean "do not gate on size" must
+  now set it to `0.0` explicitly to restore that
+- A `volume_max` that is not a whole multiple of `volume_step` was rounded down
+  and could produce `filled_volume = 0.0` with `partial_fill = True` and status
+  `above_maximum`: a claim of a partial fill of nothing. A cap that leaves the
+  achievable size below `volume_min` is now refused as `below_minimum` with
+  `limited_by` naming the cap
+
+### Fixed — statistical measurement
+
+- The Engle–Granger step 2 p-value used the MacKinnon table for a regression
+  with zero predetermined regressors, which is the wrong distribution for a
+  residual series that was produced by a regression containing one. The
+  reported p-value was anti-conservative by roughly a factor of two, so a pair
+  whose residual is a near unit root came back significant at the 5% level. On
+  one such pair the unadjusted p-value read 0.027 and the adjusted one 0.090,
+  and the verdict `cointegrated_at_significance` followed the wrong one. That
+  figure fed `engle_granger_p_value`, which is exactly what the false-discovery
+  family consumes, so the bias was inherited by the correction applied across
+  the family. The test now runs through `statsmodels.tsa.stattools.coint` and
+  reports the regressor-adjusted p-value; the unadjusted value is reported
+  alongside as `adf_p_value_without_regressor_adjustment`, and
+  `adf_p_value_is_regressor_adjusted` states which one drove the verdict
+- A pair that is so nearly collinear that the benchmark explains almost all of
+  the target variance made `coint` return a statistic of `-inf` with a p-value
+  of zero, which its own documentation calls numerically unstable rather than a
+  test result. Reporting that zero would have certified a cointegrated
+  relationship the test never measured, so such a pair is now reported as
+  `unavailable` naming collinearity as the reason. The detection uses the same
+  R-squared criterion `coint` applies, so a genuinely cointegrated pair is
+  still evaluated
+
 ## [1.9.0] - 2026-09-28
 
 This release corrects measurement defects found in a full audit of the research

@@ -69,6 +69,9 @@ remaining ones are listed below rather than left implicit.
 - [x] Volume step and maximum fill feasibility with partial-fill reporting
 - [x] Overnight funding accrual including the triple-swap rollover
 - [x] Execution feasibility verdict integrated into the cross-broker summary
+- [x] A `volume_max`-capped leg blocks the pair instead of passing the `executable` gate
+- [x] `minimum_fill_ratio` default above the unfalsifiable 0.5 bound, shared across settings, request, and assessor
+- [x] A `volume_max` that is not a step multiple reports the refused size instead of a zero fill
 - [x] Latency capture against measured episode duration with a capturability gate
 - [x] Latency and adverse-move sensitivity sweep with fragility classification
 - [x] Measured round-trip latency from an execution log, replacing the assumption
@@ -90,7 +93,8 @@ remaining ones are listed below rather than left implicit.
 - [x] Candidate-family de-duplication by canonical formula
 - [x] Contested flag when stationarity tests disagree
 - [x] Semantics-aware formula equivalence beyond syntactic canonicalisation
-- [!] ADF p-value is not adjusted for the cointegrating regressor
+- [x] ADF p-value adjusted for the cointegrating regressor, via `statsmodels` `coint`
+- [x] Near-collinear pairs reported as unavailable rather than as a zero p-value
 - [!] Regime frequencies are pinned by the quantile method rather than measured
 - [!] Redundant and misleading multiplicity report fields
 
@@ -161,17 +165,21 @@ Every item here was found by the audit and has not been fixed. Each produced a
 plausible-looking number rather than an error, which is why it survived a
 green test suite. They are ordered by how much a reader could be misled.
 
+The ADF p-value item was corrected after this list was written. The correction
+also exposed a second condition in the same function: a pair that is nearly
+collinear makes `coint` return a statistic of `-inf` with a p-value of zero,
+which it documents as numerically unstable rather than as a test result. That
+case is now reported as `unavailable` naming collinearity, because reporting the
+zero would have certified a cointegrated relationship the test never measured.
+
+The fill-feasibility item changed a documented verdict rather than only a
+number. A capped leg was previously argued to stay executable because PnL scales
+with filled volume, which is true of one leg and wrong of a cross-broker pair,
+where a cap on one side leaves a net directional position. `above_maximum` is
+now a blocking reason. `EXECUTION_MODEL.md` states the corrected convention.
+
 ### High — a reported figure is wrong
 
-- [ ] `statistics/analyzer.py` — the ADF p-value uses the MacKinnon table for a
-      regression with zero predetermined regressors. Engle–Granger step 2 requires
-      the distribution adjusted for one cointegrating regressor, so the p-value is
-      anti-conservative, and it is exactly what feeds the false-discovery family.
-      Use `statsmodels.tsa.stattools.coint` or `arch.unitroot.EngleGranger`
-- [ ] `costs/execution.py` — `ABOVE_MAXIMUM` is never a blocking reason and
-      `minimum_fill_ratio` defaults to `0.0`, so a size the broker demonstrably
-      cannot fill passes the `executable` gate. A `volume_max` that is not a
-      multiple of `volume_step` can also yield a fill below the broker minimum
 - [ ] `costs/latency.py` — the capture formula returns the edge at the moment the
       round trip completes rather than the mean over the remaining window, and the
       producer takes the peak from anywhere in the episode while the model assumes

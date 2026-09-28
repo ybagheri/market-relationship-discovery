@@ -39,6 +39,9 @@ Corrected in 1.9.0, each with a regression test:
 - A `DemoSafetyError` was reported as an ordinary connection failure
 - Absent or malformed report fields were rendered as zero, which turned a parse
   failure into a statement about the market
+- The Engle–Granger p-value used the zero-regressor distribution, so pairs
+  whose residual is a near unit root were reported cointegrated, and that
+  biased the false-discovery family built from the same number
 
 The defects still open are listed under **Open corrections** in
 [the roadmap](docs/roadmap/ROADMAP.md) rather than left implicit, along with the
@@ -61,6 +64,8 @@ cannot support the test.
 - Configurable spread-independent cost assumptions
 - Pearson, Spearman, rolling z-score, half-life, and lead/lag analysis
 - Stationarity and cointegration diagnostics using `statsmodels` ADF and KPSS with explicit unavailable reasons
+- Engle-Granger p-value adjusted for its cointegrating regressor, with the unadjusted value reported alongside
+- Near-collinear pairs reported as unavailable rather than as a zero p-value
 - Symbol discovery that matches broker name, broker description, and canonical alias
 - Tradability-aware filtering so a non-tradable symbol is never surfaced as a candidate
 - Data quality and timestamp-alignment utilities
@@ -84,6 +89,7 @@ cannot support the test.
 - Contract-aware volume and PnL normalization for cross-broker edges
 - Margin model that treats a broker-reported zero as not reported, never free
 - Fill feasibility against broker volume step and maximum, with partial-fill reporting
+- A `volume_max`-capped leg blocks the cross-broker pair instead of passing the executable gate
 - Measured round-trip latency from a supplied execution log, read without placing orders
 - Overnight funding accrual including the triple-swap rollover
 - Latency capture comparing measured opportunity duration against round-trip time
