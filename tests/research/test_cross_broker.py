@@ -225,6 +225,65 @@ def test_consistently_scaled_legs_are_normalized_and_still_agree() -> None:
     )
 
 
+def test_a_size_cap_difference_does_not_refuse_the_comparison() -> None:
+    """One instrument with two size limits is still one instrument.
+
+    This is the live WTI observation from 2026-09-29: identical
+    `contract_size`, `tick_size`, and `tick_value` on both brokers, differing
+    only in how much each allows. Refusing the comparison left the researcher
+    with no cross-broker study of a symbol whose contract is agreed, and the
+    fill gate already refuses a size either broker cannot take.
+    """
+    contract_a = ContractSpecification.from_dict(
+        json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
+    )
+    contract_b = replace(
+        ContractSpecification.from_dict(
+            json.loads(Path("examples/broker_b_contract.json").read_text(encoding="utf-8"))
+        ),
+        volume_max=5.0,
+    )
+    broker_a, broker_b = continuous_opportunity(2000)
+
+    analysis = CrossBrokerComparisonEngine().compare(
+        broker_a,
+        broker_b,
+        replace(request(), contract_a=contract_a, contract_b=contract_b),
+    )
+
+    assert analysis.summary.contract_status is ContractCompatibilityStatus.COMPATIBLE
+    assert analysis.summary.contract_issues == ()
+    assert analysis.summary.contract_advisories
+    assert analysis.summary.classification != "blocked_by_contract_specification"
+    assert analysis.summary.crossable_observations > 0
+
+
+def test_a_genuinely_different_instrument_still_blocks_and_reports_the_cap() -> None:
+    """An advisory must not soften a real mismatch, and must not hide the cap."""
+    contract_a = ContractSpecification.from_dict(
+        json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
+    )
+    contract_b = replace(
+        ContractSpecification.from_dict(
+            json.loads(Path("examples/broker_b_contract.json").read_text(encoding="utf-8"))
+        ),
+        volume_max=5.0,
+        currency_profit="GBP",
+    )
+    broker_a, broker_b = continuous_opportunity(2000)
+
+    analysis = CrossBrokerComparisonEngine().compare(
+        broker_a,
+        broker_b,
+        replace(request(), contract_a=contract_a, contract_b=contract_b),
+    )
+
+    assert analysis.summary.contract_status is ContractCompatibilityStatus.INCOMPATIBLE
+    assert analysis.summary.classification == "blocked_by_contract_specification"
+    assert "profit currencies differ" in analysis.summary.contract_issues
+    assert analysis.summary.contract_advisories
+
+
 def test_configured_leverage_verifies_capital_and_drops_the_caveat() -> None:
     """A leverage-derived margin is a real figure, so capital becomes verified.
 

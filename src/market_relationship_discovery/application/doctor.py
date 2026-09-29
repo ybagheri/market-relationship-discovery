@@ -135,8 +135,17 @@ def _configuration_check(
     settings: Settings,
     label: str = "",
 ) -> CheckResult:
-    valid = profile.demo_only and settings.data.timezone.upper() == "UTC"
-    detail = f"demo_only={profile.demo_only}; timezone={settings.data.timezone}"
+    """Report the demo-safety guarantee and the display timezone.
+
+    The timezone is reported but is not part of the verdict. It previously was,
+    which meant a non-UTC value failed a *safety* check that had nothing to do
+    with safety, and a UTC value implied a control that no data path honours:
+    every calculation is UTC regardless of this setting. It now changes what a
+    report displays and nothing else, so the verdict is the demo guarantee alone
+    and the timezone is stated beside it.
+    """
+    valid = profile.demo_only
+    detail = f"demo_only={profile.demo_only}; display_timezone={settings.data.timezone}"
     return CheckResult(f"Configuration safety{label}", valid, detail, True)
 
 

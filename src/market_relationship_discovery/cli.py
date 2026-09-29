@@ -617,7 +617,8 @@ def _load_latency_baseline(arguments: argparse.Namespace) -> MeasuredLatencyBase
 
 
 def _compare_brokers(arguments: argparse.Namespace) -> int:
-    costs = get_settings().costs
+    settings = get_settings()
+    costs = settings.costs
     measured = _load_latency_baseline(arguments)
     if measured is not None and arguments.latency_per_leg_ms is not None:
         raise ValueError(
@@ -666,12 +667,13 @@ def _compare_brokers(arguments: argparse.Namespace) -> int:
             if arguments.minimum_capturable_fraction is not None
             else costs.minimum_capturable_fraction
         ),
-        tuple(arguments.latency_grid_ms) if arguments.latency_grid_ms else None,
-        LatencySource.MEASURED if measured is not None else LatencySource.ASSUMED,
-        measured.sample_count if measured is not None else 0,
-        measured.source_file_name if measured is not None else None,
-        measured.to_dict() if measured is not None else None,
-        arguments.latency_log or get_settings().costs.latency_log_path,
+        latency_grid_ms=tuple(arguments.latency_grid_ms) if arguments.latency_grid_ms else None,
+        latency_source=LatencySource.MEASURED if measured is not None else LatencySource.ASSUMED,
+        latency_sample_count=measured.sample_count if measured is not None else 0,
+        latency_log_file_name=measured.source_file_name if measured is not None else None,
+        latency_baseline=measured.to_dict() if measured is not None else None,
+        latency_log_path=arguments.latency_log or get_settings().costs.latency_log_path,
+        display_timezone=settings.data.timezone,
     )
     print(_serializable(result))
     return 0

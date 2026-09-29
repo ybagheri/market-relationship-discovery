@@ -198,6 +198,10 @@ class CrossBrokerSummary:
     additional_cost: float
     contract_status: ContractCompatibilityStatus
     contract_issues: tuple[str, ...]
+    #: Limits that do not make the pair incomparable, such as one broker
+    #: allowing less size. Reported so the asymmetry is visible without being
+    #: presented as a different instrument.
+    contract_advisories: tuple[str, ...]
     contract_blocked_observations: int
     contract_normalization_applied: bool
     broker_b_volume_per_broker_a_volume: float | None
@@ -419,10 +423,7 @@ class CrossBrokerComparisonEngine:
             request.contract_a,
             request.contract_b,
         )
-        contract_blocks = compatibility.status in {
-            ContractCompatibilityStatus.INCOMPATIBLE,
-            ContractCompatibilityStatus.REVIEW_REQUIRED,
-        }
+        contract_blocks = compatibility.blocks_comparison
         normalization_available = compatibility.status in {
             ContractCompatibilityStatus.COMPATIBLE,
             ContractCompatibilityStatus.NORMALIZATION_REQUIRED,
@@ -528,6 +529,7 @@ class CrossBrokerComparisonEngine:
             additional_cost=request.additional_cost,
             contract_status=compatibility.status,
             contract_issues=compatibility.issues,
+            contract_advisories=compatibility.advisories,
             contract_blocked_observations=blocked_count,
             contract_normalization_applied=(
                 compatibility.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
@@ -665,6 +667,7 @@ class CrossBrokerComparisonEngine:
             additional_cost=request.additional_cost,
             contract_status=compatibility.status,
             contract_issues=compatibility.issues,
+            contract_advisories=compatibility.advisories,
             contract_blocked_observations=0,
             contract_normalization_applied=False,
             broker_b_volume_per_broker_a_volume=None,

@@ -175,11 +175,12 @@
 - [x] `market_data/alignment.py` — `align_timeseries` ردیف‌های تطبیق‌نیافته را با تأخیر `NaT` برمی‌گرداند، پس frame بزرگ‌تر از شواهدش بود. اکنون تنها ردیف‌های منطبق را برمی‌گرداند و شمارش‌های تطبیق‌نیافته را گزارش می‌کند. سه پیاده‌سازی alignment ادغام نشدند: تطابق symmetric در زمان رویداد قاعده‌ای عمداً متفاوت است
 - [x] `cli.py` — `symbol-specs` یک لیست JSON می‌نویسد که `compare-brokers` آن را رد می‌کرد اگر بیش از یک نماد درخواست شده بود؛ اکنون نمادِ مقایسه‌شده ورودی‌اش را انتخاب می‌کند
 - [x] `market_data/symbols.py` — تطبیق alias مبتنی بر substring بود، پس `XAUUSD` با `XAUUSDmicro` هم تطبیق می‌کرد و برنده آن بود که بروکر زودتر فهرست کرده. alias اکنون در مرز واژه تطبیق می‌کند و نتایج بر اساس کیفیت تطابق رتبه‌بندی می‌شوند نه ترتیب کاتالوگ
-- [ ] `market_data/alignment.py` — `align_timeseries` استفاده‌نشده است و ردیف‌های تطبیق‌نیافته را با تأخیر `NaT` برمی‌گرداند؛ دو پیاده‌سازی alignment با هم disagree می‌کنند
+- [x] `market_data/alignment.py` — `align_timeseries` ردیف‌های تطبیق‌نیافته را با تأخیر `NaT` برمی‌گرداند، پس frame بزرگ‌تر از شواهدش بود. اکنون تنها ردیف‌های منطبق را برمی‌گرداند و شمارش‌های تطبیق‌نیافته را گزارش می‌کند. سه پیاده‌سازی alignment ادغام نشدند: تطابق symmetric در زمان رویداد قاعده‌ای عمداً متفاوت است
 
 ### کم — بهداشت کد با پیامد واقعی
 
-- [ ] `config/settings.py` — `DataSettings.timezone` نیمی از یک verdict بحرانی `doctor` است که هیچ مسیر داده‌ای آن را رعایت نمی‌کند؛ `cache_enabled` و `cache_directory` هیچ‌جا خوانده نمی‌شوند؛ `latency_log_statistic` رشته‌ای اعتبارسنجی‌نشده است که CLI نادیده می‌گیرد
+- [x] `market_data/contract.py` — اختلاف تنها در `volume_max` به‌عنوان `incompatible` در نظر گرفته و مقایسه را مسدود می‌کرد، با اینکه سقف توسط fill assessor در هر پا اعمال می‌شود. اکنون advisory است و کنار verdict گزارش می‌شود نه به‌جای مسدود کردن آن
+- [x] `config/settings.py` — `DataSettings.timezone` نیمی از verdict بحرانی `doctor` بود در حالی که هیچ مسیر داده‌ای آن را رعایت نمی‌کرد؛ `cache_enabled` و `cache_directory` هیچ‌جا خوانده نمی‌شدند؛ `latency_log_statistic` رشته‌ای اعتبارسنجی‌نشده بود که CLI نادیده می‌گرفت. timezone اکنون timezone نمایش گزارش را انتخاب می‌کند و بخشی از verdict ایمنی نیست، دو تنظیم cache بی‌استفاده حذف شدند، و آمار اعتبارسنجی می‌شود
 - [ ] `config/settings.py` — دو پروفایل broker می‌توانند به یک ترمینال اشاره کنند و آن را دو بار با برچسب‌های متفاوت جمع کنند
 - [ ] `statistics/analyzer.py` — `correlation` سه observation را می‌پذیرد؛ `half_life` کران معقولیت ندارد؛ `lead_lag` قرارداد علامت یا معناداری مستند ندارد؛ `rolling_correlation` هیچ caller ندارد
 - [ ] `statistics/analyzer.py` و `backtesting/multi_stage.py` — دو نسخه یکسان از rolling z-score که به‌عنوان ورودی مدل استفاده می‌شود

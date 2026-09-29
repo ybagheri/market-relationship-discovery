@@ -266,21 +266,16 @@ de-duplication.
 
 ### Low — hygiene with real consequences
 
-- [ ] `market_data/contract.py` — a differing `volume_max` alone is treated as
-      `incompatible` and blocks the comparison. Observed on the live demo pair on
-      2026-09-29: WTI has identical `contract_size` (1000), `tick_size`, and
-      `tick_value` (10) on both brokers and differs *only* in maximum volume, 5
-      lots on Alpari against 100 on AMarkets. That is one instrument with a
-      different size limit, not two instruments, and a study at a size both
-      brokers accept is valid. The cap is already enforced per leg by the fill
-      assessor, so blocking the whole comparison is stricter than the evidence
-      requires. *Needs a decision:* either treat a size bound as a fill-time
-      constraint rather than an incompatibility, or state why a research
-      comparison must be refused for a difference in how much may be traded
-- [ ] `config/settings.py` — `DataSettings.timezone` is half of a critical
-      `doctor` verdict that no data path honours; `cache_enabled` and
-      `cache_directory` are read by nothing; `latency_log_statistic` is an
-      unvalidated string the CLI ignores
+- [x] `market_data/contract.py` — a differing `volume_max` alone was treated as
+      `incompatible` and blocked the comparison, although the cap is enforced
+      per leg by the fill assessor. It is now an advisory, reported beside the
+      verdict rather than blocking it
+- [x] `config/settings.py` — `DataSettings.timezone` was half of a critical
+      `doctor` verdict that no data path honoured; `cache_enabled` and
+      `cache_directory` were read by nothing; `latency_log_statistic` was an
+      unvalidated string the CLI ignored. The timezone now selects a report's
+      display timezone and is not part of the safety verdict, the two unused
+      cache settings are removed, and the statistic is validated
 - [ ] `config/settings.py` — two broker profiles may point at the same terminal
       and collect it twice under different labels
 - [ ] `statistics/analyzer.py` — `correlation` accepts three observations;

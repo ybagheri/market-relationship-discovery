@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 from math import isclose, isfinite
@@ -18,6 +19,12 @@ LEG_AGREEMENT_TOLERANCE = 0.05
 VALUE_PER_UNIT_TOLERANCE = 0.01
 
 _TRADE_MODE_ISSUE = "trade modes are not fully available"
+
+#: A size limit is enforced per leg by the fill assessor, so it is reported
+#: alongside the verdict rather than blocking the comparison.
+_VOLUME_MAX_ADVISORY = (
+    "maximum volumes differ; the fill gate will refuse any size either broker " "cannot take"
+)
 
 
 class ContractCompatibilityStatus(StrEnum):
@@ -92,6 +99,17 @@ class ContractCompatibilityReport:
     issues: tuple[str, ...]
     contract_size_ratio: float | None
     tick_value_ratio: float | None
+    #: Real limits that do not make the pair incomparable. Kept apart from
+    #: `issues` because `issues` drive the blocking decision, so an advisory
+    #: placed there would block merely by being read.
+    advisories: tuple[str, ...] = ()
+
+    @property
+    def blocks_comparison(self) -> bool:
+        return self.status in {
+            ContractCompatibilityStatus.INCOMPATIBLE,
+            ContractCompatibilityStatus.REVIEW_REQUIRED,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +195,7 @@ class ContractSpecificationAnalyzer:
                 None,
             )
         issues: list[str] = []
+        advisories: list[str] = []
         if specification_a.currency_base.upper() != specification_b.currency_base.upper():
             issues.append("base currencies differ")
         if specification_a.currency_profit.upper() != specification_b.currency_profit.upper():
@@ -192,7 +211,16 @@ class ContractSpecificationAnalyzer:
         if not self._same(specification_a.volume_min, specification_b.volume_min):
             issues.append("minimum volumes differ")
         if not self._same(specification_a.volume_max, specification_b.volume_max):
-            issues.append("maximum volumes differ")
+            # A size cap is a limit on how much may be traded, not a statement
+            # about what the instrument *is*. Two brokers publishing an
+            # identical contract with different caps are describing one
+            # instrument, and a study at a size both accept is valid. The cap is
+            # enforced per leg by the fill assessor, which refuses a size the
+            # broker demonstrably cannot take, so blocking the whole comparison
+            # here refused valid research for a limit the fill gate already
+            # handles. It is reported as an advisory so a reader sees the
+            # asymmetry rather than meeting it as a verdict.
+            advisories.append(_VOLUME_MAX_ADVISORY)
         if not self._same(specification_a.volume_step, specification_b.volume_step):
             issues.append("volume steps differ")
         if specification_a.trade_mode is None or specification_b.trade_mode is None:
@@ -203,16 +231,18 @@ class ContractSpecificationAnalyzer:
         tick_ratio = self._ratio(specification_b.tick_value, specification_a.tick_value)
         hard_issues = [issue for issue in issues if issue != _TRADE_MODE_ISSUE]
         if hard_issues:
-            return ContractCompatibilityReport(
+            return self._report(
                 ContractCompatibilityStatus.INCOMPATIBLE,
-                tuple(hard_issues),
+                hard_issues,
+                advisories,
                 size_ratio,
                 tick_ratio,
             )
         if issues:
-            return ContractCompatibilityReport(
+            return self._report(
                 ContractCompatibilityStatus.REVIEW_REQUIRED,
-                tuple(issues),
+                issues,
+                advisories,
                 size_ratio,
                 tick_ratio,
             )
@@ -224,34 +254,61 @@ class ContractSpecificationAnalyzer:
         # legs valuing it differently, which is the inconsistency the legs-agree
         # check reports further downstream as a disagreeing pair.
         if not self._values_the_same_instrument(specification_a, specification_b):
-            return ContractCompatibilityReport(
+            return self._report(
                 ContractCompatibilityStatus.INCOMPATIBLE,
                 (
                     "contract size and tick value do not scale together; the two "
                     "specifications do not value the same instrument",
                 ),
+                advisories,
                 size_ratio,
                 tick_ratio,
             )
         if not self._same(specification_a.contract_size, specification_b.contract_size):
-            return ContractCompatibilityReport(
+            return self._report(
                 ContractCompatibilityStatus.NORMALIZATION_REQUIRED,
                 ("contract sizes differ; volume or PnL normalization is required",),
+                advisories,
                 size_ratio,
                 tick_ratio,
             )
         if not self._same(specification_a.tick_value, specification_b.tick_value):
-            return ContractCompatibilityReport(
+            return self._report(
                 ContractCompatibilityStatus.NORMALIZATION_REQUIRED,
                 ("tick values differ; PnL normalization is required",),
+                advisories,
                 size_ratio,
                 tick_ratio,
             )
-        return ContractCompatibilityReport(
+        return self._report(
             ContractCompatibilityStatus.COMPATIBLE,
             (),
+            advisories,
             size_ratio,
             tick_ratio,
+        )
+
+    @staticmethod
+    def _report(
+        status: ContractCompatibilityStatus,
+        issues: Sequence[str],
+        advisories: Sequence[str],
+        size_ratio: float | None,
+        tick_ratio: float | None,
+    ) -> ContractCompatibilityReport:
+        """Build a report, keeping advisories separate from blocking issues.
+
+        A report's `issues` drive the blocking decision, so an advisory placed
+        there would block by being noticed. The two are reported side by side so
+        a reader sees a real limit on the size without it reading as a different
+        instrument.
+        """
+        return ContractCompatibilityReport(
+            status,
+            tuple(issues),
+            size_ratio,
+            tick_ratio,
+            advisories=tuple(advisories),
         )
 
     @staticmethod

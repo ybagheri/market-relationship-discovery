@@ -1,4 +1,5 @@
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,12 +74,35 @@ class MT5Settings(BaseModel):
 class DataSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    # The timezone every stored timestamp is expressed in. Every calculation
+    # runs in UTC internally; this controls what a report and a console line
+    # *display*, so a reader can recognise an observation. It previously took
+    # part in a critical `doctor` verdict while no data path honoured it, which
+    # meant setting it to anything but UTC failed a safety check that had
+    # nothing to do with the value, and setting it to UTC implied a control that
+    # did not exist.
     timezone: str = "UTC"
+
+    @field_validator("timezone")
+    @classmethod
+    def timezone_must_be_known(cls, value: str) -> str:
+        candidate = value.strip()
+        if not candidate:
+            raise ValueError("timezone cannot be blank")
+        try:
+            ZoneInfo(candidate)
+        except Exception as exc:
+            # Any zoneinfo failure is the same problem from the caller's view:
+            # the name is not a timezone this machine can resolve.
+            raise ValueError(
+                f"timezone {value!r} is not a known IANA timezone name, such as 'UTC' "
+                f"or 'Asia/Tehran'"
+            ) from exc
+        return candidate
+
     max_alignment_delay_ms: int = Field(default=100, ge=0)
-    cache_enabled: bool = True
     raw_directory: Path = Path("data/raw")
     processed_directory: Path = Path("data/processed")
-    cache_directory: Path = Path("data/cache")
     reports_directory: Path = Path("reports/research")
     collection_max_workers: int = Field(default=2, ge=1, le=8)
     collection_attempts: int = Field(default=3, ge=1, le=5)
@@ -164,7 +188,26 @@ class CostSettings(BaseModel):
     slippage: float = Field(default=0.0, ge=0)
     latency_assumption_ms: int = Field(default=50, gt=0)
     latency_log_path: Path | None = None
-    latency_log_statistic: str = "median"
+    # The CLI validates this against the same set, but the value can also come
+    # from configuration, where an unrecognised string was accepted and then
+    # silently ignored by the command that is supposed to read it. A setting
+    # that does nothing is worse than one that is refused.
+    latency_log_statistic: str = Field(default="median")
+
+    @field_validator("latency_log_statistic")
+    @classmethod
+    def statistic_must_be_known(cls, value: str) -> str:
+        from market_relationship_discovery.costs.measurement import LatencyStatistic
+
+        candidate = value.strip().lower()
+        allowed = {item.value for item in LatencyStatistic}
+        if candidate not in allowed:
+            raise ValueError(
+                f"latency_log_statistic {value!r} is not a known statistic; "
+                f"choose one of {sorted(allowed)}"
+            )
+        return candidate
+
     other_costs: float = Field(default=0.0, ge=0)
     volume: float = Field(default=1.0, gt=0)
     leverage: int | None = Field(default=None, gt=0)

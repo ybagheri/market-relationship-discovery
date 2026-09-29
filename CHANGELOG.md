@@ -4,6 +4,41 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — settings that did nothing
+
+- `DataSettings.timezone` took part in a critical `doctor` verdict while no data
+  path honoured it: every calculation is UTC regardless of the value. A
+  researcher with a local timezone was therefore told the demo-safety guarantee
+  was broken when the account mode was provably demo, and leaving the setting at
+  UTC implied a control that did not exist. It is no longer part of the verdict,
+  is validated as a real IANA name so a typo is refused rather than ignored, and
+  now actually does something: it selects the timezone a cross-broker report
+  displays, without changing any calculation
+- `cache_enabled` and `cache_directory` were read by nothing, advertising a
+  cache the platform does not have. Removed, because a control that cannot be
+  turned on or off should not be configurable
+- `latency_log_statistic` was an unvalidated string. The CLI validated it, but a
+  value coming from configuration was accepted and then ignored by the command
+  that is supposed to read it. It is now validated at configuration time against
+  the same set the CLI uses
+
+### Changed — a size cap is not a different instrument
+
+- A differing `volume_max` alone was reported as `incompatible` and blocked the
+  comparison. Observed on the live Alpari/AMarkets pair on 2026-09-29: WTI
+  reports an identical `contract_size` (1000), `tick_size`, and `tick_value`
+  (10) on both brokers and differs *only* in how much each allows — 5 lots
+  against 100. That is one instrument with a different size limit, and a study at
+  a size both accept is valid, so refusing it left the researcher with no
+  cross-broker study of a symbol whose contract is agreed
+- The fill assessor already refuses a size a broker demonstrably cannot take, per
+  leg, so the cap was enforced and the gate was stricter than the evidence
+  required. A cap is now an **advisory**, reported beside the verdict in a new
+  `contract_advisories` field rather than in `issues`, which drive the blocking
+  decision. Putting it in `issues` would block a comparison merely by being read
+- A genuine mismatch is unaffected: a pair that also differs in profit currency
+  is still `incompatible`, and the cap is still reported alongside it
+
 ### Fixed — data quality and alignment
 
 - Duplicate timestamps were counted across the whole frame, so two symbols

@@ -74,7 +74,86 @@ def test_a_consistently_scaled_contract_size_requires_normalization() -> None:
     assert report.contract_size_ratio == 0.5
 
 
-def test_halving_the_contract_size_alone_is_refused() -> None:
+def test_a_differing_volume_cap_is_not_a_different_instrument() -> None:
+    """A size limit is a fill-time constraint, not a statement about the contract.
+
+    Observed on the live demo pair on 2026-09-29: WTI reports an identical
+    `contract_size` (1000), `tick_size`, and `tick_value` (10) on both brokers
+    and differs only in `volume_max` — 5 lots against 100. That is one
+    instrument with a different size limit, and a study at a size both
+    accept is valid. The earlier code refused the whole comparison, which was
+    stricter than the evidence required, and the fill assessor already refuses
+    a size a broker cannot take.
+    """
+    report = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(specification(), broker="BrokerB", volume_max=5.0),
+    )
+
+    assert report.status is ContractCompatibilityStatus.COMPATIBLE
+    assert report.blocks_comparison is False
+    assert report.issues == ()
+
+
+def test_the_size_asymmetry_is_still_reported() -> None:
+    """A real limit must be visible, not silently dropped to make a gate pass."""
+    report = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(specification(), broker="BrokerB", volume_max=5.0),
+    )
+
+    assert any("maximum volumes differ" in advisory for advisory in report.advisories)
+
+
+def test_an_advisory_never_blocks_by_being_noticed() -> None:
+    """Advisories are kept apart from issues, which drive the blocking decision.
+
+    An advisory placed in `issues` would block a comparison merely by being
+    read, which is the behaviour being corrected.
+    """
+    report = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(specification(), broker="BrokerB", volume_max=5.0),
+    )
+
+    assert "maximum volumes differ" not in " ".join(report.issues)
+    assert ContractCompatibilityStatus.COMPATIBLE not in {
+        ContractCompatibilityStatus.INCOMPATIBLE,
+        ContractCompatibilityStatus.REVIEW_REQUIRED,
+    }
+
+
+def test_a_real_incompatibility_still_blocks_alongside_an_advisory() -> None:
+    """An advisory must not soften a genuine mismatch."""
+    report = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(
+            specification(),
+            broker="BrokerB",
+            volume_max=5.0,
+            currency_profit="GBP",
+        ),
+    )
+
+    assert report.status is ContractCompatibilityStatus.INCOMPATIBLE
+    assert report.blocks_comparison is True
+    assert "profit currencies differ" in report.issues
+    assert report.advisories  # the cap is still reported
+
+
+def test_the_fill_gate_still_refuses_a_size_the_broker_cannot_take() -> None:
+    """The cap is enforced, just at fill time rather than by refusing the study."""
+    from market_relationship_discovery.costs.execution import FillSimulator, VolumeStatus
+
+    estimate = FillSimulator().estimate(
+        specification=specification(volume_max=5.0), requested_volume=50.0
+    )
+
+    assert estimate.status is VolumeStatus.ABOVE_MAXIMUM
+    assert estimate.limited_by == "volume_max"
+
+
+def test_a_halving_the_contract_size_alone_is_refused() -> None:
     """Halving the lot size without halving the tick value is a different instrument.
 
     The two legs then value the same position differently at every volume, so no

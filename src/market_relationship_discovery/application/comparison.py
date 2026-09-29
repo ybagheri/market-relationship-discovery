@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -56,6 +57,7 @@ class CrossBrokerExperimentService:
         latency_log_file_name: str | None = None,
         latency_baseline: dict[str, object] | None = None,
         latency_log_path: Path | None = None,
+        display_timezone: str = "UTC",
     ) -> dict[str, object]:
         """Compare two broker feeds for the same research instrument.
 
@@ -145,7 +147,7 @@ class CrossBrokerExperimentService:
         payload: dict[str, object] = {
             "summary": asdict(analysis.summary),
             "opportunities": [asdict(opportunity) for opportunity in analysis.opportunities],
-            "aligned_preview": self._preview(analysis.aligned_observations),
+            "aligned_preview": self._preview(analysis.aligned_observations, display_timezone),
             "execution": (execution.to_dict() if execution is not None else None),
             "latency": (latency.to_dict() if latency is not None else None),
             "latency_sensitivity": sensitivity,
@@ -284,12 +286,20 @@ class CrossBrokerExperimentService:
         return frame
 
     @staticmethod
-    def _preview(frame: pd.DataFrame) -> list[dict[str, object]]:
+    def _preview(frame: pd.DataFrame, display_timezone: str = "UTC") -> list[dict[str, object]]:
+        """Render the preview in the configured display timezone.
+
+        Every calculation above is UTC; this only changes what a reader sees, so
+        an observation can be recognised against a local clock. The underlying
+        instant is unchanged, so two reports in different timezones still
+        describe the same observations.
+        """
         preview = frame.head(20).copy()
+        zone = ZoneInfo(display_timezone)
         for column in ("timestamp", "broker_b_timestamp"):
             if column in preview:
                 preview[column] = preview[column].map(
-                    lambda value: value.isoformat() if pd.notna(value) else None
+                    lambda value: (value.tz_convert(zone).isoformat() if pd.notna(value) else None)
                 )
         preview = preview.astype(object).where(pd.notna(preview), None)
         return cast(list[dict[str, object]], preview.to_dict(orient="records"))

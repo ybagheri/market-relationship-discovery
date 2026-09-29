@@ -28,6 +28,14 @@ Local specification files are research inputs and should not be committed when t
 
 A tick comparison is labeled `crossable_research_contract_unverified` without specs. It is labeled validated only for compatible specs. Incompatible and review-required contracts block opportunity episodes and report the number of blocked positive observations; a normalization-required pair does not block, because its legs can be reconciled by volume.
 
+## A size cap is not a different instrument
+
+`volume_max` on its own does not make a pair incompatible. Two brokers publishing an identical contract with different caps are describing one instrument, and a study at a size both accept is valid. Observed on the live demo pair on 2026-09-29: WTI has the same `contract_size` (1000), `tick_size`, and `tick_value` (10) on both brokers and differs only in how much each allows, 5 lots against 100. Refusing the comparison left no cross-broker study of a symbol whose contract is agreed.
+
+The cap is enforced, just at the point where it applies. The fill assessor refuses a size a broker demonstrably cannot take, on each leg, so the study proceeds and the size is gated when it is charged. A cap is reported in `advisories` rather than `issues`, because `issues` drive the blocking decision and an entry there would block a comparison merely by being read. The cross-broker summary carries it as `contract_advisories`.
+
+A cap never softens a real mismatch: a pair that also differs in profit currency is still `incompatible`, and the cap is reported beside the reason.
+
 ## Contract size and tick value must scale together
 
 One lot covers `contract_size` units of the base currency, and a price move of `tick_size` is worth `tick_value`. The two therefore describe the same economic quantity: the money value of one unit of the underlying, which is

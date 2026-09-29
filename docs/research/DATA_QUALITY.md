@@ -12,6 +12,8 @@ A manifest records dataset ID, broker profile, server, symbol, data type, timefr
 
 All normalized timestamps are timezone-aware UTC. The raw MT5 timestamp is retained as `source_timestamp`. Some local installations expose a verified broker-clock offset even though the integration otherwise behaves as UTC. Such an offset must be configured explicitly with `source_utc_offset_minutes`; the default is zero.
 
+Every calculation in the platform is UTC. `DATA__TIMEZONE` selects the timezone a cross-broker report *displays*, so a reader can recognise an observation against a local clock; the underlying instant is unchanged, so two reports in different timezones describe the same observations. It is validated as a real IANA name so a typo is refused rather than silently ignored, and it is deliberately **not** part of the `doctor` safety verdict: it previously was, while no data path honoured it, which failed a safety check that had nothing to do with safety and implied a control that did not exist.
+
 Do not infer an offset from price behavior. Compare a current source timestamp with the machine UTC clock, verify the cause, configure the value locally, and retain the raw timestamp. Historical collection converts the requested UTC range back to the source clock before calling MT5.
 
 ## Research alignment
