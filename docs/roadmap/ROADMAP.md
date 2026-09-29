@@ -231,8 +231,10 @@ de-duplication.
       now refused instead of normalized
 - [x] `discovery/engine.py` — `filter` overwrites `REQUIRES_DATA` with
       `INSUFFICIENT_OBSERVATIONS`, and the `permutations(..., 3)` family is O(n³)
-- [ ] `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` have no caller, and
-      the model holds a latency assumption it never applies
+- [x] `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` had no caller
+      and the model held a latency assumption it never applied. Removed rather
+      than wired in, because the single-symbol path deliberately claims no
+      executable discrepancy; a cost component belongs where it is charged
 
 ### Medium — a failure is presented as a favourable result
 

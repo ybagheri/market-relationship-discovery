@@ -306,8 +306,11 @@ COSTS__ADVERSE_MOVE_ALLOWANCE=0.0
 COSTS__MINIMUM_CAPTURABLE_FRACTION=0.25
 ```
 
-`COSTS__LATENCY_ASSUMPTION_MS` existed in the configuration and was passed into
-`CostModel`, but was never used in any calculation. It now drives this model.
+`COSTS__LATENCY_ASSUMPTION_MS` was configured and read into a `CostModel` that no
+code path called, so it never affected a calculation. The cross-broker model now
+reads it directly. The unused `CostModel` and `CostAwareAnalyzer` were removed:
+their only caller was a test, and a cost component that is summed in one place and
+applied in another is how a cost becomes a figure nothing charges.
 
 ### A zero round trip is refused
 

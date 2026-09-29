@@ -32,7 +32,7 @@ The relationship graph is a deterministic directed hypergraph of formula depende
 
 ## Extension points
 
-A new broker should implement a provider protocol returning normalized `Quote` and `Bar` objects. Broker profiles are selected from local configuration. A new relationship should be declarative. A new cost component should be represented in `CostModel` and tested against both gross discrepancy and final net edge.
+A new broker should implement a provider protocol returning normalized `Quote` and `Bar` objects. Broker profiles are selected from local configuration. A new relationship should be declarative. A new cost component should be implemented where the edge it affects is computed — `additional_cost` and the stress scenarios for a cross-broker edge, or the execution, funding, and latency models — and tested against both the gross edge and the net edge it changes. There is deliberately no single `CostModel` that aggregates them: see [execution and capital model](../research/EXECUTION_MODEL.md) for which layer owns which cost, since a component that is summed in one place and applied in another is how a cost becomes a figure nothing charges.
 
 ## Limitations
 

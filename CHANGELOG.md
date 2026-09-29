@@ -4,6 +4,28 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Removed
+
+- `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` had no caller in the
+  platform. The only reference was a test, so the test asserted that a cost model
+  subtracted costs, and nothing in the research pipeline subtracted costs. The
+  model also held `latency_assumption_ms`, a copy of a setting the cross-broker
+  path reads directly, and never applied it. A reader seeing `CostModel.total`
+  had no way to know no calculation used it, and `ARCHITECTURE.md` instructed
+  contributors to add new cost components there
+- Both are removed rather than wired in. The single-symbol research path
+  deliberately reports `executable_discrepancy_claimed = False` and computes no
+  net edge, so giving it a cost model would have contradicted that. A cost
+  component now belongs where the edge it affects is computed: `additional_cost`
+  and the stress scenarios for a cross-broker edge, or the execution, funding, and
+  latency models. `ARCHITECTURE.md` states this, and `EXECUTION_MODEL.md` records
+  that `COSTS__LATENCY_ASSUMPTION_MS` is read directly by the cross-broker model
+- `test_costs.py` went with it. It is replaced by
+  `test_cost_model_invariants.py`, which asserts what the old test could not: that
+  a round trip between two episode durations changes the capture verdict, so an
+  ignored assumption cannot pass unnoticed, and that a measured log supersedes
+  the configured assumption rather than competing with it
+
 ### Fixed — generated candidate family
 
 - The observation gate relabelled every candidate that had never been evaluated
