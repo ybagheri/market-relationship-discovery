@@ -13,13 +13,15 @@ state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 361 passed, 2 skipped |
+| `pytest` | 362 passed, 1 skipped |
 | `ruff check .` | clean |
 | `black --check .` | clean |
 | `mypy` (strict) | clean, 69 source files |
 
-The two skips are environmental, not failures: one MT5 terminal test with no
-configured terminal path, one dashboard test with no persisted discovery report.
+The remaining skip is environmental, not a failure: one MT5 terminal test with no
+configured terminal path. The dashboard discovery test stopped skipping once
+`examples\prices.csv` existed, because that test needs a persisted discovery
+report.
 
 Commits for this session, oldest first:
 
@@ -30,7 +32,7 @@ Commits for this session, oldest first:
 | `55c007c` | Do not report an unevaluated candidate as measured, and bound the family |
 | `954ff1d` | Remove the cost model that no calculation used |
 
-Test count went from 324 to 361. Each correction added regression tests that fail
+Test count went from 324 to 362. Each correction added regression tests that fail
 against the code as it was before the change; the removed cost model took its one
 test with it and was replaced by three stronger ones.
 
