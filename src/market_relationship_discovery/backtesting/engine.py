@@ -1,9 +1,32 @@
 from dataclasses import dataclass
+from enum import StrEnum
 
 import numpy as np
 import pandas as pd
 
 from market_relationship_discovery.domain.market import Quote
+
+
+class OutcomeConvention(StrEnum):
+    """Which bar a `gross_edge` value is labelled with.
+
+    A return series can be labelled at the instant it starts or at the instant
+    it ends, and the two readings differ by exactly one bar. The engine has to
+    pick one, because "the next observation" is meaningless without it, and a
+    caller that assumed the other reading gets a backtest that is internally
+    consistent and one bar wrong.
+
+    The reading is therefore named at the call site instead of being inherited.
+    """
+
+    #: `edge[t]` is the return earned over `[t, t+1)`. The value at `t` is not
+    #: known until `t+1` closes, so a decision made at `t` is settled by it.
+    EARNED_OVER_FOLLOWING_BAR = "earned_over_following_bar"
+
+    #: `edge[t]` is the return that was already realised at `t`, covering
+    #: `[t-1, t)`. A decision made at `t` cannot be settled by it, and pairing
+    #: the two would score the decision against a bar that closed before it.
+    REALISED_AT_BAR = "realised_at_bar"
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +106,21 @@ def _require_one_observation_grid(
         raise ValueError("backtest timestamps must be sorted")
 
 
+def _outcome_offset(convention: OutcomeConvention) -> int:
+    """Bars between a decision and the bar that settles it.
+
+    Zero under `REALISED_AT_BAR` is correct and not a degenerate case: the
+    decision and the outcome describe the same bar, and both are computed from
+    data up to that bar's close. The invariant is that no value is read from
+    before the decision, not that every trade spans two bars.
+    """
+    if convention is OutcomeConvention.EARNED_OVER_FOLLOWING_BAR:
+        return 1
+    if convention is OutcomeConvention.REALISED_AT_BAR:
+        return 0
+    raise ValueError(f"unknown outcome convention: {convention}")
+
+
 class ResearchBacktester:
     def run(self, gross_edges: pd.Series, costs: pd.Series) -> BacktestMetrics:
         aligned = pd.concat([gross_edges, costs], axis=1).dropna()
@@ -126,23 +164,35 @@ class ResearchBacktester:
         signals: pd.Series,
         gross_edges: pd.Series,
         costs: pd.Series,
+        outcome_convention: OutcomeConvention = OutcomeConvention.EARNED_OVER_FOLLOWING_BAR,
     ) -> NoLookAheadResult:
-        """Pair each decision with the outcome of the *next bar on one grid*.
+        """Pair each decision with an outcome that had not closed at the decision.
 
         The no-lookahead property here is a claim about time: a decision taken
         at bar ``t`` is settled by an outcome that had not finished forming at
-        ``t``. That claim only holds if ``t+1`` really is the next bar of the
-        same series the decision was made from.
+        ``t``. Two things have to hold for that, and only the first is obvious
+        from the argument list.
 
-        The three inputs are therefore required to share one index. An outer
-        join cannot stand in for that. When the outcome column is on a finer
-        grid than the signal, the union's "next row" is a fraction of a second
-        after the decision, an outcome whose period overlaps the bar the
-        decision was computed from, and the reported execution bar is later
-        than the decision only in the most literal sense. That is a lookahead
-        the caller cannot see, so it is refused rather than reported.
+        **The outcome column has to be labelled consistently**, which is
+        ``outcome_convention``. Under ``EARNED_OVER_FOLLOWING_BAR`` the value at
+        ``t`` covers ``[t, t+1)`` and is unknown until ``t+1`` closes, so the
+        decision at ``t`` is settled by the value at ``t+1``. Under
+        ``REALISED_AT_BAR`` the value at ``t`` already covers ``[t-1, t)`` and
+        closed *before* the decision was made, so settling ``t`` with it would
+        score the decision against a bar that had already finished. The two
+        readings differ by one bar and produce equally plausible reports, so
+        the choice is declared rather than inherited.
+
+        **The three inputs have to share one observation grid**, or "the next
+        bar" refers to no single series. An outer join cannot stand in for that.
+        When the outcome column is on a finer grid than the signal, the union's
+        next row is a fraction of a second after the decision, an outcome whose
+        period overlaps the bar the decision was computed from, and the reported
+        execution bar is later than the decision only in the most literal sense.
+        That is a lookahead the caller cannot see, so it is refused.
         """
         _require_one_observation_grid(signals, gross_edges, costs)
+        outcome_offset = _outcome_offset(outcome_convention)
         frame = pd.concat(
             [
                 signals.rename("signal"),
@@ -153,21 +203,26 @@ class ResearchBacktester:
         ).sort_index()
         if frame.index.has_duplicates:
             raise ValueError("backtest timestamps must be unique")
-        next_gross = frame["gross_edge"].shift(-1)
-        next_cost = frame["cost"].shift(-1)
+        # The bar a decision is settled by, relative to the decision bar. Under
+        # the forward labelling that is the following bar; under the realised
+        # labelling a decision may only be settled by the bar it was taken on.
+        settled_gross = frame["gross_edge"].shift(-outcome_offset)
+        settled_cost = frame["cost"].shift(-outcome_offset)
+        # The last `outcome_offset` bars have no bar to settle them.
+        decidable = frame.index[: len(frame.index) - outcome_offset]
         trades = tuple(
             NoLookAheadTrade(
                 decision_timestamp=timestamp,
-                execution_timestamp=frame.index[position + 1],
+                execution_timestamp=frame.index[position + outcome_offset],
                 signal=float(frame.at[timestamp, "signal"]),
-                gross_edge=float(next_gross.at[timestamp]),
-                cost=float(next_cost.at[timestamp]),
+                gross_edge=float(settled_gross.at[timestamp]),
+                cost=float(settled_cost.at[timestamp]),
             )
-            for position, timestamp in enumerate(frame.index[:-1])
+            for position, timestamp in enumerate(decidable)
             if pd.notna(frame.at[timestamp, "signal"])
             and bool(frame.at[timestamp, "signal"])
-            and pd.notna(next_gross.at[timestamp])
-            and pd.notna(next_cost.at[timestamp])
+            and pd.notna(settled_gross.at[timestamp])
+            and pd.notna(settled_cost.at[timestamp])
         )
         return NoLookAheadResult(self.summarize_trades(trades), trades)
 

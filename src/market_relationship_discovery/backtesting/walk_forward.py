@@ -8,6 +8,7 @@ import pandas as pd
 from market_relationship_discovery.backtesting.engine import (
     BacktestMetrics,
     NoLookAheadTrade,
+    OutcomeConvention,
     ResearchBacktester,
 )
 from market_relationship_discovery.domain.errors import InsufficientDataError
@@ -21,6 +22,11 @@ class WalkForwardConfig:
     step_observations: int | None = None
     thresholds: tuple[float, ...] = (0.0,)
     minimum_train_observations: int = 1
+    # Carried on the config rather than taken from the engine's default at each
+    # call site, so every fold of a run is settled on the same bar. A run whose
+    # folds disagreed would produce an aggregate that is not a measurement of
+    # anything.
+    outcome_convention: OutcomeConvention = OutcomeConvention.EARNED_OVER_FOLLOWING_BAR
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +231,7 @@ class WalkForwardValidator:
                 pd.to_numeric(train[signal_column], errors="raise") > threshold,
                 pd.to_numeric(train[gross_edge_column], errors="raise"),
                 pd.to_numeric(train[cost_column], errors="raise"),
+                config.outcome_convention,
             )
             if result.metrics.observations >= config.minimum_train_observations:
                 score = result.metrics.average_return
@@ -247,11 +254,13 @@ class WalkForwardValidator:
             pd.to_numeric(validation[signal_column], errors="raise") > threshold,
             pd.to_numeric(validation[gross_edge_column], errors="raise"),
             pd.to_numeric(validation[cost_column], errors="raise"),
+            config.outcome_convention,
         )
         test_result = self._backtester.run_next_observation(
             pd.to_numeric(test[signal_column], errors="raise") > threshold,
             pd.to_numeric(test[gross_edge_column], errors="raise"),
             pd.to_numeric(test[cost_column], errors="raise"),
+            config.outcome_convention,
         )
         return WalkForwardFold(
             window=window,

@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from market_relationship_discovery.backtesting.engine import OutcomeConvention
 from market_relationship_discovery.backtesting.walk_forward import (
     WalkForwardConfig,
     WalkForwardSplitter,
@@ -109,3 +110,55 @@ def test_insufficient_training_is_reported_without_test_selection() -> None:
     assert result.completed_folds == 0
     assert all(fold.status == "insufficient_train_observations" for fold in result.folds)
     assert result.aggregate_test_metrics.observations == 0
+
+
+def test_every_fold_is_settled_on_the_same_declared_bar() -> None:
+    """The convention is carried on the config, not inherited per call.
+
+    Walk-forward calls the backtester once per threshold per fold. If the
+    reading were taken from the engine's default at each call site, a fold
+    could settle on a different bar from the fold before it and the aggregate
+    would stop being a measurement of any single rule.
+    """
+    data = frame()
+    forward = WalkForwardValidator().run(
+        data,
+        WalkForwardConfig(10, 8, 8, 8, thresholds=(0.0,), minimum_train_observations=1),
+        "signal",
+        "gross_edge",
+        "cost",
+    )
+    realised = WalkForwardValidator().run(
+        data,
+        WalkForwardConfig(
+            10,
+            8,
+            8,
+            8,
+            thresholds=(0.0,),
+            minimum_train_observations=1,
+            outcome_convention=OutcomeConvention.REALISED_AT_BAR,
+        ),
+        "signal",
+        "gross_edge",
+        "cost",
+    )
+
+    forward_gaps = {
+        trade.execution_timestamp - trade.decision_timestamp
+        for fold in forward.folds
+        for trade in fold.test_trades
+    }
+    realised_gaps = {
+        trade.execution_timestamp - trade.decision_timestamp
+        for fold in realised.folds
+        for trade in fold.test_trades
+    }
+
+    assert forward_gaps == {pd.Timedelta(minutes=1)}
+    assert realised_gaps == {pd.Timedelta(0)}
+    # One bar further forward per fold under the forward reading, so the two
+    # aggregates are not the same measurement.
+    assert (
+        forward.aggregate_test_metrics.observations != realised.aggregate_test_metrics.observations
+    )

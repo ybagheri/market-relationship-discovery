@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from market_relationship_discovery.backtesting.engine import ResearchBacktester
+from market_relationship_discovery.backtesting.engine import (
+    OutcomeConvention,
+    ResearchBacktester,
+)
 from market_relationship_discovery.backtesting.monte_carlo import (
     MonteCarloConfig,
     MonteCarloRobustnessSimulator,
@@ -54,6 +57,7 @@ class ResearchExperimentService:
         gross_edge_column: str,
         cost_column: str,
         output_directory: Path | None = None,
+        outcome_convention: OutcomeConvention = OutcomeConvention.EARNED_OVER_FOLLOWING_BAR,
     ) -> dict[str, object]:
         dataset = ResearchDataset.load(
             path,
@@ -62,8 +66,18 @@ class ResearchExperimentService:
         signals = pd.to_numeric(dataset.frame[signal_column], errors="raise")
         gross_edges = pd.to_numeric(dataset.frame[gross_edge_column], errors="raise")
         costs = pd.to_numeric(dataset.frame[cost_column], errors="raise")
-        result = ResearchBacktester().run_next_observation(signals, gross_edges, costs)
+        result = ResearchBacktester().run_next_observation(
+            signals,
+            gross_edges,
+            costs,
+            outcome_convention,
+        )
         payload: dict[str, object] = {
+            # The reading is recorded, not assumed. A reader cannot otherwise
+            # tell whether the reported edge came from the bar after the
+            # decision or from the bar it was taken on, and the two differ by
+            # one bar while looking equally like a causal result.
+            "outcome_convention": str(outcome_convention),
             "execution_model": "signal_at_t_evaluated_at_next_observation",
             "metrics": asdict(result.metrics),
             "trades": [asdict(trade) for trade in result.trades],

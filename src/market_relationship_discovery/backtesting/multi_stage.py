@@ -6,6 +6,7 @@ import pandas as pd
 
 from market_relationship_discovery.backtesting.engine import (
     NoLookAheadResult,
+    OutcomeConvention,
     ResearchBacktester,
 )
 from market_relationship_discovery.statistics.analyzer import StatisticalAnalyzer
@@ -71,6 +72,7 @@ class MultiStageBacktester:
         gross_edge_column: str,
         cost_column: str,
         ensemble_threshold: float = 0.0,
+        outcome_convention: OutcomeConvention = OutcomeConvention.EARNED_OVER_FOLLOWING_BAR,
     ) -> MultiStageResult:
         if not stages:
             raise ValueError("at least one signal stage is required")
@@ -97,12 +99,14 @@ class MultiStageBacktester:
             combined > ensemble_threshold,
             gross_edges,
             costs,
+            outcome_convention,
         )
         stage_results = {
             stage.name: self._backtester.run_next_observation(
                 stage_values[stage.name] > stage.activation_threshold,
                 gross_edges,
                 costs,
+                outcome_convention,
             )
             for stage in stages
         }

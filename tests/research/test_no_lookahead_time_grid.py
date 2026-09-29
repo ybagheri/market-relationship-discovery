@@ -23,7 +23,10 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from market_relationship_discovery.backtesting.engine import ResearchBacktester
+from market_relationship_discovery.backtesting.engine import (
+    OutcomeConvention,
+    ResearchBacktester,
+)
 
 
 def minute_grid(size: int) -> pd.DatetimeIndex:
@@ -218,3 +221,90 @@ def test_changing_a_later_outcome_never_moves_an_earlier_trade() -> None:
         (t.decision_timestamp, t.gross_edge) for t in early_changed
     ]
     assert early
+
+
+def test_the_two_outcome_conventions_settle_a_decision_differently() -> None:
+    """A return series can be labelled at the bar it starts or the bar it ends.
+
+    The two readings differ by exactly one bar, and both produce a report that
+    looks like a clean causal backtest. The engine therefore takes the reading
+    from the caller instead of inheriting one, and this asserts each reading
+    settles the decision with the bar it names.
+    """
+    index = minute_grid(4)
+    signals = pd.Series([True, False, False, False], index=index)
+    gross_edges = pd.Series([10.0, 20.0, 30.0, 40.0], index=index)
+    costs = pd.Series(0.0, index=index)
+
+    forward = ResearchBacktester().run_next_observation(
+        signals,
+        gross_edges,
+        costs,
+        OutcomeConvention.EARNED_OVER_FOLLOWING_BAR,
+    )
+    realised = ResearchBacktester().run_next_observation(
+        signals,
+        gross_edges,
+        costs,
+        OutcomeConvention.REALISED_AT_BAR,
+    )
+
+    # 10.0 is the value at the decision bar, covering [t-1, t).
+    assert realised.trades[0].gross_edge == 10.0
+    assert realised.trades[0].execution_timestamp == index[0]
+    # 20.0 is the value at the following bar, covering [t, t+1).
+    assert forward.trades[0].gross_edge == 20.0
+    assert forward.trades[0].execution_timestamp == index[1]
+
+
+def test_no_convention_reads_a_value_from_before_the_decision() -> None:
+    """The invariant behind both readings, stated once.
+
+    It is not that every trade spans two bars. Under `REALISED_AT_BAR` the
+    decision and its outcome describe the same bar, and both are computed from
+    data up to that bar's close. What must never happen is an outcome from a
+    bar that closed before the decision.
+    """
+    index = minute_grid(6)
+    signals = pd.Series(True, index=index)
+    gross_edges = pd.Series(1.0, index=index)
+    costs = pd.Series(0.0, index=index)
+
+    for convention in OutcomeConvention:
+        result = ResearchBacktester().run_next_observation(signals, gross_edges, costs, convention)
+        for trade in result.trades:
+            assert trade.execution_timestamp >= trade.decision_timestamp
+
+
+def test_the_forward_convention_leaves_the_last_bar_undecided() -> None:
+    """The final bar has no following bar to settle it.
+
+    This is the observable cost of the forward reading, and it is why the
+    default cannot be applied to a realised-at-bar column without silently
+    dropping the most recent observation instead of reporting it.
+    """
+    index = minute_grid(3)
+    signals = pd.Series(True, index=index)
+    gross_edges = pd.Series(1.0, index=index)
+    costs = pd.Series(0.0, index=index)
+
+    forward = ResearchBacktester().run_next_observation(
+        signals, gross_edges, costs, OutcomeConvention.EARNED_OVER_FOLLOWING_BAR
+    )
+    realised = ResearchBacktester().run_next_observation(
+        signals, gross_edges, costs, OutcomeConvention.REALISED_AT_BAR
+    )
+
+    assert forward.metrics.observations == 2
+    assert realised.metrics.observations == 3
+
+
+def test_an_unknown_convention_is_refused() -> None:
+    """A typo must not fall back to the default and quietly change the bar."""
+    index = minute_grid(2)
+    signals = pd.Series([True, True], index=index)
+    gross_edges = pd.Series(1.0, index=index)
+    costs = pd.Series(0.0, index=index)
+
+    with pytest.raises(ValueError, match="unknown outcome convention"):
+        ResearchBacktester().run_next_observation(signals, gross_edges, costs, "next_bar")

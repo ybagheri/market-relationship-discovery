@@ -4,6 +4,42 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — a no-look-ahead guarantee resting on an unstated column convention
+
+`run_next_observation` promises that a decision at bar `t` is settled by an
+outcome that had not finished forming at `t`. It could only keep that promise
+if `gross_edges[t]` means the return earned over `[t, t+1)`, because that value
+is not known until `t+1` closes. Nothing said so. The engine hard-coded the
+forward reading and the convention appeared nowhere in the signature, the
+docstring, or the report.
+
+A caller whose column was labelled the other way — `edge[t]` being the return
+already realised at `t` — got a backtest that settled every decision one bar
+late. It was internally consistent, every trade was still stamped
+`execution > decision`, and it measured a different rule from the one intended,
+so nothing downstream could detect it.
+
+The two readings differ by exactly one bar, and a comment would not have
+prevented the mismatch, because the reading is a property of the caller's data
+rather than of the function. `OutcomeConvention` now names it and the caller
+supplies it:
+
+| Convention | `edge[t]` covers | Decision at `t` settled by |
+| --- | --- | --- |
+| `earned_over_following_bar` (default) | `[t, t+1)` | value at `t+1` |
+| `realised_at_bar` | `[t-1, t)` | value at `t` |
+
+`realised_at_bar` uses a zero offset, which is correct rather than degenerate:
+the decision and its outcome describe the same bar and both derive from data up
+to that bar's close. The invariant is that no value is read from a bar that
+closed *before* the decision, not that every trade spans two bars.
+
+`WalkForwardConfig` and `MultiStageBacktester.run` carry the convention, so
+every fold of a run settles on the same bar; a run whose folds disagreed would
+produce an aggregate that measures nothing. The no-look-ahead report records the
+reading in `outcome_convention`, because a report that omits it asks the reader
+to assume whichever one the code happened to use.
+
 ### Fixed — an alignment delay whose sign was never stated
 
 `align_timeseries` and the cross-broker aligner both publish a column called

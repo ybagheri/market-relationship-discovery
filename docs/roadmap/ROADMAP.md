@@ -287,10 +287,14 @@ de-duplication.
 - [x] `statistics/analyzer.py` and `backtesting/multi_stage.py` — two identical
       copies of the rolling z-score used as model input; the builder now delegates
       to the one implementation and a test asserts the agreement
-- [ ] `backtesting/engine.py` — the no-look-ahead guarantee rests on an
+- [x] `backtesting/engine.py` — the no-look-ahead guarantee rested on an
       undocumented column convention: that `gross_edges[t]` is the return earned
-      over `[t, t+1]`. If it is the edge realised at `t`, `shift(-1)` is itself the
-      look-ahead
+      over `[t, t+1]`. If it is the edge realised at `t`, `shift(-1)` was itself
+      the look-ahead. `OutcomeConvention` now names the reading and the caller
+      supplies it, and the report records which one produced the figures. A
+      separate defect in the same function, found while fixing this one: the
+      three inputs did not have to share an observation grid, so the union's
+      "next row" could be a fraction of a second after the decision
 - [ ] `backtesting/walk_forward.py` — `self._splitter` stores the class, not an
       instance, so there is no seam for a test double
 - [ ] `infrastructure/storage/quotes.py` — the Parquet file is moved to its final

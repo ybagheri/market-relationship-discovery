@@ -2,7 +2,37 @@
 
 ## Implemented research controls
 
-`ResearchBacktester.run_next_observation` pairs a signal at timestamp `t` only with edge and cost at `t+1`. `WalkForwardValidator` selects an activation threshold on train data only, reports validation, and evaluates the fixed threshold on each test window. Signals and outcomes cannot cross the end of an evaluation window.
+`ResearchBacktester.run_next_observation` pairs a signal at timestamp `t` only with an outcome that had not finished forming at `t`. `WalkForwardValidator` selects an activation threshold on train data only, reports validation, and evaluates the fixed threshold on each test window. Signals and outcomes cannot cross the end of an evaluation window.
+
+## Which bar a `gross_edge` value is labelled with
+
+A return series can be labelled at the bar it **starts** or the bar it
+**ends**, and the two readings differ by exactly one bar. `OutcomeConvention`
+names the reading and the caller must supply it:
+
+| Convention | `edge[t]` covers | A decision at `t` is settled by |
+| --- | --- | --- |
+| `earned_over_following_bar` (default) | `[t, t+1)` | the value at `t+1` |
+| `realised_at_bar` | `[t-1, t)` | the value at `t` |
+
+The engine previously hard-coded the first reading and said so nowhere. A
+caller whose column was labelled the second way got a backtest that settled
+every decision one bar late: internally consistent, plausibly causal, and
+measuring a different rule than the one intended. A comment would not have
+prevented it, because the reading is a property of the *caller's data*, not of
+the function. It is now an argument, and the report records which one produced
+the figures in `outcome_convention`.
+
+Note that `realised_at_bar` uses a zero offset, which is correct and not a
+degenerate case: the decision and its outcome describe the same bar, and both
+are computed from data up to that bar's close. The invariant is that no value
+is read from a bar that closed *before* the decision, not that every trade
+spans two bars. Under `realised_at_bar` the last bar can therefore be decided,
+and under `earned_over_following_bar` it cannot.
+
+`WalkForwardConfig` and `MultiStageBacktester.run` carry the convention too, so
+every fold of a run settles on the same bar. A run whose folds disagreed would
+produce an aggregate that is not a measurement of anything.
 
 `MultiStageBacktester` combines causal score columns with explicit weights and thresholds. It reports the ensemble and every individual stage. `CausalFeatureBuilder` provides rolling z-score, momentum, and realized-volatility features that use only current and past values.
 
