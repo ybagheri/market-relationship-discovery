@@ -228,6 +228,26 @@ python -m market_relationship_discovery collect --parallel --max-workers 2 --bro
 python -m market_relationship_discovery compare-brokers a.parquet b.parquet --broker-a Alpari-MT5-Demo --broker-b AMarkets-Demo --symbol BTCUSD --symbol-a BITCOIN --symbol-b BTCUSD --contract-a specs/a.json --contract-b specs/b.json --volume 1.0 --leverage 500
 ```
 
+## Defining a study once, for several brokers
+
+Two brokers rarely name an instrument the same way, so a study is written with canonical research names and each profile maps them to whatever that broker publishes. The symbol list belongs in configuration, so two runs of the "same" study cannot describe different instruments:
+
+```dotenv
+SYMBOL_SETS__SETS={"metals":["XAUUSD","XAGUSD","XAUEUR"],
+                   "energy":["WTI","BRENT","NGAS"],
+                   "crypto":["BTCUSD","ETHUSD","XRPUSD"]}
+```
+
+Any command that takes symbols accepts `--symbol-set`, so a whole study is one argument across two or three brokers:
+
+```bash
+python -m market_relationship_discovery resolve-symbols --symbol-set energy --broker-profile ALPARI_1 --broker-profile ALPARI_2
+python -m market_relationship_discovery collect --symbol-set energy --broker-profile ALPARI_1 --broker-profile ALPARI_2 --parallel --max-workers 2 --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery symbol-specs --symbol-set metals --broker-profile ALPARI_1 --output config/specs/alpari1_metals.json
+```
+
+`resolve-symbols` reports how the set resolves on every profile without collecting anything, so a naming difference becomes a report rather than a collection failure part way through a run. On the observed demo pair the `energy` set resolves to `WTI`/`BRN`/`NG` on one broker and `WTI`/`BRENT`/`NGAS` on the other from the same research names. See [symbol mapping and broker naming](docs/mt5/SYMBOL_MAPPING.md).
+
 Brokers rarely name an instrument identically, and a shared ticker does not imply a shared contract. Two demo brokers observed on 2026-09-26 publish bitcoin as `BITCOIN` and `BTCUSD`, quote gold with a ten times tick-value difference, and price bitcoin to the cent on one side and to whole dollars on the other. The contract gate blocks that comparison rather than reporting a false opportunity. See [execution and capital model](docs/research/EXECUTION_MODEL.md).
 
 ## Dashboard

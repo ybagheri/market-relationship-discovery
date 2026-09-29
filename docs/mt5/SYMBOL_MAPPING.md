@@ -108,7 +108,7 @@ Additional instruments on this account included `GOLDInd` (`Gold Index`), `GOLDZ
 | Symbol | Broker A | Broker B | Consequence |
 | --- | --- | --- | --- |
 | `EURUSD` | tick value 1.0, spread 18 | tick value 1.0, spread 20 | Compatible; no opportunity survives the spread |
-| `XAUUSD` | tick value 0.1, `Spot Metals` | tick value 1.0, `Metals CFD` | `normalization_required`; a ten times PnL difference per identical price move |
+| `XAUUSD` | tick value 0.1, `Spot Metals` | tick value 1.0, `Metals CFD` | `incompatible`; the two value one unit of gold ten times apart |
 | `BTCUSD` | `tick_size` 0.01, `digits` 2 | `tick_size` 1.0, `digits` 0 | `incompatible`; broker B quotes in whole dollars |
 
 A shared ticker does not imply a shared contract. Comparing these feeds on price alone would misstate the PnL of a gold position by a factor of ten and would invent a bitcoin opportunity out of broker B's rounding.
@@ -130,6 +130,52 @@ BROKERS={"ALPARI_1":{"terminal_path":"...","demo_only":true,"symbol_mapping":{"B
 ```
 
 Keep the example mapping in `.env.example` free of machine-specific values.
+
+## Defining a study once, for several brokers
+
+A study is written with canonical research names, and each profile maps them. The
+list itself belongs in configuration so that two runs of "the same" study cannot
+describe different instruments:
+
+```dotenv
+SYMBOL_SETS__SETS={"metals":["XAUUSD","XAGUSD","XAUEUR"],
+                   "energy":["WTI","BRENT","NGAS"],
+                   "crypto":["BTCUSD","ETHUSD","XRPUSD"]}
+```
+
+Any command that takes symbols accepts `--symbol-set`, so a whole study is one
+argument:
+
+```bash
+python -m market_relationship-discovery collect --symbol-set energy \
+  --broker-profile ALPARI_1 --broker-profile ALPARI_2 --parallel \
+  --data-type bar --timeframe M1 --limit 500
+```
+
+`--symbol` and `--symbol-set` are unioned, so a set can carry the study while
+`--symbol` adds a one-off instrument. Passing neither is an error naming the
+remedy, because silently collecting the whole catalog would look like a
+deliberate wide run.
+
+A set that is not configured is refused rather than falling back to a default,
+since a silent fallback would report a result about instruments nobody asked
+for.
+
+### Check the mapping before collecting
+
+`resolve-symbols` reports how a set resolves on every profile without
+collecting anything, so a naming difference becomes a report rather than a
+collection failure half way through a run:
+
+```bash
+python -m market_relationship_discovery resolve-symbols --symbol-set energy \
+  --broker-profile ALPARI_1 --broker-profile ALPARI_2
+```
+
+It names every broker label and the strategy that produced it, lists the symbols
+that resolve everywhere, and reports which profile could not resolve what. The
+`energy` set above resolves to `WTI`/`BRN`/`NG` on one broker and
+`WTI`/`BRENT`/`NGAS` on the other, from the same research names.
 
 ## Comparing the same instrument across brokers
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -16,7 +16,10 @@ from market_relationship_discovery.application.parallel_collection import (
 from market_relationship_discovery.config.settings import MT5Settings, Settings
 from market_relationship_discovery.discovery.engine import CandidateDiscoveryEngine
 from market_relationship_discovery.domain.dataset import CollectionBatch, DataType
-from market_relationship_discovery.domain.errors import MarketRelationshipError
+from market_relationship_discovery.domain.errors import (
+    MarketRelationshipError,
+    SymbolNotFoundError,
+)
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
 from market_relationship_discovery.market_data.symbols import SymbolMapper
 from market_relationship_discovery.relationships.catalog import RelationshipCatalog
@@ -25,6 +28,86 @@ from market_relationship_discovery.statistics.multiplicity import (
     DEFAULT_METHOD as DEFAULT_MULTIPLICITY_METHOD,
 )
 from market_relationship_discovery.statistics.multiplicity import MultiplicityMethod
+
+
+@dataclass(frozen=True, slots=True)
+class SymbolResolution:
+    """One research symbol as a single broker publishes it."""
+
+    broker_symbol: str
+    strategy: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"broker_symbol": self.broker_symbol, "strategy": self.strategy}
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileResolution:
+    """How a symbol set resolved on one broker profile."""
+
+    broker_profile: str
+    symbols: dict[str, SymbolResolution]
+    unresolved: dict[str, str]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "broker_profile": self.broker_profile,
+            "symbols": {symbol: match.to_dict() for symbol, match in self.symbols.items()},
+            "unresolved": [
+                {"symbol": symbol, "reason": reason} for symbol, reason in self.unresolved.items()
+            ],
+        }
+
+
+def resolve_symbol_set(
+    settings: Settings,
+    broker_profiles: list[str],
+    canonical_symbols: list[str],
+) -> dict[str, object]:
+    """Report how a research symbol resolves on each broker, without collecting.
+
+    Two brokers rarely publish an instrument the same way, so a study defined
+    once has to be checked against every profile before any data is collected.
+    Doing that first turns a naming difference into a report rather than a
+    collection failure half way through a run, and it shows which profile
+    refused to resolve which symbol instead of failing on the first one.
+    """
+    if not canonical_symbols:
+        raise MarketRelationshipError("at least one symbol is required")
+    profiles: list[ProfileResolution] = []
+    for name in broker_profiles:
+        profile, mapping = resolve_profile(settings, name)
+        resolved: dict[str, SymbolResolution] = {}
+        unresolved: dict[str, str] = {}
+        with MT5Adapter(profile) as adapter:
+            available = adapter.symbols(visible_only=False)
+            broker_mapper = SymbolMapper(mapping)
+            for symbol in canonical_symbols:
+                try:
+                    match = broker_mapper.resolve(symbol, available)
+                except SymbolNotFoundError as exc:
+                    unresolved[symbol] = str(exc)
+                    continue
+                resolved[symbol] = SymbolResolution(match.broker_symbol, match.strategy)
+        profiles.append(ProfileResolution(name, resolved, unresolved))
+    missing = [
+        {"broker_profile": item.broker_profile, "symbol": symbol, "reason": reason}
+        for item in profiles
+        for symbol, reason in item.unresolved.items()
+    ]
+    comparable = [
+        symbol for symbol in canonical_symbols if all(symbol in item.symbols for item in profiles)
+    ]
+    return {
+        "requested_symbols": list(canonical_symbols),
+        "broker_profiles": [item.to_dict() for item in profiles],
+        "comparable_symbols": comparable,
+        "unresolved": missing,
+        "summary": (
+            f"{len(comparable)} of {len(canonical_symbols)} symbols resolve on all "
+            f"{len(profiles)} profile(s)" + (f"; {len(missing)} unresolved" if missing else "")
+        ),
+    }
 
 
 def collect_historical_data(

@@ -14,6 +14,7 @@ from market_relationship_discovery.application.commands import (
     collect_historical_data,
     discover_relationships,
     resolve_profile,
+    resolve_symbol_set,
     run_advanced_research,
     run_historical_research,
     run_no_lookahead_backtest,
@@ -30,6 +31,7 @@ from market_relationship_discovery.backtesting.monte_carlo import (
 )
 from market_relationship_discovery.backtesting.walk_forward import WalkForwardConfig
 from market_relationship_discovery.config import get_settings
+from market_relationship_discovery.config.settings import Settings
 from market_relationship_discovery.costs.measurement import (
     LatencySource,
     LatencyStatistic,
@@ -37,6 +39,7 @@ from market_relationship_discovery.costs.measurement import (
     load_measured_latency,
 )
 from market_relationship_discovery.domain.dataset import DataType
+from market_relationship_discovery.domain.errors import MarketRelationshipError
 from market_relationship_discovery.infrastructure.logging.config import configure_logging
 from market_relationship_discovery.infrastructure.mt5.adapter import MT5Adapter
 from market_relationship_discovery.market_data.cross_broker import (
@@ -85,7 +88,11 @@ def build_parser() -> argparse.ArgumentParser:
     symbols_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     collect_parser = subparsers.add_parser("collect")
     collect_parser.add_argument("--broker-profile", action="append")
-    collect_parser.add_argument("--symbol", action="append", required=True)
+    collect_parser.add_argument("--symbol", action="append")
+    collect_parser.add_argument(
+        "--symbol-set",
+        help="named symbol set from SYMBOL_SETS__SETS, resolved per broker profile",
+    )
     collect_parser.add_argument("--data-type", choices=["tick", "bar"], default="bar")
     collect_parser.add_argument("--timeframe")
     collect_parser.add_argument("--start", help="ISO-8601 timestamp with timezone")
@@ -95,6 +102,10 @@ def build_parser() -> argparse.ArgumentParser:
     collect_parser.add_argument("--max-workers", type=int)
     discover_parser = subparsers.add_parser("discover")
     discover_parser.add_argument("--symbol", nargs="+", action="append")
+    discover_parser.add_argument(
+        "--symbol-set",
+        help="named symbol set from SYMBOL_SETS__SETS",
+    )
     discover_parser.add_argument("--minimum-observations", type=int, default=100)
     discover_parser.add_argument("--input", type=Path)
     discover_parser.add_argument("--output", type=Path)
@@ -258,8 +269,19 @@ def build_parser() -> argparse.ArgumentParser:
     comparison_parser.add_argument("--output", type=Path)
     specifications_parser = subparsers.add_parser("symbol-specs")
     specifications_parser.add_argument("--broker-profile", default="default")
-    specifications_parser.add_argument("--symbol", action="append", required=True)
+    specifications_parser.add_argument("--symbol", action="append")
+    specifications_parser.add_argument(
+        "--symbol-set",
+        help="named symbol set from SYMBOL_SETS__SETS",
+    )
     specifications_parser.add_argument("--output", type=Path)
+    resolve_parser = subparsers.add_parser(
+        "resolve-symbols",
+        help="report how a symbol set resolves on each broker profile, without collecting",
+    )
+    resolve_parser.add_argument("--broker-profile", action="append")
+    resolve_parser.add_argument("--symbol", action="append")
+    resolve_parser.add_argument("--symbol-set")
     subparsers.add_parser("dashboard")
     return parser
 
@@ -317,6 +339,8 @@ def main(argv: list[str] | None = None) -> int:
             return _compare_brokers(arguments)
         if arguments.command == "symbol-specs":
             return _symbol_specs(arguments)
+        if arguments.command == "resolve-symbols":
+            return _resolve_symbols(arguments)
         if arguments.command == "dashboard":
             return _dashboard()
     except Exception as exc:
@@ -419,7 +443,7 @@ def _collect(arguments: argparse.Namespace) -> int:
     result = collect_historical_data(
         settings,
         profiles,
-        arguments.symbol,
+        _requested_symbols(arguments, settings),
         DataType(arguments.data_type),
         arguments.timeframe
         or (settings.research.default_timeframe if arguments.data_type == "bar" else None),
@@ -431,6 +455,32 @@ def _collect(arguments: argparse.Namespace) -> int:
     )
     print(_serializable(result))
     return 0
+
+
+def _requested_symbols(
+    arguments: argparse.Namespace, settings: Settings | None = None
+) -> list[str]:
+    """Merge explicit `--symbol` values with a named symbol set.
+
+    Both sources are unioned, order-preserved and de-duplicated, so a set can
+    carry the research list while `--symbol` adds a one-off instrument. Passing
+    neither is an error naming the remedy: silently collecting the whole catalog
+    would look like a deliberate wide run.
+    """
+    explicit: list[str] = []
+    for group in arguments.symbol or []:
+        explicit.extend([group] if isinstance(group, str) else group)
+    resolved = settings or get_settings()
+    from_set: list[str] = []
+    if arguments.symbol_set:
+        _, from_set = resolved.symbol_sets.resolve(arguments.symbol_set)
+    ordered = list(dict.fromkeys([*explicit, *from_set]))
+    if not ordered:
+        raise MarketRelationshipError(
+            "no symbols requested; pass --symbol or --symbol-set, or configure a "
+            "set in SYMBOL_SETS__SETS"
+        )
+    return ordered
 
 
 def _discover(arguments: argparse.Namespace) -> int:
@@ -451,9 +501,7 @@ def _discover(arguments: argparse.Namespace) -> int:
             arguments.minimum_symbols_for_window,
         )
     else:
-        if not arguments.symbol:
-            raise ValueError("discover requires --input or at least one --symbol")
-        symbols = [symbol for group in arguments.symbol for symbol in group]
+        symbols = _requested_symbols(arguments)
         result = discover_relationships(symbols, arguments.minimum_observations)
     print(_serializable(result))
     return 0
@@ -639,13 +687,21 @@ def _symbol_specs(arguments: argparse.Namespace) -> int:
             adapter.contract_specification(
                 mapper.resolve(symbol, available).broker_symbol
             ).to_dict()
-            for symbol in arguments.symbol
+            for symbol in _requested_symbols(arguments, settings)
         ]
     output = _serializable(specifications)
     print(output)
     if arguments.output is not None:
         arguments.output.parent.mkdir(parents=True, exist_ok=True)
         arguments.output.write_text(output, encoding="utf-8")
+    return 0
+
+
+def _resolve_symbols(arguments: argparse.Namespace) -> int:
+    settings = get_settings()
+    profiles = arguments.broker_profile or ["default"]
+    report = resolve_symbol_set(settings, profiles, _requested_symbols(arguments, settings))
+    print(_serializable(report))
     return 0
 
 

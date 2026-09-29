@@ -13,7 +13,7 @@ state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 389 passed |
+| `pytest` | 412 passed |
 | `ruff check .` | clean |
 | `black --check .` | clean |
 | `mypy` (strict) | clean, 69 source files |
@@ -37,7 +37,7 @@ Commits for this session, oldest first:
 | `623e724` | Drain the collection pool before reporting a failure; keep the safety refusal distinguishable |
 | `14b0205` | Let `compare-brokers` use a multi-symbol contract export |
 
-Test count went from 324 to 389. Each correction added regression tests that fail
+Test count went from 324 to 412. Each correction added regression tests that fail
 against the code as it was before the change; the removed cost model took its one
 test with it and was replaced by three stronger ones.
 
@@ -250,7 +250,35 @@ unused and returns unmatched rows with a `NaT` delay, and the two alignment
 implementations disagree with each other. Two implementations of the same join
 that do not agree is worth resolving before either is used further.
 
-## Verified on the live catalogs
+## A study is now defined once, for several brokers
+
+The symbol list lived on the command line, so running one question across two
+brokers meant repeating it and hoping both runs described the same instruments.
+Symbol sets are configured once under `SYMBOL_SETS__SETS` and referenced by
+name:
+
+```dotenv
+SYMBOL_SETS__SETS={"metals":["XAUUSD","XAGUSD","XAUEUR"],
+                   "energy":["WTI","BRENT","NGAS"],
+                   "crypto":["BTCUSD","ETHUSD","XRPUSD"]}
+```
+
+`collect`, `discover`, `symbol-specs`, and the new `resolve-symbols` all accept
+`--symbol-set`, and `--symbol` is unioned with it rather than replacing it. The
+`energy` set was verified on the live pair: it resolves to `WTI`/`BRN`/`NG` on
+ALPARI_1 and `WTI`/`BRENT`/`NGAS` on ALPARI_2, and one parallel `collect
+--symbol-set energy` wrote all six datasets without naming a broker symbol on
+the command line.
+
+`resolve-symbols` reports the mapping without collecting, so a naming difference
+is a report rather than a failure part way through a run. A set that is not
+configured is refused rather than defaulting, because a silent fallback reports a
+result about instruments nobody asked for.
+
+`.env` now carries the live configuration for both terminals: two profiles, five
+symbol sets, and the per-profile `symbol_mapping` that translates research names
+into each broker's own. It is gitignored, as is `config/specs/*`.
+
 
 The symbol-matching corrections were checked against both live brokers, not only
 against fixtures. Searching `oil` on ALPARI_1 previously returned `USAHO` ("US

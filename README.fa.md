@@ -204,6 +204,34 @@ python -m market_relationship_discovery compare-brokers a.parquet b.parquet --br
 مسدود می‌کند و فرصت کاذب گزارش نمی‌دهد. [مدل اجرا و سرمایه](docs/research/EXECUTION_MODEL.fa.md)
 را ببینید.
 
+## تعریف یک مطالعه، برای چند broker
+
+دو بروکر به‌ندرت یک ابزار را یکسان نام‌گذاری می‌کنند، پس یک مطالعه با نام‌های پژوهشی
+canonical نوشته می‌شود و هر پروفایل آن‌ها را به نامی که آن بروکر منتشر می‌کند نگاشت
+می‌دهد. فهرست نمادها در پیکربندی می‌ماند تا دو اجرای «همان» مطالعه نتوانند ابزارهای
+متفاوتی را توصیف کنند:
+
+```dotenv
+SYMBOL_SETS__SETS={"metals":["XAUUSD","XAGUSD","XAUEUR"],
+                   "energy":["WTI","BRENT","NGAS"],
+                   "crypto":["BTCUSD","ETHUSD","XRPUSD"]}
+```
+
+هر فرمانی که نماد می‌گیرد `--symbol-set` را می‌پذیرد، پس یک مطالعه کامل روی دو یا سه
+بروکر فقط یک آرگومان است:
+
+```bash
+python -m market_relationship_discovery resolve-symbols --symbol-set energy --broker-profile ALPARI_1 --broker-profile ALPARI_2
+python -m market_relationship_discovery collect --symbol-set energy --broker-profile ALPARI_1 --broker-profile ALPARI_2 --parallel --max-workers 2 --data-type bar --timeframe M1 --limit 500
+python -m market_relationship_discovery symbol-specs --symbol-set metals --broker-profile ALPARI_1 --output config/specs/alpari1_metals.json
+```
+
+`resolve-symbols` گزارش می‌دهد هر مجموعه روی هر پروفایل چگونه تطبیق می‌یابد، بدون آنکه
+چیزی جمع کند، پس تفاوت نام‌گذاری به یک گزارش تبدیل می‌شود نه شکست collection در میانه
+کار. روی جفت دموی مشاهده‌شده، مجموعه `energy` به `WTI`/`BRN`/`NG` در یک بروکر و
+`WTI`/`BRENT`/`NGAS` در دیگری از همان نام‌های پژوهشی تطبیق می‌یابد. [نگاشت نماد و
+نام‌گذاری broker](docs/mt5/SYMBOL_MAPPING.fa.md) را ببینید.
+
 ## داشبورد
 
 ```bash

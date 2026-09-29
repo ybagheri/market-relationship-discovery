@@ -4,6 +4,31 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Added — a symbol set defines a study across brokers
+
+- A study's symbol list belonged on the command line, so running the same
+  question across two brokers meant repeating the list and hoping both runs
+  described the same instruments. Symbol sets are now configured once under
+  `SYMBOL_SETS__SETS` and referenced by name, so `collect --symbol-set energy
+  --broker-profile A --broker-profile B` is a whole study in one argument.
+  Verified on the live demo pair: the same `energy` set resolves to
+  `WTI`/`BRN`/`NG` on one broker and `WTI`/`BRENT`/`NGAS` on the other
+- New `resolve-symbols` command reports how a set resolves on every profile
+  without collecting anything, naming each broker label and the strategy that
+  produced it, and reporting which profile could not resolve what. A naming
+  difference therefore becomes a report instead of a collection failure part
+  way through a run, and every failing profile is named rather than the first
+- `--symbol` and `--symbol-set` are unioned, so a set carries the study while
+  `--symbol` adds a one-off. `--symbol` is no longer mandatory on `collect` and
+  `symbol-specs`, and passing neither is an error naming the remedy: silently
+  collecting the whole catalog would look like a deliberate wide run
+- A set that is not configured is refused rather than falling back to a default,
+  since a silent fallback would report a result about instruments nobody asked
+  for. An empty set, a blank name, and a `default` defined twice are rejected at
+  configuration time rather than at run time
+- Per-profile `symbol_mapping` inside each `BROKERS` entry is where a broker's
+  own name belongs; it takes precedence over the global `SYMBOL_MAPPING`
+
 ### Fixed — symbol matching and price panels
 
 - `SymbolMapper` matched aliases as bare substrings, so `XAUUSD` also satisfied a

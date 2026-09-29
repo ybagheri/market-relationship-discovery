@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from market_relationship_discovery.costs.execution import DEFAULT_MINIMUM_FILL_RATIO
+from market_relationship_discovery.domain.errors import MarketRelationshipError
 
 
 class MT5Settings(BaseModel):
@@ -91,6 +92,69 @@ class ResearchSettings(BaseModel):
     zscore_window: int = Field(default=100, ge=2)
     rolling_beta_window: int = Field(default=30, ge=2)
     statistical_significance: float = Field(default=0.05, gt=0.0, lt=1.0)
+    # A named set of research symbols to study, so a run does not have to repeat
+    # every symbol on the command line. The names are canonical research symbols,
+    # not broker names: `SYMBOL_MAPPING` translates them per broker, because two
+    # brokers rarely publish an instrument the same way.
+    symbol_set: str | None = None
+
+
+class SymbolSetSettings(BaseModel):
+    """Named symbol sets, each a list of canonical research symbols.
+
+    Brokers publish different names for the same instrument, so a symbol to
+    research is a research-level name and the broker name is resolved per
+    profile. A set is defined once here and referenced by name, so the same
+    research question can be run across two or three brokers without repeating
+    the list or risking the two runs describing different instruments.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    default: list[str] = Field(default_factory=list)
+    sets: dict[str, list[str]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_names(self) -> "SymbolSetSettings":
+        if self.default and "default" in self.sets:
+            raise ValueError(
+                "define the default symbol set as SYMBOL_SETS__DEFAULT, not as an entry "
+                "named 'default' in SYMBOL_SETS__SETS"
+            )
+        for name, symbols in self.sets.items():
+            if not name.strip():
+                raise ValueError("a symbol set name cannot be blank")
+            if not symbols:
+                raise ValueError(f"symbol set {name!r} is empty")
+        return self
+
+    def resolve(self, name: str | None) -> tuple[str, list[str]]:
+        """Return the set name and its symbols.
+
+        A name that is not configured raises rather than falling back, because a
+        silent fallback would run a study on symbols the caller did not ask for
+        and report a result about the wrong instruments.
+        """
+        if name is None:
+            available = sorted(self.sets) or ["(the configured default)"]
+            raise MarketRelationshipError(
+                "no symbol set selected; pass --symbol-set, or configure one. "
+                f"Available: {available}"
+            )
+        if name == "default":
+            symbols = list(self.default)
+            if not symbols:
+                raise MarketRelationshipError(
+                    "the default symbol set is empty; set SYMBOL_SETS__DEFAULT or "
+                    "name a set explicitly"
+                )
+            return name, symbols
+        if name not in self.sets:
+            available = sorted(self.sets)
+            raise MarketRelationshipError(
+                f"Unknown symbol set {name!r}; configured: {available or ['(none)']}"
+            )
+        return name, list(self.sets[name])
 
 
 class CostSettings(BaseModel):
@@ -132,6 +196,7 @@ class Settings(BaseSettings):
     brokers: dict[str, MT5Settings] = Field(default_factory=dict)
     data: DataSettings = Field(default_factory=DataSettings)
     research: ResearchSettings = Field(default_factory=ResearchSettings)
+    symbol_sets: SymbolSetSettings = Field(default_factory=SymbolSetSettings)
     costs: CostSettings = Field(default_factory=CostSettings)
     dashboard: DashboardSettings = Field(default_factory=DashboardSettings)
     symbol_mapping: dict[str, str] = Field(default_factory=dict)
