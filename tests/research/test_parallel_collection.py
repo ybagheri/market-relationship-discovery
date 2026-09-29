@@ -89,5 +89,8 @@ def test_parallel_coordinator_wraps_worker_failure(monkeypatch: pytest.MonkeyPat
         FailingExecutor,
     )
 
-    with pytest.raises(ParallelCollectionError, match="broker profile A"):
+    with pytest.raises(ParallelCollectionError) as caught:
         ParallelCollectionCoordinator().run((job(0, "A"),), 1)
+
+    assert "A" in str(caught.value)
+    assert "terminal failed" in str(caught.value)
