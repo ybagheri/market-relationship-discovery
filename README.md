@@ -43,6 +43,8 @@ with a regression test that fails against the code as it was. Also since 1.9.0:
   contract both agreed on; `correlation` accepted three observations, which
   guarantee a perfect correlation that is an artefact of the sample size; and
   `half_life` could report 6e15 on a series that never reverts
+- The rolling z-score existed as two copies, one feeding the ranking model and
+  one reported to the reader, which agreed today but could stop agreeing
 - `doctor` failed a safety check on a display-timezone setting that no data path
   honoured, and two settings that read nothing advertised controls the platform
   does not have

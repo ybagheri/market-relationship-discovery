@@ -8,6 +8,7 @@ from market_relationship_discovery.backtesting.engine import (
     NoLookAheadResult,
     ResearchBacktester,
 )
+from market_relationship_discovery.statistics.analyzer import StatisticalAnalyzer
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,13 +28,24 @@ class MultiStageResult:
 
 
 class CausalFeatureBuilder:
+    """Causal feature transforms for multi-stage signal research.
+
+    Every transform uses observations up to and including its own index and no
+    later one, because a feature that reads the future cannot be a model input.
+    """
+
     @staticmethod
     def rolling_zscore(values: pd.Series, window: int) -> pd.Series:
-        if window < 2:
-            raise ValueError("window must be at least two")
-        mean = values.rolling(window=window, min_periods=window).mean()
-        deviation = values.rolling(window=window, min_periods=window).std(ddof=0)
-        return (values - mean) / deviation.replace(0, float("nan"))
+        """Delegate to the single implementation.
+
+        This used to be a second copy of the transform in
+        `statistics.analyzer`. Two copies can drift apart, and this one feeds a
+        ranking model while the other is what the report describes, so a change
+        applied to one would silently leave the other measuring something else.
+        Sharing one implementation removes the possibility rather than documenting
+        the requirement.
+        """
+        return StatisticalAnalyzer.rolling_zscore(values, window)
 
     @staticmethod
     def momentum(values: pd.Series, lookback: int) -> pd.Series:

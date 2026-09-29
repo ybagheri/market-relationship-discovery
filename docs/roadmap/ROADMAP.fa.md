@@ -183,7 +183,7 @@
 - [x] `config/settings.py` — `DataSettings.timezone` نیمی از verdict بحرانی `doctor` بود در حالی که هیچ مسیر داده‌ای آن را رعایت نمی‌کرد؛ `cache_enabled` و `cache_directory` هیچ‌جا خوانده نمی‌شدند؛ `latency_log_statistic` رشته‌ای اعتبارسنجی‌نشده بود که CLI نادیده می‌گرفت. timezone اکنون timezone نمایش گزارش را انتخاب می‌کند و بخشی از verdict ایمنی نیست، دو تنظیم cache بی‌استفاده حذف شدند، و آمار اعتبارسنجی می‌شود
 - [x] `config/settings.py` — دو پروفایل broker می‌توانستند به یک ترمینال اشاره کنند و آن را دو بار با برچسب‌های متفاوت جمع کنند، و اجازه دهند یک مقایسه بروکر را با خودش جفت کند. در زمان بارگذاری رد می‌شود، با مقایسهٔ مسیرهای resolve‌شده
 - [x] `statistics/analyzer.py` — `correlation` سه observation را می‌پذیرفت که همبستگی کاملی را تضمین می‌کرد که محصول اندازهٔ نمونه بود؛ `half_life` کران معقولیت نداشت؛ `lead_lag` قرارداد علامت یا معناداری مستند نداشت؛ `rolling_correlation` هیچ caller نداشت و حذف شد
-- [ ] `statistics/analyzer.py` و `backtesting/multi_stage.py` — دو نسخه یکسان از rolling z-score که به‌عنوان ورودی مدل استفاده می‌شود
+- [x] `statistics/analyzer.py` و `backtesting/multi_stage.py` — دو نسخه یکسان از rolling z-score که به‌عنوان ورودی مدل استفاده می‌شود؛ builder اکنون به پیاده‌سازی واحد ارجاع می‌دهد و یک تست توافقشان را تضمین می‌کند
 - [ ] `backtesting/engine.py` — تضمین نبود look-ahead به یک قرارداد ستون مستند تکیه دارد: اینکه `gross_edges[t]` بازده کسب‌شده روی `[t, t+1]` باشد. اگر لبه realized در `t` باشد، خود `shift(-1)` همان look-ahead است
 - [ ] `backtesting/walk_forward.py` — `self._splitter` کلاس را نگه می‌دارد نه نمونه، پس امکان جایگزینی با test double وجود ندارد
 - [ ] `infrastructure/storage/quotes.py` — فایل Parquet پیش از نوشتن manifest به مسیر نهایی منتقل می‌شود، پس خرابی manifest یک دیتاست یتیم می‌سازد

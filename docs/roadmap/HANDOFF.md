@@ -13,7 +13,7 @@ state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 479 passed |
+| `pytest` | 502 passed |
 | `ruff check .` | clean |
 | `black --check .` | clean |
 | `mypy` (strict) | clean, 69 source files |
@@ -37,7 +37,7 @@ Commits for this session, oldest first:
 | `623e724` | Drain the collection pool before reporting a failure; keep the safety refusal distinguishable |
 | `14b0205` | Let `compare-brokers` use a multi-symbol contract export |
 
-Test count went from 324 to 479. Each correction added regression tests that fail
+Test count went from 324 to 502. Each correction added regression tests that fail
 against the code as it was before the change; the removed cost model took its one
 test with it and was replaced by three stronger ones.
 
@@ -254,25 +254,19 @@ fix, move the item into its phase, add a changelog entry describing what number
 was wrong, and update the document under `docs/research/` whose convention
 changed.
 
-Remaining counts: **0 High, 0 Medium, 6 Low**, plus 2 Phase 10 items that are
+Remaining counts: **0 High, 0 Medium, 5 Low**, plus 2 Phase 10 items that are
 deliberately out of scope.
 
-The next item, first under **Low**:
+The next item, first under **Low**, deserves care rather than a comment:
 
-`statistics/analyzer.py` and `backtesting/multi_stage.py` — two identical copies
-of the rolling z-score, one of which is a model input. A duplicated feature that
-feeds a ranking model can drift from the copy the report describes, and the two
-are not pinned to each other. The fix is to have one implementation and a test
-asserting the other uses it; a comment saying they are the same is not a
-guarantee.
+`backtesting/engine.py` — the no-look-ahead guarantee rests on an undocumented
+column convention, that `gross_edges[t]` is the return earned over `[t, t+1]`.
+If it is the edge realised at `t`, then `shift(-1)` *is* the look-ahead. The
+convention should be stated where the shift happens, and a test should
+distinguish the two readings rather than assume the intended one.
 
-After that:
+Then:
 
-- `backtesting/engine.py` — the no-look-ahead guarantee rests on an undocumented
-  column convention, that `gross_edges[t]` is the return earned over `[t, t+1]`.
-  If it is the edge realised at `t`, then `shift(-1)` *is* the look-ahead. This
-  one deserves care rather than a comment: the convention should be stated where
-  the shift happens, and a test should distinguish the two readings.
 - `backtesting/walk_forward.py` — `self._splitter` stores the class rather than
   an instance, so there is no seam for a test double.
 - `infrastructure/storage/quotes.py` — the Parquet file is moved to its final

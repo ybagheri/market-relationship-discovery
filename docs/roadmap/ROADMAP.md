@@ -284,8 +284,9 @@ de-duplication.
       size; `half_life` had no plausibility bound; `lead_lag` had no documented
       sign convention or significance; `rolling_correlation` had no caller and
       was removed
-- [ ] `statistics/analyzer.py` and `backtesting/multi_stage.py` — two identical
-      copies of the rolling z-score used as model input
+- [x] `statistics/analyzer.py` and `backtesting/multi_stage.py` — two identical
+      copies of the rolling z-score used as model input; the builder now delegates
+      to the one implementation and a test asserts the agreement
 - [ ] `backtesting/engine.py` — the no-look-ahead guarantee rests on an
       undocumented column convention: that `gross_edges[t]` is the return earned
       over `[t, t+1]`. If it is the edge realised at `t`, `shift(-1)` is itself the

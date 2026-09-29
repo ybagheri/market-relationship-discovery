@@ -4,6 +4,19 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — one transform instead of two copies
+
+`CausalFeatureBuilder.rolling_zscore` and
+`StatisticalAnalyzer.rolling_zscore` were two implementations of the same
+calculation. They agreed on every input tried, including missing values, a
+constant window, and a constant series, so this is not a bug fix. It is a
+removal of a way for them to stop agreeing: the first feeds the ranking model
+while the second is what the research report describes, so a change applied to
+one would have left the other measuring something else without any signal that
+anything was wrong. The builder now delegates to the single implementation, and
+a test asserts the agreement on the inputs that distinguish them, because a
+comment saying they are the same is not a guarantee.
+
 ### Fixed — statistics that could not support their own answer
 
 - `correlation` accepted three observations. Any three points on a straight line
