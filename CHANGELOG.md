@@ -4,6 +4,48 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — contract export loading
+
+- `symbol-specs` writes a JSON list, one entry per requested symbol, but
+  `compare-brokers` accepted that list only when it held exactly one entry.
+  Exporting specifications for the several symbols a cross-broker study needs
+  therefore produced a file the comparison rejected with `contract file must
+  contain exactly one specification` — a valid export reported as corrupt.
+  Found against the live Alpari/AMarkets demo pair, where the four-symbol export
+  could not be used for any comparison at all
+- The symbol being compared now selects its entry from the list. An absent symbol
+  names the symbols the file actually contains, and an ambiguous file with no
+  symbol to select by reports how many specifications it holds. A single-entry
+  file still loads without one, so the previous behaviour is unchanged for the
+  case that worked
+- `.env.example` advertised `COSTS__MINIMUM_FILL_RATIO=0.0`, which the 1.9.0
+  handoff notes is now inert rather than lenient, and which reads as "do not gate
+  on size" while actually disabling a safety check. The example now shows the
+  shared default and says what `0.0` means
+
+### Fixed — parallel collection
+
+- A worker failure was raised from inside the `with ProcessPoolExecutor` block, so
+  the exception unwound into the executor's own shutdown. The pool was torn down
+  while the remaining workers were still writing datasets, so a failed run both
+  reported an error and left half-written output on disk. Failures are now
+  collected, the pool is drained, and only then is the error raised
+- The error named only the first profile to finish, so a two-broker run that
+  failed on both reported one. Every failing profile is now named, with the count
+  of profiles that completed
+- A `DemoSafetyError` was wrapped as `ParallelCollectionError`, so a safety
+  refusal became indistinguishable by type from a transient connection error,
+  even though the sequential collector and `doctor` both report it distinctly. A
+  caller that retried connection failures would have retried a refusal that can
+  never succeed. The safety error is now re-raised as itself
+- `DataQualityError` was retried three times. A failed quality check is a verdict
+  about the data rather than a transient fault, and each retry re-ran the whole
+  request, minting a fresh `dataset_id` per attempt and orphaning every
+  superseded dataset on disk — three partially-written datasets in place of one
+  reported error. It is now raised immediately
+- Retries are per symbol rather than per request, so a symbol collected on an
+  earlier attempt is never written twice under a second `dataset_id`
+
 ### Removed
 
 - `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` had no caller in the

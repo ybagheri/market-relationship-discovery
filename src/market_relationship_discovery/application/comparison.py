@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pandas as pd
 
@@ -76,8 +76,11 @@ class CrossBrokerExperimentService:
             comparison_kind,
             max_alignment_delay_ms,
             additional_cost,
-            self._load_contract(contract_a_path),
-            self._load_contract(contract_b_path),
+            # A `symbol-specs` export holds one entry per requested symbol, so
+            # the broker label being compared selects its specification rather
+            # than the whole file being rejected as malformed.
+            self._load_contract(contract_a_path, resolved_symbol_a),
+            self._load_contract(contract_b_path, resolved_symbol_b),
             synchronization_mode,
             tick_aggregation,
             volume,
@@ -214,20 +217,56 @@ class CrossBrokerExperimentService:
         )
         return analyzer.sweep(episodes, baseline, grid or DEFAULT_LATENCY_GRID_MS).to_dict()
 
-    @staticmethod
-    def _load_contract(path: Path | None) -> ContractSpecification | None:
+    def _load_contract(
+        self, path: Path | None, symbol: str | None = None
+    ) -> ContractSpecification | None:
         if path is None:
             return None
         import json
 
         payload = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(payload, list):
-            if len(payload) != 1 or not isinstance(payload[0], dict):
-                raise ValueError("contract file must contain exactly one specification")
-            payload = payload[0]
+            payload = self._select_from_list(payload, symbol, path)
         if not isinstance(payload, dict):
             raise ValueError("contract file must contain a specification object")
         return ContractSpecification.from_dict(payload)
+
+    @staticmethod
+    def _select_from_list(payload: list[object], symbol: str | None, path: Path) -> dict[str, Any]:
+        """Pick one specification from a `symbol-specs` export.
+
+        `symbol-specs` writes a list, one entry per requested symbol, so a file
+        exported for several symbols is not malformed — it is a set of
+        specifications for the symbols named in it. It used to be rejected with
+        "must contain exactly one specification", which reported the export as
+        corrupt when the only problem was that more than one symbol had been
+        requested. The symbol being compared selects the entry, and an ambiguous
+        or absent match names what the file actually contains.
+        """
+        entries = [item for item in payload if isinstance(item, dict)]
+        if not entries:
+            raise ValueError(f"contract file {path} contains no specification objects")
+        if symbol is not None:
+            matching = [
+                item for item in entries if str(item.get("symbol", "")).upper() == symbol.upper()
+            ]
+            if len(matching) == 1:
+                return dict(matching[0])
+            if not matching:
+                available = sorted(str(item.get("symbol", "?")) for item in entries)
+                raise ValueError(
+                    f"contract file {path} has no specification for {symbol!r}; "
+                    f"it contains {', '.join(available)}. Export it for that symbol "
+                    f"or pass --symbol-a/--symbol-b naming one it contains"
+                )
+        if len(entries) == 1:
+            return dict(entries[0])
+        available = sorted(str(item.get("symbol", "?")) for item in entries)
+        raise ValueError(
+            f"contract file {path} contains {len(entries)} specifications "
+            f"({', '.join(available)}); pass the symbol being compared so the "
+            f"matching one can be selected"
+        )
 
     @staticmethod
     def _load(path: Path, symbol: str, canonical_symbol: str) -> pd.DataFrame:

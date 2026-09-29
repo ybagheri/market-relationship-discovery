@@ -238,11 +238,11 @@ de-duplication.
 
 ### Medium — a failure is presented as a favourable result
 
-- [ ] `parallel_collection.py` — raising inside the executor drains the pool on
-      shutdown while workers keep writing datasets, and `DataQualityError` is
+- [x] `parallel_collection.py` — raising inside the executor drained the pool on
+      shutdown while workers kept writing datasets, and `DataQualityError` was
       retried three times, each attempt minting a new `dataset_id` and orphaning
       the previous output
-- [ ] `parallel_collection.py` — a `DemoSafetyError` in parallel mode is wrapped
+- [x] `parallel_collection.py` — a `DemoSafetyError` in parallel mode is wrapped
       as `ParallelCollectionError`, so a safety refusal is indistinguishable by
       type from a transient connection error
 - [ ] `market_data/panel.py` — `read_csv` infers dtypes, so a symbol code like
@@ -250,8 +250,10 @@ de-duplication.
 - [ ] `validation/quality.py` — a string price column raises `TypeError` instead
       of `DataQualityError`, and duplicate counting runs across the whole frame,
       so a legitimate two-symbol tick file is reported invalid
-- [ ] `cli.py` — `symbol-specs` writes a JSON list, which `compare-brokers` rejects
-      whenever more than one symbol was requested
+- [x] `cli.py` — `symbol-specs` writes a JSON list, which `compare-brokers`
+      rejected whenever more than one symbol was requested. The compared symbol
+      now selects its entry, and an unmatched or ambiguous file names the
+      symbols it actually contains
 - [ ] `market_data/symbols.py` — alias matching is substring-based, so `XAUUSD`
       matches `XAUUSDmicro`, and the winner is whichever symbol the broker listed
       first
@@ -260,6 +262,17 @@ de-duplication.
 
 ### Low — hygiene with real consequences
 
+- [ ] `market_data/contract.py` — a differing `volume_max` alone is treated as
+      `incompatible` and blocks the comparison. Observed on the live demo pair on
+      2026-09-29: WTI has identical `contract_size` (1000), `tick_size`, and
+      `tick_value` (10) on both brokers and differs *only* in maximum volume, 5
+      lots on Alpari against 100 on AMarkets. That is one instrument with a
+      different size limit, not two instruments, and a study at a size both
+      brokers accept is valid. The cap is already enforced per leg by the fill
+      assessor, so blocking the whole comparison is stricter than the evidence
+      requires. *Needs a decision:* either treat a size bound as a fill-time
+      constraint rather than an incompatibility, or state why a research
+      comparison must be refused for a difference in how much may be traded
 - [ ] `config/settings.py` — `DataSettings.timezone` is half of a critical
       `doctor` verdict that no data path honours; `cache_enabled` and
       `cache_directory` are read by nothing; `latency_log_statistic` is an

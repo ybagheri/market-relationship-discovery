@@ -168,8 +168,8 @@
 
 ### متوسط — خرابی به‌شکل نتیجه مطلوب نمایش داده می‌شود
 
-- [ ] `parallel_collection.py` — raise کردن داخل executor هنگام shutdown کل pool را تخلیه می‌کند در حالی که workerها به نوشتن دیتاست ادامه می‌دهند، و `DataQualityError` سه بار retry می‌شود که هر تلاش یک `dataset_id` جدید می‌سازد و خروجی قبلی را یتیم می‌کند
-- [ ] `parallel_collection.py` — یک `DemoSafetyError` در حالت موازی به `ParallelCollectionError` پیچیده می‌شود، پس رد ایمنی از نظر نوع از خطای گذرا قابل تفکیک نیست
+- [x] `parallel_collection.py` — raise کردن داخل executor هنگام shutdown کل pool را تخلیه می‌کرد در حالی که workerها به نوشتن دیتاست ادامه می‌دادند، و `DataQualityError` سه بار retry می‌شد که هر تلاش یک `dataset_id` جدید می‌ساخت و خروجی قبلی را یتیم می‌کرد
+- [x] `parallel_collection.py` — یک `DemoSafetyError` در حالت موازی به `ParallelCollectionError` پیچیده می‌شد، پس رد ایمنی از نظر نوع از خطای گذرا قابل تفکیک نبود
 - [ ] `market_data/panel.py` — `read_csv` نوع داده را استنتاج می‌کند، پس کد نمادی مثل `000300` به عدد `300` تبدیل می‌شود و هرگز به برچسب بروکر join نمی‌شود
 - [ ] `validation/quality.py` — ستون قیمت رشته‌ای به‌جای `DataQualityError` خطای `TypeError` می‌دهد، و شمارش duplicate روی کل frame اجرا می‌شود، پس یک فایل tick معتبر دونمادی نامعتبر گزارش می‌شود
 - [ ] `cli.py` — `symbol-specs` یک لیست JSON می‌نویسد که `compare-brokers` هر بار بیش از یک نماد درخواست شده باشد آن را رد می‌کند

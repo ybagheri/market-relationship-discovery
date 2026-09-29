@@ -25,6 +25,10 @@ reports/backtests/*
 *.parquet
 *.duckdb
 *.sqlite
+# Captured contract specifications are machine-specific local research inputs.
+# They contain terminal paths and a broker's own symbol naming.
+config/specs/*
+!config/specs/.gitkeep
 .idea/
 .vscode/
 .DS_Store
