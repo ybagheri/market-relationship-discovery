@@ -4,6 +4,22 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — a walk-forward splitter that could not be substituted
+
+`WalkForwardValidator` stored the `WalkForwardSplitter` *class* on the instance
+and called it as a constructor, so there was no way to supply a different
+splitter except by assigning to the private `_splitter` attribute. The window
+arithmetic is the part of that class most worth testing on its own, and it could
+only be exercised through a complete validation run.
+
+No reported figure was wrong. This is a testability defect, and it mattered
+because the fold-boundary property — that no fold settles on an observation
+outside its own test window — is what the overlap-deduplication logic assumes.
+That assumption was previously untestable in isolation.
+
+The splitter is now injected as a factory on the constructor, so the
+substitution is an ordinary public call.
+
 ### Fixed — a no-look-ahead guarantee resting on an unstated column convention
 
 `run_next_observation` promises that a decision at bar `t` is settled by an

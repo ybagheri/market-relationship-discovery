@@ -295,8 +295,10 @@ de-duplication.
       separate defect in the same function, found while fixing this one: the
       three inputs did not have to share an observation grid, so the union's
       "next row" could be a fraction of a second after the decision
-- [ ] `backtesting/walk_forward.py` — `self._splitter` stores the class, not an
-      instance, so there is no seam for a test double
+- [x] `backtesting/walk_forward.py` — `self._splitter` stored the class, not an
+      instance, so there was no seam for a test double and the window arithmetic
+      could only be tested through a full run. The splitter is now injected as a
+      factory, which is what lets the fold-boundary property be asserted directly
 - [ ] `infrastructure/storage/quotes.py` — the Parquet file is moved to its final
       path before the manifest is written, so a manifest failure orphans a dataset
 - [ ] `cli.py` — `_serializable` raises a context-free `TypeError` for NumPy

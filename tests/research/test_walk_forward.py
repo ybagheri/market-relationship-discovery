@@ -162,3 +162,48 @@ def test_every_fold_is_settled_on_the_same_declared_bar() -> None:
     assert (
         forward.aggregate_test_metrics.observations != realised.aggregate_test_metrics.observations
     )
+
+
+def test_the_splitter_can_be_substituted_without_touching_a_private_attribute() -> None:
+    """The seam exists so the window arithmetic can be tested on its own.
+
+    Storing the splitter class left no way to inject a double except by
+    assigning to `_splitter`, which is why nothing could assert *which* windows
+    a run actually used. With a public factory the substitution is ordinary.
+    """
+    data = frame()
+    calls: list[WalkForwardConfig] = []
+
+    def factory(config: WalkForwardConfig) -> WalkForwardSplitter:
+        calls.append(config)
+        return WalkForwardSplitter(config)
+
+    validator = WalkForwardValidator(splitter_factory=factory)
+    config = WalkForwardConfig(10, 8, 8, 8, thresholds=(0.0,), minimum_train_observations=1)
+
+    result = validator.run(data, config, "signal", "gross_edge", "cost")
+
+    assert calls == [config]
+    # The factory built a real splitter, so the run is unchanged.
+    assert result.completed_folds == 2
+    assert result.folds[0].window.train_start == data.index[0]
+
+
+def test_a_fold_cannot_score_an_observation_outside_its_own_test_window() -> None:
+    """Now expressible because the splitter is substitutable.
+
+    A splitter that reported windows one bar too wide would let a fold settle
+    on the first bar of the next fold, which is the boundary property the
+    deduplication logic assumes. The real splitter cannot do this, and the
+    substitute makes the assumption testable rather than merely asserted in a
+    comment.
+    """
+    data = frame()
+    config = WalkForwardConfig(10, 8, 8, 8, thresholds=(0.0,), minimum_train_observations=1)
+    real = WalkForwardValidator().run(data, config, "signal", "gross_edge", "cost")
+
+    for fold in real.folds:
+        window = fold.window
+        for trade in fold.test_trades:
+            assert window.test_start <= trade.decision_timestamp <= window.test_end
+            assert window.test_start <= trade.execution_timestamp <= window.test_end

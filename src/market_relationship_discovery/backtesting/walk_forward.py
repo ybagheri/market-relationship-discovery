@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from math import isfinite
 
@@ -140,9 +141,22 @@ class WalkForwardSplitter:
 
 
 class WalkForwardValidator:
-    def __init__(self) -> None:
+    """Chronological validation: select on train, report, then test once.
+
+    The splitter is injected as a factory because the window arithmetic is the
+    part of this class most worth testing independently, and storing the class
+    itself left no way to substitute it without reaching into a private
+    attribute. That is not a hypothetical: it is why the slicing and the
+    fold-boundary properties had no test that could isolate them from the
+    backtester.
+    """
+
+    def __init__(
+        self,
+        splitter_factory: Callable[[WalkForwardConfig], WalkForwardSplitter] = WalkForwardSplitter,
+    ) -> None:
         self._backtester = ResearchBacktester()
-        self._splitter = WalkForwardSplitter
+        self._splitter = splitter_factory
 
     def run(
         self,
