@@ -4,6 +4,7 @@ from enum import StrEnum
 from itertools import permutations
 
 from market_relationship_discovery.relationships.catalog import RelationshipDefinition
+from market_relationship_discovery.relationships.formula import render_symbol
 
 
 class CandidateStatus(StrEnum):
@@ -35,7 +36,11 @@ class CandidateDiscoveryEngine:
                 DiscoveryCandidate(
                     name=f"{target}_RATIO",
                     target=target,
-                    formula=f"{numerator} / {denominator}",
+                    # Broker names reach this f-string verbatim, and some brokers
+                    # publish a hyphenated name such as ``XAU-USD``. Writing that
+                    # name bare would read as a subtraction, so it is rendered
+                    # such that re-parsing recovers the same symbol.
+                    formula=f"{render_symbol(numerator)} / {render_symbol(denominator)}",
                     status=CandidateStatus.REQUIRES_DATA,
                 )
             )
@@ -45,7 +50,10 @@ class CandidateDiscoveryEngine:
                 DiscoveryCandidate(
                     name=f"{target}_SYNTHETIC",
                     target=target,
-                    formula=f"{first} * {second} / {third}",
+                    formula=(
+                        f"{render_symbol(first)} * {render_symbol(second)}"
+                        f" / {render_symbol(third)}"
+                    ),
                     status=CandidateStatus.REQUIRES_DATA,
                 )
             )

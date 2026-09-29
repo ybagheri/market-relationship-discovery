@@ -30,6 +30,7 @@ from market_relationship_discovery.relationships.formula import (
     Expression,
     FormulaParser,
     Operation,
+    render_symbol,
     semantic_key,
 )
 
@@ -52,7 +53,7 @@ def canonical_formula(expression: Expression) -> str:
     precedence requires them, which removes redundant grouping.
     """
     if expression.symbol is not None:
-        return expression.symbol
+        return render_symbol(expression.symbol)
     if expression.left is None or expression.right is None:
         raise NormalizationError("invalid expression node")
     operation = expression.operation
@@ -74,7 +75,7 @@ def canonical_formula(expression: Expression) -> str:
 def _flatten(expression: Expression, operation: Operation) -> list[str]:
     """Collect the canonical operands of an associative chain."""
     if expression.symbol is not None:
-        return [expression.symbol]
+        return [render_symbol(expression.symbol)]
     if expression.left is None or expression.right is None:
         raise NormalizationError("invalid expression node")
     if expression.operation is operation:

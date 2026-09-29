@@ -112,7 +112,8 @@ remaining ones are listed below rather than left implicit.
 - [x] Data-driven ranking and robustness filters
 - [x] Causal ranking features only; no whole-sample statistic enters the model
 - [x] One malformed candidate degrades to a status instead of aborting the run
-- [!] `A-B` tokenises as a single symbol name
+- [x] `A-B` parses as a subtraction; a hyphenated broker name is written quoted
+- [x] Formula rendering round-trips: a rendered formula re-parses to the same identity
 - [!] `generate` emits unevaluable targets and inflates `REQUIRES_DATA`
 
 ## Phase 7 — Backtesting
@@ -194,11 +195,25 @@ than the mean across it, which is twice the expectation under linear decay. The
 producer also took the peak from anywhere in the episode while the model treated
 it as the starting value, so episodes now carry the measured offset.
 
+The formula-tokeniser item turned out to be two defects and one of them was not
+in this list. The listed defect is real: `-` inside the identifier class made
+`A-B` a single symbol that cannot exist in a panel, so the subtraction was
+discarded. Removing `-` alone would have been a second wrong answer, because the
+discovery engine interpolates live broker names into formula text and brokers do
+publish hyphenated names — those would have become silent subtractions. A name
+containing a hyphen is now written quoted, and every renderer of a formula quotes
+a name that would otherwise be ambiguous, so a formula always re-parses to the
+identity it was rendered from. The unlisted defect is that the monomial identity
+key joined names with `,` and `^` unescaped, which quoting would have turned into
+a way to forge another formula's key and merge two hypotheses during
+de-duplication.
+
 ### High — a reported figure is wrong
 
-- [ ] `relationships/formula.py` — `-` inside the identifier class makes `A-B` a
-      single symbol name, so an un-spaced subtraction becomes a dependency that
-      can never exist in a panel
+- [x] `relationships/formula.py` — `-` inside the identifier class made `A-B` a
+      single symbol name, so an un-spaced subtraction became a dependency that
+      can never exist in a panel. Corrected with quoting for names that
+      genuinely contain a hyphen, and with an escaped identity key
 - [ ] `market_data/contract.py` — a broker that halves `contract_size` without
       halving `tick_value` is not describing the same instrument. 1.9.0 reports the
       disagreement; it does not yet refuse the comparison

@@ -94,12 +94,42 @@ Division and subtraction are neither associative nor commutative, so their
 operand order is preserved exactly. `A / B` and `B / A` assert different things
 and must remain separate hypotheses.
 
+### A hyphen is subtraction unless the name is quoted
+
+`A-B` is a subtraction. An earlier parser accepted `-` as an identifier
+character, so `A-B` became a single symbol named `A-B`. That name cannot exist
+in a price panel, so the candidate was reported as needing data it never asked
+for, and the subtraction the researcher wrote was discarded without a word.
+
+Brokers do publish hyphenated names, so removing the hyphen outright would have
+been wrong in the other direction: the discovery engine interpolates live broker
+names into formula text, and a bare `XAU-USD` would silently become a
+subtraction. A name that genuinely contains a hyphen is therefore written
+quoted:
+
+```text
+"XAU-USD" / EURUSD
+```
+
+The quotation is a property of the formula text, not of the symbol. A quoted
+name resolves to the same panel column as a bare one, and every rendering of a
+formula — candidate generation, the canonical form used for de-duplication, and
+the semantic key — quotes a name whenever writing it bare would be ambiguous, so
+a formula always re-parses to the identity it was rendered from. A bare hyphen is
+always the operator.
+
 ### Equivalence basis
 
 De-duplication first proves equality for monomial rational forms. Signed symbol
 exponents are folded, so `A/(B*C)`, `A/B/C`, and `(A/B)*B` reduce to the same
 identity as `A`. A second syntactic pass keeps the existing guarantees for
 additive forms.
+
+The identity key joins symbol names with `,` and `^`. A name that is not
+unambiguous bare is quoted inside the key, so a name containing a separator
+cannot forge the key of a different formula and be collapsed into it. A
+de-duplication that merged two different hypotheses would remove a test while
+reporting a smaller family, which is the error this module exists to prevent.
 
 Two different formulas reaching the same target remain two hypotheses:
 

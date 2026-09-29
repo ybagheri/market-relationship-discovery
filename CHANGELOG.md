@@ -4,6 +4,38 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — formula parsing
+
+- `-` was accepted as an identifier character, so the un-spaced subtraction
+  `A-B` tokenised as one symbol named `A-B`. That name cannot exist in a price
+  panel, so the evaluator reported the candidate as `requires_data` with a
+  `missing_symbols` entry for a symbol that was never requested, and the
+  subtraction the researcher actually wrote was discarded without a word. The
+  same defect reached further than the roadmap recorded: `XAU-USD/USD-USD` also
+  produced a phantom `USD-USD` dependency, and `X-B-A` collapsed entirely. A bare
+  `-` is now always the subtraction operator, and `A-B` is proven equal to
+  `A - B`
+- A hyphen inside a genuine broker symbol name is now written quoted, as in
+  `"XAU-USD" / EURUSD`. This is the part the roadmap did not anticipate: the
+  discovery engine interpolates live broker names into formula text, and brokers
+  do publish hyphenated names. Simply deleting `-` from the identifier class
+  would have converted those names into silent subtractions, replacing one wrong
+  answer with another. Candidate generation, the canonical form used for
+  de-duplication, and the semantic key all render a name so that re-parsing
+  recovers exactly the symbol given, so a hyphenated panel column evaluates
+  normally and its formula re-parses to the same identity
+- The monomial semantic key joined symbol names with `,` and `^` without
+  escaping, so once quoting made those characters reachable in a name, two
+  different formulas could forge the same key and be collapsed into one
+  hypothesis during de-duplication. Names that are not unambiguous bare are now
+  quoted inside the key, so a key can be forged only by an identical formula
+- Leading and trailing whitespace was rejected with `invalid character at
+  position N` because the token pattern anchored its whitespace run to a
+  required token, so a trailing space failed at the end of the string. Whitespace
+  is now skipped wherever it appears
+- An unterminated quote is reported as such instead of failing later as an
+  unrelated `invalid character`
+
 ### Documentation
 
 - Added a handoff record for the 2026-09-28 correction session: what was wrong in
