@@ -4,6 +4,34 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — data quality and alignment
+
+- Duplicate timestamps were counted across the whole frame, so two symbols
+  quoting the same instant — the normal case for a multi-symbol bar collection —
+  was reported as a duplicate. A correct observation about the data was
+  presented as a defect in it, and the collector raised a quality failure for a
+  file that was fine. Duplicates are now counted within one symbol of one
+  broker, which is the thing that actually corrupts a series
+- A price column arriving as text raised a bare `TypeError` from a string
+  comparison, taking the whole collection down with a traceback instead of a
+  reason. Prices are now read explicitly, and a value that is present but
+  unparseable is reported as `unreadable_price`, which is distinct from a value
+  that is absent
+- `align_timeseries` returned unmatched rows as rows full of `NaN` with an
+  undefined delay, so the frame was larger than the evidence in it and a caller
+  could not tell a matched row from a missing one. Only matched rows are
+  returned, and the new `align` reports how many left and right rows were not
+  matched. The frame-returning helper is kept for callers that want a frame, and
+  this is the convention the cross-broker layer already followed
+- The roadmap listed three alignment implementations that disagree. Two of them
+  are in active use and are not interchangeable: `cross_broker` aligns two
+  broker feeds within a tolerance and counts what it dropped, while
+  `research.service` aligns several symbols for a single-broker relationship
+  study. The unused one is now consistent with the first. Merging all three is
+  not attempted: the symmetric mutual-nearest event-time match in
+  `cross_broker._symmetric_align` is a different rule chosen deliberately, since
+  reusing one quote twice would overstate the evidence
+
 ### Added — a symbol set defines a study across brokers
 
 - A study's symbol list belonged on the command line, so running the same

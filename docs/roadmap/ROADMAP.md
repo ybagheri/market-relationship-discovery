@@ -247,9 +247,14 @@ de-duplication.
       type from a transient connection error
 - [x] `market_data/panel.py` — `read_csv` inferred dtypes, so a symbol code like
       `000300` became the integer `300` and could never join to a broker label
-- [ ] `validation/quality.py` — a string price column raises `TypeError` instead
-      of `DataQualityError`, and duplicate counting runs across the whole frame,
-      so a legitimate two-symbol tick file is reported invalid
+- [x] `validation/quality.py` — a string price column raised `TypeError` instead
+      of `DataQualityError`, and duplicate counting ran across the whole frame,
+      so a legitimate two-symbol tick file was reported invalid
+- [x] `market_data/alignment.py` — `align_timeseries` returned unmatched rows
+      with a `NaT` delay, so the frame was larger than its evidence. It now
+      returns only matched rows and reports the unmatched counts. The three
+      alignment implementations are not merged: the symmetric event-time match
+      is a deliberately different rule, documented in `DATA_QUALITY.md`
 - [x] `cli.py` — `symbol-specs` writes a JSON list, which `compare-brokers`
       rejected whenever more than one symbol was requested. The compared symbol
       now selects its entry, and an unmatched or ambiguous file names the
@@ -258,8 +263,6 @@ de-duplication.
       matched `XAUUSDmicro` and the winner was whichever symbol the broker listed
       first. Aliases now match at a word boundary and results are ranked by match
       quality rather than catalog order
-- [ ] `market_data/alignment.py` — `align_timeseries` is unused and returns
-      unmatched rows with a `NaT` delay; the two alignment implementations disagree
 
 ### Low — hygiene with real consequences
 

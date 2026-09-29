@@ -18,8 +18,8 @@ as evidence. A passing test suite did not catch any of them, because the tests
 asserted that the pipeline produced a well-formed result, not that the result was
 true. Version 1.9.0 corrects the ones that were found.
 
-Every item in the audit's **High** list is now corrected, each with a regression
-test that fails against the code as it was. Four since 1.9.0:
+Every item in the audit's **High** and **Medium** lists is now corrected, each
+with a regression test that fails against the code as it was. Four since 1.9.0:
 
 - `-` was an identifier character, so `A-B` was one symbol that cannot exist in a
   panel and the subtraction was discarded. A hyphenated broker name such as
@@ -33,6 +33,11 @@ test that fails against the code as it was. Four since 1.9.0:
 - `CostAwareAnalyzer` and `CostModel` had no caller and held a latency assumption
   they never applied; the single-symbol path claims no executable discrepancy, so
   they were removed rather than wired in
+- Duplicate timestamps were counted across a whole frame, so two symbols quoting
+  the same instant — normal for a multi-symbol collection — was reported as a
+  duplicate, and a price column arriving as text raised a bare `TypeError`
+- `align_timeseries` returned unmatched rows as all-`NaN` rows, so the frame was
+  larger than the evidence in it
 
 Corrected in 1.9.0, each with a regression test:
 
@@ -59,8 +64,8 @@ Corrected in 1.9.0, each with a regression test:
   whose residual is a near unit root were reported cointegrated, and that
   biased the false-discovery family built from the same number
 
-The **High** list from that audit is now clear. The defects still open are the
-**Medium** and **Low** items under **Open corrections** in
+The **High** and **Medium** lists from that audit are now clear. The defects still
+open are the **Low** items under **Open corrections** in
 [the roadmap](docs/roadmap/ROADMAP.md), rather than left implicit, along with the
 conventions each document states. Take them in the order the roadmap lists them.
 

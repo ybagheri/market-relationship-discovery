@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
@@ -10,12 +13,56 @@ class AlignmentDirection(StrEnum):
     NEAREST = "nearest"
 
 
+@dataclass(frozen=True, slots=True)
+class AlignmentResult:
+    """Aligned observations together with what alignment could not match.
+
+    Unmatched rows used to survive as rows full of `NaN` with an undefined delay,
+    so a caller could neither trust the row count nor tell a missing observation
+    from a matched one. A row that is not an observation is dropped, and its
+    count is reported, which is what the cross-broker layer already did.
+    """
+
+    frame: pd.DataFrame
+    matched: int
+    unmatched_left: int
+    unmatched_right: int
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "matched_observations": self.matched,
+            "unmatched_left_rows": self.unmatched_left,
+            "unmatched_right_rows": self.unmatched_right,
+        }
+
+
 def align_timeseries(
     left: pd.DataFrame,
     right: pd.DataFrame,
     max_delay_ms: int,
     direction: AlignmentDirection = AlignmentDirection.BACKWARD,
 ) -> pd.DataFrame:
+    """Align two time series within a tolerance.
+
+    Kept for callers that want a frame. Prefer :func:`align` when the counts of
+    dropped rows matter, because a frame of `NaN` rows is not an observation of
+    anything.
+    """
+    return align(left, right, max_delay_ms, direction).frame
+
+
+def align(
+    left: pd.DataFrame,
+    right: pd.DataFrame,
+    max_delay_ms: int,
+    direction: AlignmentDirection = AlignmentDirection.BACKWARD,
+) -> AlignmentResult:
+    """Join two series on time within a tolerance, reporting what did not match.
+
+    Only matched rows are returned. A row that failed to match is not a
+    measurement, and returning it with `NaN` prices and an undefined delay made
+    an alignment look larger than the evidence it contained.
+    """
     if "timestamp" not in left or "timestamp" not in right:
         raise ValueError("both frames require a timestamp column")
     if max_delay_ms < 0:
@@ -45,4 +92,18 @@ def align_timeseries(
     result["alignment_delay_ms"] = (
         result["timestamp"] - result["_right_timestamp"]
     ).dt.total_seconds() * 1000.0
-    return result.drop(columns=["_right_timestamp"])
+    # A delay is only defined for a matched row, and every other column arrived
+    # empty for the same reason.
+    matched_mask = result["_right_timestamp"].notna()
+    matched_rows = int(matched_mask.sum())
+    matched_right_timestamps = result.loc[matched_mask, "_right_timestamp"]
+    # A right-hand row that no left row reached is also unaligned. Counting it
+    # from the timestamps actually used avoids reporting a right row as matched
+    # when it was only ever a candidate.
+    unique_matched = int(matched_right_timestamps.nunique())
+    return AlignmentResult(
+        frame=result.loc[matched_mask].drop(columns=["_right_timestamp"]).reset_index(drop=True),
+        matched=matched_rows,
+        unmatched_left=int(len(result) - matched_rows),
+        unmatched_right=int(len(right_index) - unique_matched),
+    )

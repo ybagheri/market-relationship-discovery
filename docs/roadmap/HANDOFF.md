@@ -13,7 +13,7 @@ state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 412 passed |
+| `pytest` | 432 passed |
 | `ruff check .` | clean |
 | `black --check .` | clean |
 | `mypy` (strict) | clean, 69 source files |
@@ -37,7 +37,7 @@ Commits for this session, oldest first:
 | `623e724` | Drain the collection pool before reporting a failure; keep the safety refusal distinguishable |
 | `14b0205` | Let `compare-brokers` use a multi-symbol contract export |
 
-Test count went from 324 to 412. Each correction added regression tests that fail
+Test count went from 324 to 432. Each correction added regression tests that fail
 against the code as it was before the change; the removed cost model took its one
 test with it and was replaced by three stronger ones.
 
@@ -248,23 +248,23 @@ fix, move the item into its phase, add a changelog entry describing what number
 was wrong, and update the document under `docs/research/` whose convention
 changed.
 
-Remaining counts: **0 High, 2 Medium, 10 Low**, plus 2 Phase 10 items that are
+Remaining counts: **0 High, 0 Medium, 10 Low**, plus 2 Phase 10 items that are
 deliberately out of scope.
 
-The next item, first under **Medium**:
+The next item, first under **Low**:
 
-`validation/quality.py` — a string price column raises `TypeError` instead of
-`DataQualityError`, and duplicate counting runs across the whole frame, so a
-legitimate two-symbol tick file is reported invalid. The second half is the one
-that matters on live data: a two-broker comparison collects into one frame, and a
-file holding two symbols legitimately repeats every timestamp, so counting
-duplicates across the whole frame condemns correct data. The fix is to count
-within a symbol.
+`market_data/contract.py` — a differing `volume_max` alone is treated as
+`incompatible` and blocks the comparison, although the cap is already enforced
+per leg by the fill assessor. This one was found on live WTI data, and the
+decision is a research judgement rather than a mechanical correction, so it is
+listed in the roadmap with the observation attached.
 
-The last **Medium** item is `market_data/alignment.py`: `align_timeseries` is
-unused and returns unmatched rows with a `NaT` delay, and the two alignment
-implementations disagree with each other. Two implementations of the same join
-that do not agree is worth resolving before either is used further.
+`config/settings.py` follows: `DataSettings.timezone` is half of a critical
+`doctor` verdict that no data path honours, `cache_enabled` and
+`cache_directory` are read by nothing, and `latency_log_statistic` is an
+unvalidated string. The timezone one is worth doing first — a setting that
+half-decides a safety verdict while nothing obeys it is a statement about the
+system that is not true.
 
 ## A study is now defined once, for several brokers
 

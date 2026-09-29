@@ -171,7 +171,8 @@
 - [x] `parallel_collection.py` — raise کردن داخل executor هنگام shutdown کل pool را تخلیه می‌کرد در حالی که workerها به نوشتن دیتاست ادامه می‌دادند، و `DataQualityError` سه بار retry می‌شد که هر تلاش یک `dataset_id` جدید می‌ساخت و خروجی قبلی را یتیم می‌کرد
 - [x] `parallel_collection.py` — یک `DemoSafetyError` در حالت موازی به `ParallelCollectionError` پیچیده می‌شد، پس رد ایمنی از نظر نوع از خطای گذرا قابل تفکیک نبود
 - [x] `market_data/panel.py` — `read_csv` نوع داده را استنتاج می‌کرد، پس کد نمادی مثل `000300` به عدد `300` تبدیل می‌شد و هرگز به برچسب broker join نمی‌شد
-- [ ] `validation/quality.py` — ستون قیمت رشته‌ای به‌جای `DataQualityError` خطای `TypeError` می‌دهد، و شمارش duplicate روی کل frame اجرا می‌شود، پس یک فایل tick معتبر دونمادی نامعتبر گزارش می‌شود
+- [x] `validation/quality.py` — ستون قیمت رشته‌ای به‌جای `DataQualityError` خطای `TypeError` می‌داد، و شمارش duplicate روی کل frame اجرا می‌شد، پس یک فایل tick معتبر دونمادی نامعتبر گزارش می‌شد
+- [x] `market_data/alignment.py` — `align_timeseries` ردیف‌های تطبیق‌نیافته را با تأخیر `NaT` برمی‌گرداند، پس frame بزرگ‌تر از شواهدش بود. اکنون تنها ردیف‌های منطبق را برمی‌گرداند و شمارش‌های تطبیق‌نیافته را گزارش می‌کند. سه پیاده‌سازی alignment ادغام نشدند: تطابق symmetric در زمان رویداد قاعده‌ای عمداً متفاوت است
 - [x] `cli.py` — `symbol-specs` یک لیست JSON می‌نویسد که `compare-brokers` آن را رد می‌کرد اگر بیش از یک نماد درخواست شده بود؛ اکنون نمادِ مقایسه‌شده ورودی‌اش را انتخاب می‌کند
 - [x] `market_data/symbols.py` — تطبیق alias مبتنی بر substring بود، پس `XAUUSD` با `XAUUSDmicro` هم تطبیق می‌کرد و برنده آن بود که بروکر زودتر فهرست کرده. alias اکنون در مرز واژه تطبیق می‌کند و نتایج بر اساس کیفیت تطابق رتبه‌بندی می‌شوند نه ترتیب کاتالوگ
 - [ ] `market_data/alignment.py` — `align_timeseries` استفاده‌نشده است و ردیف‌های تطبیق‌نیافته را با تأخیر `NaT` برمی‌گرداند؛ دو پیاده‌سازی alignment با هم disagree می‌کنند
