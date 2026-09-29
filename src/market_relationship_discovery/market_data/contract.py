@@ -10,6 +10,15 @@ from typing import Any
 # precision, so exact equality is not a reasonable expectation.
 LEG_AGREEMENT_TOLERANCE = 0.05
 
+# Relative tolerance within which two specifications are taken to value one
+# unit of the underlying identically. This compares two numbers that describe
+# the *same instrument*, not two valuations of a market outcome, so it is
+# deliberately tighter than the leg-agreement tolerance: a broker rounding a
+# published field is tolerated, a broker describing a different scale is not.
+VALUE_PER_UNIT_TOLERANCE = 0.01
+
+_TRADE_MODE_ISSUE = "trade modes are not fully available"
+
 
 class ContractCompatibilityStatus(StrEnum):
     UNVERIFIED = "unverified"
@@ -187,12 +196,12 @@ class ContractSpecificationAnalyzer:
         if not self._same(specification_a.volume_step, specification_b.volume_step):
             issues.append("volume steps differ")
         if specification_a.trade_mode is None or specification_b.trade_mode is None:
-            issues.append("trade modes are not fully available")
+            issues.append(_TRADE_MODE_ISSUE)
         elif specification_a.trade_mode != specification_b.trade_mode:
             issues.append("trade modes differ")
         size_ratio = self._ratio(specification_b.contract_size, specification_a.contract_size)
         tick_ratio = self._ratio(specification_b.tick_value, specification_a.tick_value)
-        hard_issues = [issue for issue in issues if issue != "trade modes are not fully available"]
+        hard_issues = [issue for issue in issues if issue != _TRADE_MODE_ISSUE]
         if hard_issues:
             return ContractCompatibilityReport(
                 ContractCompatibilityStatus.INCOMPATIBLE,
@@ -204,6 +213,23 @@ class ContractSpecificationAnalyzer:
             return ContractCompatibilityReport(
                 ContractCompatibilityStatus.REVIEW_REQUIRED,
                 tuple(issues),
+                size_ratio,
+                tick_ratio,
+            )
+        # A broker that halves its contract size must also halve its tick value,
+        # because both scale the same quantity: the money value of one unit of
+        # the underlying. When only one of them moves, the two specifications
+        # do not describe the same instrument at any volume, and no normalization
+        # can reconcile them — a volume that balances the notional leaves the two
+        # legs valuing it differently, which is the inconsistency the legs-agree
+        # check reports further downstream as a disagreeing pair.
+        if not self._values_the_same_instrument(specification_a, specification_b):
+            return ContractCompatibilityReport(
+                ContractCompatibilityStatus.INCOMPATIBLE,
+                (
+                    "contract size and tick value do not scale together; the two "
+                    "specifications do not value the same instrument",
+                ),
                 size_ratio,
                 tick_ratio,
             )
@@ -226,6 +252,28 @@ class ContractSpecificationAnalyzer:
             (),
             size_ratio,
             tick_ratio,
+        )
+
+    @staticmethod
+    def _value_per_unit(specification: ContractSpecification) -> float:
+        """Money value of one unit of the underlying per unit of price.
+
+        One lot covers ``contract_size`` units of the base currency and a price
+        move of ``tick_size`` is worth ``tick_value``, so the two describe the
+        same economic quantity and a broker quoting the same instrument at a
+        different lot size must scale both together.
+        """
+        return specification.tick_value / (specification.tick_size * specification.contract_size)
+
+    @classmethod
+    def _values_the_same_instrument(
+        cls, specification_a: ContractSpecification, specification_b: ContractSpecification
+    ) -> bool:
+        return isclose(
+            cls._value_per_unit(specification_a),
+            cls._value_per_unit(specification_b),
+            rel_tol=VALUE_PER_UNIT_TOLERANCE,
+            abs_tol=0.0,
         )
 
     @staticmethod

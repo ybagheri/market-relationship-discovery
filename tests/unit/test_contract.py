@@ -53,14 +53,95 @@ def test_identical_specifications_are_compatible() -> None:
     assert report.contract_size_ratio == 1.0
 
 
-def test_contract_size_difference_requires_normalization() -> None:
+def test_a_consistently_scaled_contract_size_requires_normalization() -> None:
+    """Halving the lot size and the tick value together is the same instrument.
+
+    Both fields scale the money value of one unit of the underlying, so a broker
+    quoting the same instrument at half the lot size reports half of each. The
+    difference is real but reconcilable by volume normalization.
+    """
+    report = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(
+            specification(),
+            broker="BrokerB",
+            contract_size=50000.0,
+            tick_value=0.5,
+        ),
+    )
+
+    assert report.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
+    assert report.contract_size_ratio == 0.5
+
+
+def test_halving_the_contract_size_alone_is_refused() -> None:
+    """Halving the lot size without halving the tick value is a different instrument.
+
+    The two legs then value the same position differently at every volume, so no
+    normalization can reconcile them. The earlier code returned
+    ``normalization_required`` here and reported the disagreement only as an
+    advisory suffix on an otherwise crossable opportunity.
+    """
     report = ContractSpecificationAnalyzer().compare(
         specification(),
         replace(specification(), broker="BrokerB", contract_size=50000.0),
     )
 
+    assert report.status is ContractCompatibilityStatus.INCOMPATIBLE
+    assert "do not value the same instrument" in report.issues[0]
+
+
+def test_halving_the_tick_value_alone_is_refused() -> None:
+    report = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(specification(), broker="BrokerB", tick_value=0.5),
+    )
+
+    assert report.status is ContractCompatibilityStatus.INCOMPATIBLE
+
+
+def test_a_ten_times_difference_in_both_fields_is_the_same_instrument() -> None:
+    report = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(
+            specification(),
+            broker="BrokerB",
+            contract_size=10000.0,
+            tick_value=0.1,
+        ),
+    )
+
     assert report.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
-    assert report.contract_size_ratio == 0.5
+    assert report.contract_size_ratio == 0.1
+
+
+def test_a_difference_larger_than_rounding_is_refused() -> None:
+    """The tolerance absorbs a rounded field, not a changed scale.
+
+    A 0.5% gap is a broker publishing at limited precision; a 2% gap means the
+    two specifications value one unit of the underlying differently.
+    """
+    rounded = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(
+            specification(),
+            broker="BrokerB",
+            contract_size=50000.0,
+            tick_value=0.5 * 1.005,
+        ),
+    )
+    changed = ContractSpecificationAnalyzer().compare(
+        specification(),
+        replace(
+            specification(),
+            broker="BrokerB",
+            contract_size=50000.0,
+            tick_value=0.5 * 0.98,
+        ),
+    )
+
+    assert rounded.status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
+    assert changed.status is ContractCompatibilityStatus.INCOMPATIBLE
 
 
 def test_contract_edge_normalizer_scales_volume_and_values_the_edge_once() -> None:

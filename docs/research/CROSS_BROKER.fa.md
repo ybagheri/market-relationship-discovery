@@ -25,7 +25,7 @@
 
 ## safety gate قرارداد
 
-مقایسه tick می‌تواند دو فایل JSON از `ContractSpecification` دریافت کند. نبود spec برچسب unverified می‌دهد. قرارداد ناسازگار، trade mode مفقود و اختلاف contract size یا tick value که نیازمند normalization است، episode opportunity را block می‌کنند. طبقه validated فقط با تطابق ارز، point/digits، محدودیت volume، trade mode، contract size و tick value ممکن است.
+مقایسه tick می‌تواند دو فایل JSON از `ContractSpecification` دریافت کند. نبود spec برچسب unverified می‌دهد. قرارداد ناسازگار و trade mode مفقود، episode opportunity را block می‌کنند. اختلاف contract size و tick value که با یک نسبت باشد با حجم نرمال می‌شود و block نمی‌کند. طبقه validated فقط با تطابق ارز، point/digits، محدودیت volume، trade mode، contract size و tick value ممکن است. قاعده‌ای که جفتی را رد می‌کند وقتی contract size و tick value با هم مقیاس نشوند در [مشخصات قرارداد](CONTRACT_SPECIFICATION.fa.md) آمده است.
 
 ## بازتولیدپذیری
 
@@ -37,4 +37,4 @@
 
 ## محدودیت‌ها
 
-موتور اختلاف سازگار contract size و tick value را نرمال می‌کند، اما currency conversion، funding، rebate، session، ساخت symbol و قوانین اجرای broker-specific را مدل نمی‌کند. هزینه اضافی یک فرض ثابت پژوهشی است. episode مثبت فقط نامزد پژوهش اجرایی عمیق‌تر است.
+موتور اختلاف contract size و tick value را که با هم مقیاس می‌شوند نرمال می‌کند، اما currency conversion، funding، rebate، session، ساخت symbol و قوانین اجرای broker-specific را مدل نمی‌کند. هزینه اضافی یک فرض ثابت پژوهشی است. episode مثبت فقط نامزد پژوهش اجرایی عمیق‌تر است.

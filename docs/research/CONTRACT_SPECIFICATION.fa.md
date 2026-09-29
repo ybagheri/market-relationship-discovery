@@ -21,12 +21,24 @@ python -m market_relationship_discovery symbol-specs --broker-profile DEMO --sym
 `ContractSpecificationAnalyzer` یکی از این وضعیت‌ها را گزارش می‌کند:
 
 - `compatible`: ارزها، point/digits، محدودیت volume، trade mode، contract size و tick value مطابق‌اند
-- `normalization_required`: محدودیت quote مطابق است اما contract size یا tick value فرق دارد
-- `incompatible`: ارزها، point/digits، محدودیت volume یا trade mode فرق دارند
+- `normalization_required`: محدودیت quote مطابق است و contract size و tick value **با یک نسبت** فرق دارند، پس دو پا یک ابزار را با اندازه لات متفاوت توصیف می‌کنند
+- `incompatible`: ارزها، point/digits، محدودیت volume یا trade mode فرق دارند، یا contract size و tick value با هم مقیاس نمی‌شوند
 - `review_required`: فقط یک specification وجود دارد یا trade mode در دسترس نیست
 - `unverified`: هیچ specification ارائه نشده است
 
-بدون spec، مقایسه tick برچسب `crossable_research_contract_unverified` می‌گیرد. فقط با spec سازگار برچسب validated می‌گیرد. قراردادهای نیازمند normalization، ناسازگار یا نیازمند review، episode opportunity را block می‌کنند و تعداد observation مثبت مسدودشده را گزارش می‌دهند.
+بدون spec، مقایسه tick برچسب `crossable_research_contract_unverified` می‌گیرد. فقط با spec سازگار برچسب validated می‌گیرد. قراردادهای ناسازگار یا نیازمند review، episode opportunity را block می‌کنند و تعداد observation مثبت مسدودشده را گزارش می‌دهند؛ جفت نیازمند normalization مسدود نمی‌شود، چون پاهایش با حجم قابل تطبیق‌اند.
+
+## contract size و tick value باید با هم مقیاس شوند
+
+یک لات `contract_size` واحد از ارز پایه را پوشش می‌دهد و جابه‌جایی قیمت به اندازه `tick_size` معادل `tick_value` ارزش دارد. این دو پس یک کمیت اقتصادی را توصیف می‌کنند: ارزش پولی یک واحد از دارایی پایه، یعنی
+
+```text
+tick_value / (tick_size * contract_size)
+```
+
+بروکری که همان ابزار را با اندازه لات متفاوت قیمت‌گذاری می‌کند هر دو فیلد را با هم مقیاس می‌دهد — نصف کردن contract size یعنی نصف شدن tick value — و آن جفت `normalization_required` است. اما اگر تنها یکی از آن دو حرکت کند، دو specification در *هر* حجمی یک موقعیت را متفاوت ارزش‌گذاری می‌کنند، پس هیچ normalization آن‌ها را آشتی نمی‌دهد و جفت `incompatible` است. کد پیشین در این حالت `normalization_required` برمی‌گرداند، یک PnL نرمال‌شده کنار فرصتی که در غیر این صورت crossable بود گزارش می‌کرد، و اختلاف را فقط به‌صورت پسوند مشورتی `_contract_legs_disagree` روی classification می‌زد.
+
+مقایسه با تلورانس نسبی ۱٪ انجام می‌شود که از تلورانس ۵٪ توافق پاها سخت‌گیرانه‌تر است، چون دو عددی را مقایسه می‌کند که *همان ابزار* را توصیف می‌کنند نه دو ارزش‌گذاری از یک نتیجه بازار. بروکری که فیلدی را با دقت محدود منتشر می‌کند تحمل می‌شود؛ بروکری که مقیاس متفاوتی را توصیف می‌کند رد می‌شود.
 
 ## محدودیت‌ها
 

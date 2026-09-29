@@ -159,6 +159,16 @@ broker A reports `tick_value` 0.1 and broker B reports 1.0. The status was
 `Metals\Spot Metals\XAUUSD` while broker B's is `Metals CFD\XAUUSD`, so the
 instruments are not constructed identically despite the shared ticker.
 
+> **These figures predate the contract-size/tick-value correction.** Both legs
+> report the same `contract_size`, so a ten times `tick_value` difference means
+> the two value one unit of gold ten times apart. The current gate classifies this
+> pair as `incompatible` and blocks it outright rather than normalizing it, and
+> the figures below are **labelled as produced by the earlier model rather than
+> restated** — the underlying tick data is not in the repository to recompute.
+> Rerun `compare-brokers` to regenerate them. The lesson the numbers illustrate
+> is unaffected by the correction, and arguably strengthened by it: a maximum
+> positive beside a negative mean was never a tradable edge.
+
 The result is the clearest illustration of why gross numbers mislead. The
 maximum normalized net PnL across observations was **+23.10**, which looks like
 a tradable edge in isolation. The **mean** normalized net PnL was **-14.50**.

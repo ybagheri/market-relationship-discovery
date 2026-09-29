@@ -25,7 +25,7 @@ Bar comparison uses close prices and is always classified as `theoretical_bar_pr
 
 ## Contract safety gate
 
-Tick comparisons can receive two `ContractSpecification` JSON files. Missing specs are labeled unverified. Incompatible contracts, missing trade modes, and contract-size or tick-value differences requiring normalization block opportunity episodes. A validated classification requires compatible currency, point/digits, volume constraints, trade mode, contract size, and tick value.
+Tick comparisons can receive two `ContractSpecification` JSON files. Missing specs are labeled unverified. Incompatible contracts and missing trade modes block opportunity episodes. A contract size and tick value that differ in the same proportion are normalized by volume and do not block. A validated classification requires compatible currency, point/digits, volume constraints, trade mode, contract size, and tick value. See [contract specifications](CONTRACT_SPECIFICATION.md) for the rule that refuses a pair whose contract size and tick value do not scale together.
 
 ## Reproducibility
 
@@ -37,4 +37,4 @@ Persisted `EXP-*.json` comparison reports are available in the dashboard. The di
 
 ## Limitations
 
-The engine normalizes compatible contract size and tick-value differences, but does not model currency conversion, funding, rebates, trading sessions, symbol construction, or broker-specific execution rules. Additional cost is a single fixed research assumption. A positive crossable episode is only a candidate for deeper execution research.
+The engine normalizes contract size and tick-value differences that scale together, but does not model currency conversion, funding, rebates, trading sessions, symbol construction, or broker-specific execution rules. Additional cost is a single fixed research assumption. A positive crossable episode is only a candidate for deeper execution research.

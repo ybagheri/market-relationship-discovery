@@ -21,12 +21,24 @@ Local specification files are research inputs and should not be committed when t
 `ContractSpecificationAnalyzer` reports one of:
 
 - `compatible`: currencies, point/digits, volume constraints, trade mode, contract size, and tick value match
-- `normalization_required`: quote constraints match but contract size or tick value differs
-- `incompatible`: currencies, point/digits, volume constraints, or trade modes differ
+- `normalization_required`: quote constraints match and contract size and tick value differ **in the same proportion**, so the two legs describe one instrument at a different lot size
+- `incompatible`: currencies, point/digits, volume constraints, or trade modes differ, or contract size and tick value do not scale together
 - `review_required`: only one specification exists or trade mode is unavailable
 - `unverified`: neither specification was provided
 
-A tick comparison is labeled `crossable_research_contract_unverified` without specs. It is labeled validated only for compatible specs. Normalization-required, incompatible, and review-required contracts block opportunity episodes and report the number of blocked positive observations.
+A tick comparison is labeled `crossable_research_contract_unverified` without specs. It is labeled validated only for compatible specs. Incompatible and review-required contracts block opportunity episodes and report the number of blocked positive observations; a normalization-required pair does not block, because its legs can be reconciled by volume.
+
+## Contract size and tick value must scale together
+
+One lot covers `contract_size` units of the base currency, and a price move of `tick_size` is worth `tick_value`. The two therefore describe the same economic quantity: the money value of one unit of the underlying, which is
+
+```text
+tick_value / (tick_size * contract_size)
+```
+
+A broker quoting the same instrument at a different lot size scales both fields together — halving the contract size halves the tick value — and the pair is `normalization_required`. If only one of them moves, the two specifications value the same position differently at *every* volume, so no normalization reconciles them and the pair is `incompatible`. The earlier code returned `normalization_required` in that case, reported a normalized PnL beside an otherwise crossable opportunity, and flagged the disagreement only as an advisory `_contract_legs_disagree` suffix on the classification.
+
+The comparison uses a 1% relative tolerance, tighter than the 5% leg-agreement tolerance, because it compares two numbers describing the same instrument rather than two valuations of a market outcome. A broker publishing a field at limited precision is tolerated; a broker describing a different scale is refused.
 
 ## Limitations
 

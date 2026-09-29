@@ -4,6 +4,42 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — contract compatibility
+
+- A broker that halved its `contract_size` without halving its `tick_value` was
+  accepted as `normalization_required`, so the pair passed the contract gate, a
+  normalized PnL was reported beside an otherwise crossable opportunity, and the
+  inconsistency surfaced only as an advisory `_contract_legs_disagree` suffix on
+  the classification. The two fields scale the same quantity — the money value
+  of one unit of the underlying, `tick_value / (tick_size * contract_size)` — so
+  when only one of them moves the two legs value the same position differently
+  at *every* volume and no normalization reconciles them. That pair is now
+  `incompatible` and blocks: `crossable_observations` is 0, no edge is reported,
+  and no opportunities are emitted. Halving both together remains
+  `normalization_required` and still crossable, because that genuinely is the
+  same instrument at a different lot size
+- The comparison uses a 1% relative tolerance, deliberately tighter than the 5%
+  leg-agreement tolerance: it compares two numbers describing the same
+  instrument rather than two valuations of a market outcome, so a broker
+  publishing a field at limited precision is tolerated while a broker describing
+  a different scale is refused
+- The legs-agree check is now a backstop rather than the primary gate, and the
+  `_contract_legs_disagree` suffix is reachable only for a pair that passed
+  compatibility and still diverged — which indicates a rounding or specification
+  defect the tolerance did not cover
+- `CONTRACT_SPECIFICATION.md` claimed that normalization-required contracts
+  block opportunities. They do not, and never did: `contract_blocks` covers
+  incompatible and review-required only. The document now states the actual
+  behaviour
+- The XAUUSD figures quoted in `EXECUTION_MODEL.md` from the 2026-09-26
+  Alpari/AMarkets run are **labelled as produced by the earlier model rather than
+  restated**. Both legs reported the same `contract_size` with a ten times
+  `tick_value` difference, so the current gate refuses that pair outright. The
+  underlying tick data is not in the repository to recompute; rerun
+  `compare-brokers` to regenerate. The maximum-positive-beside-negative-mean
+  lesson those numbers illustrate is unaffected, and the correction strengthens
+  it
+
 ### Fixed — formula parsing
 
 - `-` was accepted as an identifier character, so the un-spaced subtraction

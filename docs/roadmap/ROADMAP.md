@@ -187,6 +187,16 @@ with filled volume, which is true of one leg and wrong of a cross-broker pair,
 where a cap on one side leaves a net directional position. `above_maximum` is
 now a blocking reason. `EXECUTION_MODEL.md` states the corrected convention.
 
+The contract item changes a verdict for the same reason. The pair was previously
+argued to stay comparable because volume normalization can reconcile a lot-size
+difference, and that argument holds only when `tick_value` scales with
+`contract_size`. When it does not, the two legs disagree at every volume, so
+normalization cannot reconcile them and the pair is now refused. This also makes
+the documented legs-agree check a backstop rather than the primary gate. The
+figures `EXECUTION_MODEL.md` quotes from the 2026-09-26 Alpari/AMarkets run fall
+on the refused side of this line, so they are labelled as produced by the earlier
+model rather than restated.
+
 The capture-formula item separates two quantities the model had merged. The
 capturable fraction answers *when* the position can be held and depends only on
 time, so the verdicts are unchanged. The captured edge answers *how much* is in
@@ -214,9 +224,9 @@ de-duplication.
       single symbol name, so an un-spaced subtraction became a dependency that
       can never exist in a panel. Corrected with quoting for names that
       genuinely contain a hyphen, and with an escaped identity key
-- [ ] `market_data/contract.py` — a broker that halves `contract_size` without
-      halving `tick_value` is not describing the same instrument. 1.9.0 reports the
-      disagreement; it does not yet refuse the comparison
+- [x] `market_data/contract.py` — a broker that halves `contract_size` without
+      halving `tick_value` is not describing the same instrument, and the pair is
+      now refused instead of normalized
 - [ ] `discovery/engine.py` — `filter` overwrites `REQUIRES_DATA` with
       `INSUFFICIENT_OBSERVATIONS`, and the `permutations(..., 3)` family is O(n³)
 - [ ] `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` have no caller, and

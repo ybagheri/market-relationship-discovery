@@ -63,7 +63,7 @@
 - پژوهش crossable در سطح tick فقط پس از هزینه اضافی قابل پیکربندی
 - فرکانس، مدت opportunity و provenance دو منبع در مقایسه brokerها
 - دریافت فراداده رسمی قرارداد MT5 و خروجی JSON
-- compatibility gate که در نیاز به normalization، opportunity را block می‌کند
+- compatibility gate که جفتی را رد می‌کند وقتی contract size و tick value آن با هم مقیاس نشوند، چون هیچ حجمی نمی‌تواند آن‌ها را آشتی دهد
 - collection موازی با process مستقل برای هر پروفایل broker
 - نرمال‌سازی volume و PnL آگاه به قرارداد
 - مدل margin که صفر اعلام‌شده بروکر را «گزارش‌نشده» می‌داند، هرگز رایگان

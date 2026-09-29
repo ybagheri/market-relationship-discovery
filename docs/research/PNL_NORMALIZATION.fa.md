@@ -21,7 +21,9 @@ leg_PnL = net_price_edge × leg_volume × tick_value / tick_size
 net_PnL = Broker_A_PnL + Broker_B_PnL
 ```
 
-گزارش cross-broker شامل حجم B به ازای یک واحد A، میانگین و بیشترین PnL خالص نرمال‌شده و مقدار opportunity است. اختلاف contract size یا tick value با وضعیت `normalization_required` مشخص و فقط در صورت وجود specification کامل پردازش می‌شود. ناسازگاری ارز، point/digit یا نبود trade mode همچنان opportunity را block می‌کند.
+گزارش cross-broker شامل حجم B به ازای یک واحد A، میانگین و بیشترین PnL خالص نرمال‌شده و مقدار opportunity است. contract size و tick value که با یک نسبت فرق دارند با وضعیت `normalization_required` مشخص و فقط در صورت وجود specification کامل پردازش می‌شوند. ناسازگاری ارز، point/digit، نبود trade mode، و contract size‌ای که با tick value مقیاس نمی‌شود همگی opportunity را block می‌کنند.
+
+توافق پاها اکنون نقش پشتیبان دارد نه دروازه اصلی: جفتی که contract size و tick value آن با هم مقیاس نمی‌شوند پیش از رسیدن به normalization به‌عنوان `incompatible` رد می‌شود، چون پاها در هر حجمی اختلاف دارند نه فقط در بعضی حجم‌ها. پسوند `_contract_legs_disagree` بنابراین تنها برای جفتی در دسترس است که از دروازه سازگاری عبور کرده و باز هم اختلاف دارد، که نشانه نقص specification یا گرد کردنی است که تلورانس پوشش نداد.
 
 ## هزینه و محدودیت‌ها
 

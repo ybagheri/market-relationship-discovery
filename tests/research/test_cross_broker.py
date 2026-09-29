@@ -157,12 +157,14 @@ def test_contract_size_difference_is_volume_and_pnl_normalized() -> None:
     assert analysis.opportunities
 
 
-def test_inconsistent_contract_legs_are_reported_with_the_pnl_they_qualify() -> None:
-    """Two legs that disagree are a metadata problem, not extra profit.
+def test_inconsistent_contract_legs_block_the_comparison() -> None:
+    """A broker that halves its lot size without halving its tick value is refused.
 
-    A broker that halved its contract size without halving its tick value is not
-    describing the same instrument, so the two valuations of one position differ.
-    The report must say so rather than presenting the edge as reliably money.
+    The two specifications then value one position differently at every volume,
+    so no volume normalization reconciles them. The earlier code accepted the
+    pair as ``normalization_required``, reported a normalized PnL beside an
+    otherwise crossable opportunity, and flagged the disagreement only as an
+    advisory suffix on the classification.
     """
     contract_a = ContractSpecification.from_dict(
         json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
@@ -181,10 +183,43 @@ def test_inconsistent_contract_legs_are_reported_with_the_pnl_they_qualify() -> 
         replace(request(), contract_a=contract_a, contract_b=contract_b),
     )
 
-    assert analysis.summary.normalized_pnl_legs_agree is False
-    assert analysis.summary.normalized_pnl_leg_disagreement_ratio == pytest.approx(0.5)
-    assert analysis.summary.classification.endswith("_contract_legs_disagree")
-    # The edge is still valued once, not summed across the two legs.
+    assert analysis.summary.contract_status is ContractCompatibilityStatus.INCOMPATIBLE
+    assert analysis.summary.classification == "blocked_by_contract_specification"
+    assert analysis.summary.contract_blocked_observations > 0
+    assert analysis.summary.crossable_observations == 0
+    # A blocked comparison reports no edge at all, rather than an edge with a
+    # caveat attached to it.
+    assert analysis.summary.maximum_net_crossable_edge is None
+    assert analysis.summary.maximum_gross_crossable_edge is None
+    assert analysis.summary.mean_normalized_net_pnl is None
+    assert not analysis.opportunities
+
+
+def test_consistently_scaled_legs_are_normalized_and_still_agree() -> None:
+    """Halving both fields describes the same instrument and stays crossable."""
+    contract_a = ContractSpecification.from_dict(
+        json.loads(Path("examples/broker_a_contract.json").read_text(encoding="utf-8"))
+    )
+    contract_b = replace(
+        ContractSpecification.from_dict(
+            json.loads(Path("examples/broker_b_contract.json").read_text(encoding="utf-8"))
+        ),
+        contract_size=50000.0,
+        tick_value=0.5,
+    )
+    broker_a, broker_b = continuous_opportunity(2000)
+
+    analysis = CrossBrokerComparisonEngine().compare(
+        broker_a,
+        broker_b,
+        replace(request(), contract_a=contract_a, contract_b=contract_b),
+    )
+
+    assert analysis.summary.contract_status is ContractCompatibilityStatus.NORMALIZATION_REQUIRED
+    assert analysis.summary.normalized_pnl_legs_agree is True
+    assert not analysis.summary.classification.endswith("_contract_legs_disagree")
+    assert analysis.summary.crossable_observations > 0
+    # The edge is valued once, not summed across the two legs.
     assert analysis.summary.maximum_normalized_net_pnl == pytest.approx(
         analysis.aligned_observations["normalized_net_pnl"].max()
     )

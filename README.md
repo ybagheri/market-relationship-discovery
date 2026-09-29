@@ -84,7 +84,7 @@ cannot support the test.
 - Tick-only bid/ask crossable research after configurable additional cost
 - Cross-broker opportunity frequency, duration, and two-source provenance
 - Official MT5 contract metadata capture and JSON export
-- Compatibility gate that blocks opportunities when contract normalization is required
+- Compatibility gate that refuses a pair whose contract size and tick value do not scale together, because no volume can reconcile them
 - Process-isolated parallel collection with one worker process per broker profile
 - Contract-aware volume and PnL normalization for cross-broker edges
 - Margin model that treats a broker-reported zero as not reported, never free

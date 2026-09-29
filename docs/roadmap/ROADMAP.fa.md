@@ -162,7 +162,7 @@
 ### زیاد — عدد گزارش‌شده غلط است
 
 - [x] `relationships/formula.py` — کاراکتر `-` در کلاس identifier باعث می‌شد `A-B` یک نام نماد واحد شود، پس تفریق بدون فاصله به وابستگی‌ای تبدیل می‌شد که هرگز در پنل وجود ندارد. با گیومه‌گذاری برای نام‌هایی که واقعاً خط تیره دارند و با escape کردن کلید هویت اصلاح شد
-- [ ] `market_data/contract.py` — بروکری که `contract_size` را نصف کند ولی `tick_value` را تغییر ندهد همان ابزار را توصیف نمی‌کند. نسخه ۱٫۹٫۰ اختلاف را گزارش می‌کند ولی هنوز مقایسه را رد نمی‌کند
+- [x] `market_data/contract.py` — بروکری که `contract_size` را نصف کند ولی `tick_value` را تغییر ندهد همان ابزار را توصیف نمی‌کند، و آن جفت اکنون به‌جای نرمال‌سازی رد می‌شود
 - [ ] `discovery/engine.py` — `filter` مقدار `REQUIRES_DATA` را با `INSUFFICIENT_OBSERVATIONS` بازنویسی می‌کند و خانواده `permutations(..., 3)` از نظر زمانی O(n³) است
 - [ ] `costs/analyzer.py` — `CostAwareAnalyzer` و `CostModel` هیچ caller ندارند و مدل فرض latency‌ای نگه می‌دارد که هرگز اعمال نمی‌کند
 
