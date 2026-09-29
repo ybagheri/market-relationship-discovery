@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
 import sys
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
@@ -10,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from pydantic import ValidationError
 
 from market_relationship_discovery.application.commands import (
@@ -725,11 +727,20 @@ def _resolve_symbols(arguments: argparse.Namespace) -> int:
 
 
 def _dashboard() -> int:
-    import subprocess
+    """Run the Streamlit app as a child process and manage its lifetime.
 
+    `subprocess.call` blocks in `wait()` and offers the caller no way to stop
+    the child. Verified: interrupting the CLI while the app was starting left
+    the child running and still holding the dashboard port, so the next
+    `dashboard` invocation failed to bind and the orphaned process had to be
+    killed by hand.
+
+    The child is terminated on the way out, including on an interrupt, and the
+    wait is bounded so a child that ignores the signal cannot wedge the CLI.
+    """
     settings = get_settings()
     application = Path(__file__).with_name("dashboard") / "app.py"
-    return subprocess.call(
+    process = subprocess.Popen(
         [
             sys.executable,
             "-m",
@@ -744,6 +755,27 @@ def _dashboard() -> int:
             "true",
         ]
     )
+    try:
+        return process.wait()
+    except KeyboardInterrupt:
+        _terminate(process)
+        raise
+    finally:
+        # Only meaningful if the child outlived the wait, which is the interrupt
+        # and timeout paths; a normally exited child is already reaped.
+        _terminate(process)
+
+
+def _terminate(process: subprocess.Popen[bytes]) -> None:
+    """Stop the dashboard child, escalating if it does not go quietly."""
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -762,7 +794,17 @@ def _serializable(value: Any) -> str:
             return str(item)
         if hasattr(item, "isoformat"):
             return item.isoformat()
-        raise TypeError
+        # NumPy scalars and arrays reach here from pandas, and `json` cannot
+        # encode them. A bare `TypeError` carries no message at all, so the
+        # traceback named neither the value, its type, nor the field it sat
+        # in, and the failure appeared only when a report was being written —
+        # long after the number that produced it was computed. Naming the type
+        # turns it into a diagnosis.
+        if isinstance(item, np.generic):
+            return item.item()
+        if isinstance(item, np.ndarray):
+            return item.tolist()
+        raise TypeError(f"cannot serialize value of type {type(item).__name__!r}: {item!r}")
 
     return json.dumps(value, default=convert, ensure_ascii=False, indent=2)
 

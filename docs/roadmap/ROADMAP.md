@@ -306,8 +306,14 @@ de-duplication.
       `dataset_id` then silently overwrote. The manifest is published first and
       withdrawn if the data move fails, so neither half is left describing a
       state that never existed
-- [ ] `cli.py` — `_serializable` raises a context-free `TypeError` for NumPy
-      scalars; `_dashboard` has no child-process lifecycle management
+- [x] `cli.py` — `_serializable` raised a bare `TypeError` for NumPy values, which
+      carries no message at all, so a report write died naming neither the value,
+      its type, nor the field it sat in. Those values are now converted, and
+      anything still unencodable raises a message naming its type. `_dashboard`
+      used `subprocess.call`, which blocks with no way to stop the child: an
+      interrupt left the Streamlit process running and still holding the port, so
+      the next invocation could not bind. The child is now terminated on every
+      exit path, escalating if it ignores the signal
 - [x] `market_data/cross_broker.py` — `maximum_*_crossable_edge` was read from the
       whole aligned frame and gated only on the contract check, while
       `crossable_observations` beside it was counted from the rows the execution

@@ -4,6 +4,34 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — two CLI failures that reported nothing
+
+Neither defect produced a wrong number; both produced no information at all,
+which is why a green suite did not catch them.
+
+**A report write that could not say what it could not write.** `_serializable`
+raised a bare `TypeError` for anything it could not encode, and a bare
+`TypeError` has an empty message. NumPy values reach this function from pandas
+inside report payloads — `np.int64`, `np.bool_`, `np.float32`, arrays and
+`np.datetime64` all arrive at the encoder and all previously raised — so a report
+died with a traceback naming neither the value, its type, nor the field it sat
+in, and the failure appeared long after the number that produced it was
+computed. Those values are now converted to their native JSON equivalents, and
+anything still unencodable raises a message naming its type and value.
+
+**A dashboard that survived its own shutdown.** `_dashboard` used
+`subprocess.call`, which is `Popen(...).wait()` and offers the caller no way to
+stop the child. Verified on this platform: interrupting the CLI while the app
+was starting left the Streamlit process running and still holding the dashboard
+port, so the next invocation could not bind and the orphan had to be killed by
+hand. The child is now terminated on every exit path, escalating from
+`terminate` to `kill` if it does not go quietly.
+
+A test runs the previous wait strategy directly, so the orphan this fixes is
+asserted rather than restated in a docstring. It carries its own note in case a
+future platform reaps children on interrupt, in which case the fix stays
+correct but the premise would need restating.
+
 ### Fixed — a crossable edge reported beside zero crossable observations
 
 `maximum_gross_crossable_edge` and `maximum_net_crossable_edge` were read from
