@@ -206,6 +206,22 @@ $env:PYTHONPATH=""
 `git` هم روی `PATH` نیست و در
 `C:\Users\bagheri\AppData\Local\Programs\Git\cmd` است.
 
+**SSH در git به تنظیم `HOME` در همین shell نیاز دارد.** `HOME` در PowerShell خالی است و
+SSH همراه git پس مسیر کلید را به مسیر یونیکسی `/home/bagheri/.ssh` تبدیل می‌کند که
+وجود ندارد، پس هر عملیات remote با `Host key verification failed` شکست می‌خورد در
+حالی که `known_hosts` و کلید هر دو موجود و درست‌اند. پیش از هر fetch یا push هر دو متغیر
+را تنظیم کن:
+
+```powershell
+$env:HOME="C:/Users/bagheri"
+$env:GIT_SSH_COMMAND="C:/Users/bagheri/AppData/Local/Programs/Git/usr/bin/ssh.exe -F C:/Users/bagheri/.ssh/config"
+$env:Path += ";C:\Users\bagheri\AppData\Local\Programs\Git\cmd"
+git push origin main
+```
+
+در آن دو مقدار از slash رو به جلو استفاده کن: مسیر backslash در `GIT_SSH_COMMAND` از یک
+shell عبور می‌کند و جداکننده‌هایش را از دست می‌دهد.
+
 ## بعدی چه کاری
 
 روند ثبت‌شده در [نقشه راه](ROADMAP.fa.md) را دنبال کن: دروازه را اجرا کن، آیتم‌ها را
