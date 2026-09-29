@@ -28,10 +28,22 @@ class ParquetQuoteRepository:
         manifest_path = target_directory / f"{manifest.dataset_id}.json"
         with NamedTemporaryFile(dir=target_directory, suffix=".parquet", delete=False) as temporary:
             data_temporary = Path(temporary.name)
+        # The data file is staged and only moved to its final path once the
+        # manifest is known to be on disk. The reverse order leaves a dataset
+        # that a manifest-driven reader cannot see but that already occupies the
+        # final path, so the next write of the same `dataset_id` silently
+        # overwrites it. Publishing the manifest first means the reverse
+        # failure is a manifest that briefly describes a file not yet moved,
+        # which resolves in the dataset's favour rather than orphaning it.
         try:
             frame.to_parquet(data_temporary, index=False)
-            data_temporary.replace(data_path)
             self._write_manifest(manifest_path, manifest)
+            data_temporary.replace(data_path)
+        except BaseException:
+            # A manifest that outlived its data file would point a reader at a
+            # file that is not there, so it is withdrawn with the data.
+            manifest_path.unlink(missing_ok=True)
+            raise
         finally:
             data_temporary.unlink(missing_ok=True)
         return StoredDataset(data_path, manifest_path, manifest)

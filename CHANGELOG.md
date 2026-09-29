@@ -4,6 +4,25 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — a dataset that failed to write still occupied its final path
+
+A stored dataset is a pair: the Parquet file and the manifest beside it. The
+file was moved to its final path *before* the manifest was written, so a failure
+in the manifest left the data on disk under `ds-N.parquet` with no `ds-N.json`
+next to it.
+
+That is worse than losing the write. A reader that trusts the manifest sees
+nothing, so the dataset is invisible, but the bytes are still there holding the
+final path, and the next write of the same `dataset_id` silently overwrites
+them. A later run cannot distinguish a real dataset from the debris of a failed
+one, and nothing reported the failure: the collection had already returned.
+
+The manifest is now published first and withdrawn if the data move then fails.
+The other half of that ordering has its own bad state — a manifest describing a
+file that was never moved — so it is handled and tested rather than assumed
+away. The temporary file was already cleaned up unconditionally and is
+unchanged; a successful write produces exactly the same two files as before.
+
 ### Fixed — a walk-forward splitter that could not be substituted
 
 `WalkForwardValidator` stored the `WalkForwardSplitter` *class* on the instance

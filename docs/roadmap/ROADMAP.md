@@ -299,8 +299,13 @@ de-duplication.
       instance, so there was no seam for a test double and the window arithmetic
       could only be tested through a full run. The splitter is now injected as a
       factory, which is what lets the fold-boundary property be asserted directly
-- [ ] `infrastructure/storage/quotes.py` — the Parquet file is moved to its final
-      path before the manifest is written, so a manifest failure orphans a dataset
+- [x] `infrastructure/storage/quotes.py` — the Parquet file was moved to its final
+      path before the manifest was written, so a manifest failure left the bytes
+      on disk under the final name with no manifest beside them: a dataset no
+      manifest-driven reader can see, which the next write of the same
+      `dataset_id` then silently overwrote. The manifest is published first and
+      withdrawn if the data move fails, so neither half is left describing a
+      state that never existed
 - [ ] `cli.py` — `_serializable` raises a context-free `TypeError` for NumPy
       scalars; `_dashboard` has no child-process lifecycle management
 - [ ] `market_data/cross_broker.py` — `maximum_*_crossable_edge` is not gated on
