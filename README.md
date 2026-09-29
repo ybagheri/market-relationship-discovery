@@ -18,6 +18,22 @@ as evidence. A passing test suite did not catch any of them, because the tests
 asserted that the pipeline produced a well-formed result, not that the result was
 true. Version 1.9.0 corrects the ones that were found.
 
+Every item in the audit's **High** list is now corrected, each with a regression
+test that fails against the code as it was. Four since 1.9.0:
+
+- `-` was an identifier character, so `A-B` was one symbol that cannot exist in a
+  panel and the subtraction was discarded. A hyphenated broker name such as
+  `XAU-USD` is now written quoted, because brokers do publish such names and
+  removing the hyphen would have turned those into silent subtractions instead
+- A broker that halved its `contract_size` without halving its `tick_value` was
+  accepted as normalizable, so a normalized PnL was reported beside an otherwise
+  crossable opportunity. No volume reconciles such a pair, so it is now refused
+- The observation gate reported a candidate that had never been evaluated as one
+  whose data had been measured and found too short
+- `CostAwareAnalyzer` and `CostModel` had no caller and held a latency assumption
+  they never applied; the single-symbol path claims no executable discrepancy, so
+  they were removed rather than wired in
+
 Corrected in 1.9.0, each with a regression test:
 
 - Cross-broker alignment searched unsorted data, matching ticks to the wrong
@@ -43,9 +59,10 @@ Corrected in 1.9.0, each with a regression test:
   whose residual is a near unit root were reported cointegrated, and that
   biased the false-discovery family built from the same number
 
-The defects still open are listed under **Open corrections** in
-[the roadmap](docs/roadmap/ROADMAP.md) rather than left implicit, along with the
-conventions each document states.
+The **High** list from that audit is now clear. The defects still open are the
+**Medium** and **Low** items under **Open corrections** in
+[the roadmap](docs/roadmap/ROADMAP.md), rather than left implicit, along with the
+conventions each document states. Take them in the order the roadmap lists them.
 
 Symbol discovery searches the whole broker catalog by name, description, and
 alias, and reports which rule matched. Stationarity and cointegration use
@@ -61,7 +78,7 @@ cannot support the test.
 - UTC-normalized bid, ask, mid, and spread domain model
 - Generic arithmetic formula engine for synthetic relationships
 - Separation of theoretical and bid/ask-aware executable discrepancies
-- Configurable spread-independent cost assumptions
+- Configurable spread-independent cost assumptions, applied where the edge is computed
 - Pearson, Spearman, rolling z-score, half-life, and lead/lag analysis
 - Stationarity and cointegration diagnostics using `statsmodels` ADF and KPSS with explicit unavailable reasons
 - Engle-Granger p-value adjusted for its cointegrating regressor, with the unadjusted value reported alongside

@@ -1,146 +1,151 @@
-# Handoff — measurement corrections, 2026-09-28
+# Handoff — audit corrections continued, 2026-09-29
 
 This is a handoff record, written so that a later session or another system can
-resume the work without reconstructing it. It is a point-in-time snapshot; the
+resume the work without reconstructing it. The previous session's record is
+preserved verbatim as [HANDOFF-2026-09-28.md](HANDOFF-2026-09-28.md); this file
+covers the items it handled. It is a point-in-time snapshot; the
 [roadmap](ROADMAP.md) remains the map of where the project stands.
 
 ## Where things stand
 
-Four items from **Open corrections → High** are done, committed, and pushed to
-`main`. The quality gate is green.
+**Every item in the audit's High list is now corrected**, committed, and pushed
+state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 324 passed, 2 skipped |
+| `pytest` | 361 passed, 2 skipped |
 | `ruff check .` | clean |
 | `black --check .` | clean |
-| `mypy` (strict) | clean, 70 source files |
+| `mypy` (strict) | clean, 69 source files |
 
 The two skips are environmental, not failures: one MT5 terminal test with no
 configured terminal path, one dashboard test with no persisted discovery report.
 
-Commits, oldest first:
+Commits for this session, oldest first:
 
 | Commit | Item |
 | --- | --- |
-| `a7689bc` | Read the cointegration p-value from the one-regressor distribution |
-| `be69dbd` | Block a cross-broker pair when one leg is capped by `volume_max` |
-| `6229383` | Roadmap and changelog for the two above |
-| `1c8fed8` | Value the capture over the holding window, not its first instant |
-| `ad6d7ff` | Charge every triple-swap rollover a multi-night hold crosses |
+| `15f909f` | Read an un-spaced hyphen as subtraction, not a symbol name |
+| `e8286d0` | Refuse a contract pair whose size and tick value do not scale together |
+| `55c007c` | Do not report an unevaluated candidate as measured, and bound the family |
+| `954ff1d` | Remove the cost model that no calculation used |
 
-Test count went from 304 at `b3f2008` to 324. Each correction added regression
-tests that fail against the code as it was before the change.
+Test count went from 324 to 361. Each correction added regression tests that fail
+against the code as it was before the change; the removed cost model took its one
+test with it and was replaced by three stronger ones.
 
 ## What was wrong, and what is different now
 
-### 1. The cointegration p-value used the wrong distribution
+### 1. `A-B` was one symbol name
 
-`statistics/analyzer.py` ran `adfuller` on the OLS residuals and read the
-MacKinnon table for a regression with **zero** predetermined regressors. The
-residuals were produced by a regression containing **one**, so the value was
-anti-conservative by roughly a factor of two. On a pair whose residual is a near
-unit root it read 0.027 unadjusted and 0.090 adjusted, and
-`cointegrated_at_significance` followed the unadjusted one.
+`-` was an identifier character, so the un-spaced subtraction `A-B` tokenised as
+a single symbol that cannot exist in a price panel. The evaluator reported the
+candidate as `requires_data` with a `missing_symbols` entry for a symbol that was
+never requested, and the subtraction was discarded without a word. It reached
+further than the roadmap recorded: `XAU-USD/USD-USD` also produced a phantom
+`USD-USD` dependency, and `X-B-A` collapsed entirely.
 
-That figure is `engle_granger_p_value`, which is what the false-discovery family
-consumes, so the correction applied across the family inherited the bias. The
-test now runs through `statsmodels.tsa.stattools.coint`; the unadjusted value is
-published as `adf_p_value_without_regressor_adjustment` so the size of the
-correction is visible rather than assumed.
+**Removing `-` alone would have been a second wrong answer.** The discovery engine
+interpolates live broker names into formula text, and brokers do publish
+hyphenated names, so a bare `XAU-USD` would have become a silent subtraction. A
+name that genuinely contains a hyphen is now written quoted, and every renderer
+of a formula — candidate generation, the de-duplication canonical form, and the
+semantic key — quotes a name that would otherwise be ambiguous, so a formula
+always re-parses to the identity it was rendered from.
 
-The fix exposed a **second condition in the same function**: a pair so nearly
-collinear that the benchmark explains almost all of the target variance makes
-`coint` return a statistic of `-inf` with a p-value of zero, which its own
-documentation calls numerically unstable rather than a test result. Reporting
-that zero would certify a cointegrated relationship the test never measured, so
-such a pair is now `unavailable` naming collinearity. The detection uses the same
-R-squared criterion `coint` applies, so genuine cointegration is still evaluated.
+Quoting then made `,` and `^` reachable inside a name, and the monomial identity
+key joined names with those characters unescaped, so two different formulas could
+forge one key and be collapsed into a single hypothesis during de-duplication.
+That is a second defect the roadmap did not list.
 
-### 2. A capped leg passed the executable gate
+### 2. A contract pair that no volume can reconcile
 
-`ABOVE_MAXIMUM` was never a blocking reason and `minimum_fill_ratio` defaulted to
-`0.0`, so a size the broker demonstrably cannot fill returned `executable = True`
-with an empty `blocking_reasons` and a binding fill ratio of 0.2. A `volume_max`
-that is not a whole multiple of `volume_step` was additionally reported as
-`filled_volume = 0.0` with `partial_fill = True`, a claim of a partial fill of
-nothing.
+A broker that halved `contract_size` without halving `tick_value` was accepted as
+`normalization_required`, so the pair passed the contract gate, a normalized PnL
+was reported beside an otherwise crossable opportunity, and the inconsistency
+surfaced only as an advisory `_contract_legs_disagree` suffix.
 
-`above_maximum` now blocks on either leg. A cap that leaves the achievable size
-below `volume_min` is refused as `below_minimum` with `limited_by` naming the cap.
+Both fields scale the same quantity — the money value of one unit of the
+underlying, `tick_value / (tick_size * contract_size)`. When only one moves, the
+two legs value the same position differently at *every* volume, so the pair is
+now `incompatible` and blocks.
 
-### 3. The captured edge was the first instant, not the average
+### 3. An unevaluated candidate reported as measured
 
-`costs/latency.py` returned the edge at the moment the round trip completed rather
-than the mean over the window in which the position is held. Once both legs are
-open the position is held until the edge closes, so the expectation is the
-average; the old figure is the best case anywhere in the window presented as the
-expectation, and under linear decay it is exactly double.
+The observation gate relabelled every candidate that had never been evaluated as
+`insufficient_observations`, which is a claim that it *was* evaluated and the
+panel held too few rows. Because `generate` set `observations = 0` on everything
+it minted, `discover` reported its entire output as measured-and-rejected.
 
-Separately, the producer took the maximum edge over an episode while the model
-treated it as the episode's starting value, crediting the position with an edge
-as large as the peak across the whole window no matter when the peak arrived.
-Episodes now carry `peak_offset_ms`, the measured position of the maximum, and
-the profile rises linearly from zero to the peak at that offset before decaying.
+The three-symbol family also grew as n(n-1)(n-2) with no bound — 40 symbols
+produced 59,280 candidates — and every one would have entered the false-discovery
+family. Generation is now bounded and reports what the bound removed.
 
-`capturable_fraction` and the capturable verdicts are **unchanged**: they answer
-*when* the position can be held and depend only on time. Only the edge magnitude
-was wrong, and a test pins that separation.
+### 4. A cost model nothing charged
 
-### 4. A multi-night hold was not charged its triple-swap rollover
+`CostAwareAnalyzer` and `CostModel` had no caller. The only reference was a test,
+so the test asserted that a cost model subtracted costs while nothing in the
+research pipeline subtracted any. Removed rather than wired in — see the
+judgement calls below.
 
-The triple multiplier applied only when the whole holding period was exactly one
-night, so a position held Wednesday to Friday accrued 2x instead of 4x. Every
-triple-swap rollover inside the held interval is now counted, giving
-`nights + 2 * rollovers`. `annualized_rate` was also set to the configured
-**daily** fraction, understating an annual figure 365-fold; it now reports
-`daily * 365`, with a new `daily_rate` field publishing the configured value.
+## Five judgement calls that need review
 
-## Three judgement calls that need review
+These are not mechanical corrections.
 
-These are not mechanical corrections. Each changed documented behaviour, and a
-later session should confirm the reasoning rather than inherit it.
+**A hyphenated broker name must now be quoted.** Anyone with a hand-written
+formula naming a hyphenated instrument has to change it to `"XAU-USD"`. There is
+no unquoted spelling, because allowing one would reintroduce the original defect.
+*Worth checking:* any saved formula, catalog entry, or external configuration
+using a hyphenated name. The `render_symbol` helper is the way to produce one.
 
-**A capped leg now blocks a cross-broker pair.** The prior documentation argued
-a capped fill stays executable "because PnL scales with filled volume". That holds
-for a single position and is wrong for a pair: if broker B caps 50 lots at 10
-while broker A takes 50, the result is a net directional position on broker A, not
-the researched pair at reduced size. `EXECUTION_MODEL.md` states the reversal.
-*Worth checking:* whether any existing research report relied on a capped leg
-being reported as executable.
+**A contract pair that does not scale together is refused rather than normalized.**
+Two related documented verdicts changed, and both were defensible when written:
+a lot-size difference was argued to be reconcilable by volume (true only when
+`tick_value` scales with it), and the leg-disagreement check was argued to be a
+sufficient safety net. The corrected rule uses a 1% tolerance, deliberately
+tighter than the 5% leg tolerance, because it compares two numbers describing the
+same instrument rather than two valuations of a market outcome.
+*Worth checking:* the `EXECUTION_MODEL.md` figures from the 2026-09-26
+Alpari/AMarkets run, which now fall on the refused side of this line and are
+labelled as produced by the earlier model rather than restated.
 
-**`minimum_fill_ratio` moved from `0.0` to `0.9`.** Rounding a request down to
-`volume_step` cannot produce a ratio at or below one half, so any threshold of
-`0.5` or less is unfalsifiable rather than merely lenient; the measured floor
-across step and size combinations is about 0.51. The old `0.0` was inert, not
-lenient. The default is exported as `costs.execution.DEFAULT_MINIMUM_FILL_RATIO`
-and shared by `CostSettings`, `CrossBrokerRequest`, and the assessor, all three of
-which had defaulted to `0.0`.
-*Worth checking:* any deployment that relied on `COSTS__MINIMUM_FILL_RATIO=0.0` to
-mean "do not gate on size" must now set it explicitly.
+**`generate` returns a `CandidateFamily`, not a list.** This is a signature
+change to a public method. The size and truncation of a candidate family are
+results, not an implementation detail, but any caller doing
+`for candidate in engine.generate(...)` must now read `.candidates`.
 
-**Two legacy tests asserted well-formedness rather than truth.** Both were
-rewritten rather than preserved.
-`test_evaluator_reports_stationarity_for_a_noisy_relationship` asserted
-`status == "available"` for a pair whose benchmark *was* the target plus noise
-three orders of magnitude below the price; it now asserts the real situation, and
-a new test confirms a genuinely cointegrated pair is still evaluated.
-`test_partial_fill_is_still_executable_but_reports_the_reduced_size` encoded the
-verdict that item 2 reverses.
+**The candidate family is bounded at 500 by default.** The bound is a research
+judgement, not a measurement, and changing it changes which candidates are tested
+and therefore the multiple-testing result. Truncation is deterministic and
+reported as `family_truncated`. *Worth checking:* whether 500 is the right
+default for the intended panel sizes, and whether a `SYNTH_`-prefixed target
+should be materialised rather than declared.
 
-## Known limitation left in the documentation
-
-`EXECUTION_MODEL.md` quotes captured-edge figures from real Alpari/AMarkets runs
-that the capture correction changes. Those numbers are **labelled as produced by
-the earlier model rather than restated**, because the underlying tick data is not
-in the repository to recompute. Rerun `compare-brokers` to regenerate them. The
-capturable counts and durations in the same tables are unaffected.
+**The cost model was removed, not wired in.** The single-symbol research path
+deliberately reports `executable_discrepancy_claimed = False` and computes no net
+edge, so giving it a cost model would have contradicted that decision. A cost
+component now belongs where the edge it affects is computed.
+*Worth checking:* if a single-symbol cost-aware net edge was ever intended, that
+is a feature decision and not a bug fix.
 
 ## Environment note
 
-No virtualenv existed in the project. One was created at `.venv` and pinned
-dependencies were installed from `requirements.lock` so the quality gate could
-run. It is covered by `.gitignore` and does not appear in `git status`.
+The venv the 2026-09-28 session created is gone. Only the embeddable
+`python-3.13.12` distribution is installed on this machine, and it has no `venv`
+module, so a project virtualenv cannot be created here. The full dependency set
+from `requirements.lock` is present in that interpreter's `site-packages` and the
+gate runs against it directly:
+
+```powershell
+$env:PYTHONPATH=""
+& "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m pytest -q
+& "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m ruff check .
+& "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m black --check .
+& "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m mypy
+```
+
+`git` is not on `PATH` either; it lives at
+`C:\Users\bagheri\AppData\Local\Programs\Git\cmd`.
 
 ## What to do next
 
@@ -150,38 +155,35 @@ fix, move the item into its phase, add a changelog entry describing what number
 was wrong, and update the document under `docs/research/` whose convention
 changed.
 
-Remaining counts: **4 High, 7 Medium, 9 Low**, plus 2 Phase 10 items that are
+Remaining counts: **0 High, 7 Medium, 9 Low**, plus 2 Phase 10 items that are
 deliberately out of scope.
 
-The next four High items, in the order the roadmap lists them:
+The next item, first under **Medium**:
 
-1. `relationships/formula.py` — `-` inside the identifier class makes `A-B` a
-   single symbol name, so an un-spaced subtraction becomes a dependency that can
-   never exist in a panel.
-2. `market_data/contract.py` — a broker that halves `contract_size` without
-   halving `tick_value` is not describing the same instrument. 1.9.0 reports the
-   disagreement; it does not yet refuse the comparison.
-3. `discovery/engine.py` — `filter` overwrites `REQUIRES_DATA` with
-   `INSUFFICIENT_OBSERVATIONS`, and the `permutations(..., 3)` family is O(n³).
-4. `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` have no caller, and
-   the model holds a latency assumption it never applies.
-
-Two of the four remaining High items were reattributed while this work was done.
-The triple-swap defect was filed under `costs/latency.py` but both fields live in
-`FundingModel` in `costs/execution.py`; the roadmap now says so. Expect more
-attribution drift of that kind and check the file path before starting.
+`parallel_collection.py` — raising inside the executor drains the pool on
+shutdown while workers keep writing datasets, and `DataQualityError` is retried
+three times, each attempt minting a new `dataset_id` and orphaning the previous
+output. This is the same class of defect as the ones just corrected — a retry
+that looks like robustness while silently discarding work — and the orphaned
+datasets are the kind of leftover the storage layer's atomic manifest is
+supposed to prevent.
 
 ## Things to be careful about
 
 - **Check the attribution, not just the description.** Several roadmap entries
-  name a file that no longer holds the described code.
+  name a file that no longer holds the described code, and this session removed
+  one file outright.
 - **Do not accept a test that only asserts a well-formed result.** Every defect
   in this list survived a green suite precisely because the test checked the
   shape of the output rather than its truth. A new test should fail against the
   pre-change code, and it should fail for the right reason.
+- **Verify a new test against the old code before committing.** Stashing the
+  source change and re-running is the only way to know a test fails for the
+  defect rather than for an import error or an unrelated assertion.
 - **Prefer a stated reason over a silent default.** Where an input is missing or
   unusable, the corrected code now reports the reason rather than assuming a
-  convenient value. The sensitivity sweep, for instance, drops a capture whose
-  `peak_offset_ms` is absent rather than assuming the peak sat at the start.
-- **Changing a reported figure means changing a document.** Two items here
-  altered numbers that `docs/research/` states as conventions.
+  convenient value.
+- **Changing a reported figure means changing a document.** Three items this
+  session altered numbers or verdicts that `docs/research/` states as
+  conventions, and one of those invalidated a recorded observation.
+
