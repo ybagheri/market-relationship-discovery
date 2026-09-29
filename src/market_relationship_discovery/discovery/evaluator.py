@@ -117,16 +117,18 @@ class GraphCandidateEvaluator:
             )
         discrepancy = actual - synthetic
         analyzer = StatisticalAnalyzer()
+        unavailable: dict[str, str] = {}
+        correlation = analyzer.correlation(actual, synthetic)
+        pearson = correlation.pearson
+        spearman = correlation.spearman
+        if correlation.unavailable_reason is not None:
+            unavailable["correlation"] = correlation.unavailable_reason
         try:
-            correlation = analyzer.correlation(actual, synthetic)
-            pearson = correlation.pearson
-            spearman = correlation.spearman
-        except (ValueError, np.linalg.LinAlgError):
-            pearson = float("nan")
-            spearman = float("nan")
-        try:
-            half_life = analyzer.half_life(discrepancy).half_life
-        except (ValueError, np.linalg.LinAlgError):
+            half_life_result = analyzer.half_life(discrepancy)
+            half_life = half_life_result.half_life
+            if half_life_result.unavailable_reason is not None:
+                unavailable["half_life"] = half_life_result.unavailable_reason
+        except (ValueError, np.linalg.LinAlgError, InsufficientDataError):
             half_life = None
         rolling_beta = analyzer.rolling_beta(actual, synthetic, rolling_beta_window)
         cointegration = analyzer.cointegration_stationarity(

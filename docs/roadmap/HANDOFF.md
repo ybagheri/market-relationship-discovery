@@ -13,7 +13,7 @@ state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 463 passed |
+| `pytest` | 479 passed |
 | `ruff check .` | clean |
 | `black --check .` | clean |
 | `mypy` (strict) | clean, 69 source files |
@@ -37,7 +37,7 @@ Commits for this session, oldest first:
 | `623e724` | Drain the collection pool before reporting a failure; keep the safety refusal distinguishable |
 | `14b0205` | Let `compare-brokers` use a multi-symbol contract export |
 
-Test count went from 324 to 463. Each correction added regression tests that fail
+Test count went from 324 to 479. Each correction added regression tests that fail
 against the code as it was before the change; the removed cost model took its one
 test with it and was replaced by three stronger ones.
 
@@ -215,11 +215,17 @@ gate runs against it directly:
 
 ```powershell
 $env:PYTHONPATH=""
-& "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m pytest -q
+& "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m pytest -q -p no:cacheprovider
 & "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m ruff check .
 & "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m black --check .
 & "C:\Users\bagheri\Downloads\python-3.13.12-embed-amd64\python.exe" -m mypy
 ```
+
+**Pass `-p no:cacheprovider` when running the suite here.** With the cache
+provider enabled the same 479 tests took 460 seconds instead of 23, and the time
+is not attributable to any test: the sum of every reported `call` duration was
+about two seconds. The cost is pytest writing its cache to this drive, which is
+slow enough to dominate. Nothing in the code changed between the two runs.
 
 `git` is not on `PATH` either; it lives at
 `C:\Users\bagheri\AppData\Local\Programs\Git\cmd`.
@@ -248,22 +254,35 @@ fix, move the item into its phase, add a changelog entry describing what number
 was wrong, and update the document under `docs/research/` whose convention
 changed.
 
-Remaining counts: **0 High, 0 Medium, 7 Low**, plus 2 Phase 10 items that are
+Remaining counts: **0 High, 0 Medium, 6 Low**, plus 2 Phase 10 items that are
 deliberately out of scope.
 
 The next item, first under **Low**:
 
-`statistics/analyzer.py` is the largest remaining group, and it is four defects
-in one file: `correlation` accepts three observations, `half_life` has no
-plausibility bound, `lead_lag` has no documented sign convention or significance,
-and `rolling_correlation` has no caller. Each is small; they share a module, so
-one pass closes them. `correlation` and `half_life` are the two that produce a
-number a reader would believe, so take those first.
+`statistics/analyzer.py` and `backtesting/multi_stage.py` — two identical copies
+of the rolling z-score, one of which is a model input. A duplicated feature that
+feeds a ranking model can drift from the copy the report describes, and the two
+are not pinned to each other. The fix is to have one implementation and a test
+asserting the other uses it; a comment saying they are the same is not a
+guarantee.
 
-`statistics/analyzer.py` and `backtesting/multi_stage.py` follow: two identical
-copies of the rolling z-score, one of which is a model input. A duplicated
-feature that feeds a ranking model can drift from the copy the report describes,
-and the two are not currently pinned to each other.
+After that:
+
+- `backtesting/engine.py` — the no-look-ahead guarantee rests on an undocumented
+  column convention, that `gross_edges[t]` is the return earned over `[t, t+1]`.
+  If it is the edge realised at `t`, then `shift(-1)` *is* the look-ahead. This
+  one deserves care rather than a comment: the convention should be stated where
+  the shift happens, and a test should distinguish the two readings.
+- `backtesting/walk_forward.py` — `self._splitter` stores the class rather than
+  an instance, so there is no seam for a test double.
+- `infrastructure/storage/quotes.py` — the Parquet file is moved to its final
+  path before the manifest is written, so a manifest failure orphans a dataset.
+- `cli.py` — `_serializable` raises a context-free `TypeError` for NumPy scalars,
+  and `_dashboard` has no child-process lifecycle management.
+- `market_data/cross_broker.py` — `maximum_*_crossable_edge` is not gated on the
+  execution verdict, so it can report a crossable edge beside
+  `crossable_observations = 0`. This one produces a wrong figure, so it is worth
+  more than its position in the list suggests.
 
 ## A study is now defined once, for several brokers
 

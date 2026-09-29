@@ -15,12 +15,36 @@ from statsmodels.tsa.stattools import adfuller, coint, kpss
 
 from market_relationship_discovery.domain.errors import InsufficientDataError
 
+#: Smallest sample for a correlation to mean anything.
+#:
+#: Three points on any straight line correlate at exactly 1.0, so a three
+#: observation correlation reports a perfect relationship that is an artefact of
+#: having three points and not a measurement. Two points are always perfectly
+#: correlated or undefined.
+MINIMUM_CORRELATION_OBSERVATIONS = 8
+
+#: Smallest sample for a half-life regression to be worth fitting.
+MINIMUM_HALF_LIFE_OBSERVATIONS = 20
+
+#: Smallest sample for a lagged correlation to be distinguishable from noise.
+MINIMUM_LEAD_LAG_OBSERVATIONS = 8
+
+#: |correlation| below which a lagged relationship is treated as absent.
+MINIMUM_LEAD_LAG_ABSOLUTE_CORRELATION = 0.2
+
 
 @dataclass(frozen=True, slots=True)
 class CorrelationResult:
     pearson: float
     spearman: float
     observations: int
+    #: Why the correlation is absent, when it is. A reported value of 0.0 would
+    #: be indistinguishable from a measured absence of relationship.
+    unavailable_reason: str | None = None
+
+    @property
+    def is_available(self) -> bool:
+        return self.unavailable_reason is None
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +52,12 @@ class HalfLifeResult:
     half_life: float | None
     mean_reversion: bool
     observations: int
+    #: Why the estimate is absent or unbounded, when it is.
+    unavailable_reason: str | None = None
+    #: Whether the regression's slope is distinguishable from zero at all. A
+    #: slope that is not is a reason to report no reversion, not a very long
+    #: one.
+    regression_is_significant: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,13 +68,31 @@ class RollingBetaResult:
 
 class StatisticalAnalyzer:
     def correlation(self, left: pd.Series, right: pd.Series) -> CorrelationResult:
+        """Correlate two series, or report why the sample cannot support one.
+
+        Three observations are refused. Any three points on a straight line
+        correlate at exactly 1.0, so the old three-observation minimum returned
+        a perfect relationship that was an artefact of the sample size rather
+        than a measurement, and a caller had no way to tell it from a real one.
+        """
         aligned = pd.concat([left, right], axis=1).dropna()
-        if len(aligned) < 3:
-            raise InsufficientDataError("correlation requires at least three observations")
+        count = len(aligned)
+        if count < MINIMUM_CORRELATION_OBSERVATIONS:
+            return CorrelationResult(
+                pearson=float("nan"),
+                spearman=float("nan"),
+                observations=count,
+                unavailable_reason=(
+                    f"correlation requires at least {MINIMUM_CORRELATION_OBSERVATIONS} "
+                    f"aligned observations; {count} available. Three points on any "
+                    f"straight line correlate at exactly 1.0, so a small sample "
+                    f"reports an artefact rather than a relationship"
+                ),
+            )
         return CorrelationResult(
             pearson=float(aligned.iloc[:, 0].corr(aligned.iloc[:, 1], method="pearson")),
             spearman=float(aligned.iloc[:, 1].corr(aligned.iloc[:, 0], method="spearman")),
-            observations=len(aligned),
+            observations=count,
         )
 
     @staticmethod
@@ -54,10 +102,6 @@ class StatisticalAnalyzer:
         rolling_mean = spread.rolling(window=window, min_periods=window).mean()
         rolling_std = spread.rolling(window=window, min_periods=window).std(ddof=0)
         return (spread - rolling_mean) / rolling_std.replace(0, np.nan)
-
-    @staticmethod
-    def rolling_correlation(left: pd.Series, right: pd.Series, window: int) -> pd.Series:
-        return left.rolling(window=window, min_periods=window).corr(right)
 
     def rolling_beta(
         self,
@@ -209,19 +253,65 @@ class StatisticalAnalyzer:
         }
 
     def half_life(self, spread: pd.Series) -> HalfLifeResult:
+        """Estimate the half-life of a spread, or say why none exists.
+
+        The estimate is `-ln(2) / slope` from regressing the change on the level,
+        and a slope near zero makes it diverge, so the old code could report a
+        figure like 6e15 on a series that never reverts at all. Two conditions
+        now bound it: the sample must be large enough to fit, and the slope must
+        be distinguishable from zero. Failing either reports no reversion with
+        the reason attached, rather than a number a reader would have to know to
+        distrust.
+
+        A separate bound on the resulting half-life was considered and dropped.
+        For an AR(1) process the half-life is `ln(0.5)/ln(rho)`, which exceeds
+        the sample length only when `rho` is above roughly 0.999, and at that
+        coefficient the slope is no longer distinguishable from zero in any
+        sample of practical size. The bound could therefore never fire while
+        being significant, which would have been a check that always passed and
+        gave the impression the extremes were covered.
+        """
         values = spread.dropna().to_numpy(dtype=float)
-        if len(values) < 3:
-            raise InsufficientDataError("half-life requires at least three observations")
+        count = len(values)
+        if count < MINIMUM_HALF_LIFE_OBSERVATIONS:
+            raise InsufficientDataError(
+                f"half-life requires at least {MINIMUM_HALF_LIFE_OBSERVATIONS} observations"
+            )
         if np.ptp(values) == 0:
-            return HalfLifeResult(None, False, len(values))
+            return HalfLifeResult(
+                None,
+                False,
+                count,
+                unavailable_reason="the series is constant, so it has no reversion to measure",
+            )
         lagged = values[:-1]
         deltas = np.diff(values)
         regression = stats.linregress(lagged, deltas)
-        half_life_value = -log(2) / regression.slope if regression.slope < 0 else None
+        significant = bool(regression.pvalue < 0.05)
+        if not significant:
+            return HalfLifeResult(
+                None,
+                False,
+                count,
+                unavailable_reason=(
+                    f"the regression slope is not distinguishable from zero "
+                    f"(p={regression.pvalue:.3f}), so no reversion is demonstrated"
+                ),
+                regression_is_significant=False,
+            )
+        if regression.slope >= 0:
+            return HalfLifeResult(
+                None,
+                False,
+                count,
+                unavailable_reason="the spread is not reverting: the slope is not negative",
+                regression_is_significant=True,
+            )
         return HalfLifeResult(
-            half_life=half_life_value,
-            mean_reversion=half_life_value is not None,
-            observations=len(values),
+            half_life=float(-log(2) / regression.slope),
+            mean_reversion=True,
+            observations=count,
+            regression_is_significant=True,
         )
 
     @staticmethod
@@ -230,16 +320,61 @@ class StatisticalAnalyzer:
         target: pd.Series,
         max_lag: int,
     ) -> pd.DataFrame:
+        """Correlate a predictor against a target across a range of lags.
+
+        **Sign convention.** A positive `lag` means the predictor leads: the
+        predictor is shifted forward, so it is compared with the target at a
+        later instant. A negative `lag` means the predictor lags. The columns
+        `predictor_leads` and `predictor_lags` say the same thing in words,
+        because a sign convention that has to be inferred from the code is not a
+        convention.
+
+        **Significance.** `significant` and `p_value` come from a two-sided
+        test of zero correlation, and a lag with too few aligned observations
+        reports `None` rather than a value computed from a handful of points. The
+        raw correlation is always reported: a reader deciding for themselves
+        should not have to reconstruct it, and a significant-looking correlation
+        from four observations should be visible rather than hidden.
+        """
         if max_lag < 1:
             raise ValueError("max_lag must be positive")
-        results: list[dict[str, float | int]] = []
+        results: list[dict[str, float | int | bool | None]] = []
         for lag in range(-max_lag, max_lag + 1):
             shifted = predictor.shift(lag)
             aligned = pd.concat([shifted, target], axis=1).dropna()
-            correlation = (
-                float(aligned.iloc[:, 0].corr(aligned.iloc[:, 1])) if len(aligned) else float("nan")
+            count = len(aligned)
+            if count < MINIMUM_LEAD_LAG_OBSERVATIONS:
+                results.append(
+                    {
+                        "lag": lag,
+                        "predictor_leads": lag > 0,
+                        "predictor_lags": lag < 0,
+                        "correlation": float("nan"),
+                        "observations": count,
+                        "p_value": None,
+                        "significant": None,
+                        "significant_and_usable": False,
+                    }
+                )
+                continue
+            left = aligned.iloc[:, 0]
+            right = aligned.iloc[:, 1]
+            correlation = float(left.corr(right))
+            outcome = stats.pearsonr(left, right)
+            p_value = float(outcome.pvalue)
+            magnitude = abs(correlation) >= MINIMUM_LEAD_LAG_ABSOLUTE_CORRELATION
+            results.append(
+                {
+                    "lag": lag,
+                    "predictor_leads": lag > 0,
+                    "predictor_lags": lag < 0,
+                    "correlation": correlation,
+                    "observations": count,
+                    "p_value": p_value,
+                    "significant": p_value < 0.05,
+                    "significant_and_usable": bool(p_value < 0.05 and magnitude),
+                }
             )
-            results.append({"lag": lag, "correlation": correlation, "observations": len(aligned)})
         return pd.DataFrame(results)
 
 

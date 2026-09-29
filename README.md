@@ -19,7 +19,7 @@ asserted that the pipeline produced a well-formed result, not that the result wa
 true. Version 1.9.0 corrects the ones that were found.
 
 Every item in the audit's **High** and **Medium** lists is now corrected, each
-with a regression test that fails against the code as it was. Four since 1.9.0:
+with a regression test that fails against the code as it was. Also since 1.9.0:
 
 - `-` was an identifier character, so `A-B` was one symbol that cannot exist in a
   panel and the subtraction was discarded. A hyphenated broker name such as
@@ -38,6 +38,14 @@ with a regression test that fails against the code as it was. Four since 1.9.0:
   duplicate, and a price column arriving as text raised a bare `TypeError`
 - `align_timeseries` returned unmatched rows as all-`NaN` rows, so the frame was
   larger than the evidence in it
+- Two broker profiles could point at one terminal, so a comparison could pair a
+  broker with itself; a size cap on one broker blocked a study of a symbol whose
+  contract both agreed on; `correlation` accepted three observations, which
+  guarantee a perfect correlation that is an artefact of the sample size; and
+  `half_life` could report 6e15 on a series that never reverts
+- `doctor` failed a safety check on a display-timezone setting that no data path
+  honoured, and two settings that read nothing advertised controls the platform
+  does not have
 
 Corrected in 1.9.0, each with a regression test:
 

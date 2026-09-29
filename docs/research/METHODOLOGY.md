@@ -37,6 +37,25 @@ A rejected null hypothesis is evidence about the historical sample only. It is n
 
 Pearson correlation measures linear co-movement; Spearman measures rank co-movement. Neither establishes causality, cointegration, or arbitrage. Rolling z-score depends on its window and regime. Half-life is descriptive and unstable in non-stationary or sparse data. Lead/lag results can change with resampling and timestamp tolerance.
 
+### Minimum samples
+
+A statistic computed on a sample too small to support it reports why it is absent rather than a number. An absent figure is not a measured zero, and a value of `0.0` is indistinguishable from a real measurement of no relationship.
+
+- **Correlation** requires at least 8 aligned observations. Any three points on a straight line correlate at exactly 1.0, so a three-observation minimum guaranteed a perfect relationship that was an artefact of the sample size, and a caller could not tell it from a measured one.
+- **Half-life** requires at least 20 observations, and the regression slope must be distinguishable from zero at the 5% level. The estimate is `-ln(2) / slope` from regressing the change on the level, so a slope near zero makes it diverge; without the significance requirement a series that never reverts reported a figure like 6e15, describing the slope rather than the market.
+- **Lead/lag** requires at least 8 aligned observations per lag, and reports `None` for a p-value below that rather than a value computed from a handful of points.
+
+A bound on the *resulting* half-life — rejecting an estimate longer than the sample — was written and removed. For an AR(1) process the half-life is `ln(0.5)/ln(rho)`, which exceeds the sample length only above `rho` of about 0.999, and at that coefficient the slope is no longer distinguishable from zero in any sample of practical size. The bound could never fire while its precondition held, which would have been a check that always passes while implying the extremes were covered.
+
+### Lead/lag conventions
+
+A positive `lag` means the **predictor leads**: the predictor is shifted forward and compared with the target at a later instant. A negative `lag` means the predictor lags. The result carries `predictor_leads` and `predictor_lags` columns in words, because a sign convention that has to be inferred from the code is not a convention.
+
+Every lag reports a two-sided p-value and a `significant_and_usable` flag, which requires both significance and an effect size of at least 0.2 in absolute correlation. The raw correlation is always published, so a reader deciding for themselves does not have to reconstruct it, and a strong-looking correlation from four observations stays visible rather than hidden.
+
+A correlation is not causation and a lead/lag maximum is not a tradable signal. It describes the historical sample under the chosen lag convention and alignment.
+
+
 The cointegration, ADF, and KPSS outputs are retrospective full-sample diagnostics. They do not establish causality, execution, future returns, or multiple-testing-adjusted significance. Advanced research also supports causal volatility regimes, dependency-graph expansion, and deterministic chronological ridge ranking over bar-price panels.
 
 ## Data requirements

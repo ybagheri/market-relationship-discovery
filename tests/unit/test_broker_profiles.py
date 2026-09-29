@@ -131,7 +131,13 @@ def test_an_unresolvable_path_does_not_crash_the_check() -> None:
 def test_the_cli_states_a_refused_configuration_without_a_traceback(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A traceback buries the message under pydantic's echo of the input."""
+    """A traceback buries the message under pydantic's echo of the input.
+
+    The adapter is stubbed because the configuration is refused before any
+    terminal is contacted; without that, `doctor` would launch a real MT5
+    terminal on a machine where one is installed, and the test would take the
+    time it takes to start and stop a terminal.
+    """
     from market_relationship_discovery.cli import main
 
     monkeypatch.setenv(
@@ -142,6 +148,18 @@ def test_the_cli_states_a_refused_configuration_without_a_traceback(
     # Settings are cached for the life of the process, so a value cached by an
     # earlier test would be read instead of the environment this test set.
     get_settings.cache_clear()
+
+    class _Refused:
+        def __init__(self, settings: object) -> None:
+            pass
+
+        def __enter__(self) -> _Refused:
+            raise AssertionError("the terminal must not be contacted")
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    monkeypatch.setattr("market_relationship_discovery.application.doctor.MT5Adapter", _Refused)
 
     code = main(["doctor"])
     captured = capsys.readouterr()

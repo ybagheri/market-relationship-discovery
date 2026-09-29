@@ -4,6 +4,39 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — statistics that could not support their own answer
+
+- `correlation` accepted three observations. Any three points on a straight line
+  correlate at exactly 1.0, so the minimum sample guaranteed a perfect
+  relationship that was an artefact of the sample size rather than a
+  measurement, and a caller had no way to tell it from a real one. The minimum
+  is now 8, and a smaller sample reports why the correlation is absent instead
+  of a number. It returns a reason rather than raising, because a caller must
+  be able to report "not measurable" as a finding
+- `half_life` had no plausibility bound. The estimate is `-ln(2) / slope` from
+  regressing the change on the level, and a slope near zero makes it diverge, so
+  a series that never reverts produced a figure like 6e15 describing the slope
+  rather than the market. The slope must now be distinguishable from zero at
+  the 5% level, and a series that fails reports no reversion with the reason
+  attached
+- A separate bound on the resulting half-life was written and then **removed**.
+  For an AR(1) process the half-life is `ln(0.5)/ln(rho)`, which exceeds the
+  sample length only above `rho` of about 0.999, and at that coefficient the
+  slope is no longer distinguishable from zero in any sample of practical size.
+  The bound could never fire while its precondition held, so keeping it would
+  have been a check that always passes while implying the extremes were covered
+- `lead_lag` documented neither its sign convention nor any significance test, so
+  a reader could not tell which sign meant the predictor leads, and the strongest
+  correlation in the table could have come from four observations. Positive lag
+  now means the predictor leads, stated in a `predictor_leads` column, and every
+  lag carries a two-sided p-value with a `significant_and_usable` flag that also
+  requires a minimum effect size. A lag with too few observations reports `None`
+  rather than a value computed from a handful of points
+- `rolling_correlation` had no caller and no test. Removed, because an untested
+  method with no caller is an untested claim
+- `research` and `discover` reports publish `unavailable_reasons` beside the
+  statistics, so an absent figure is not read as a measured zero
+
 ### Fixed — two labels for one broker
 
 - Two broker profiles could point at the same `terminal64.exe`. They produce two

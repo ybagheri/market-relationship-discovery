@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from math import isfinite
 
@@ -31,6 +31,9 @@ class ResearchSummary:
     beta_stability: dict[str, object]
     cointegration_stationarity: dict[str, object]
     executable_discrepancy_claimed: bool = False
+    #: Why a statistic is absent, when it is. Reported beside the number so a
+    #: reader is not left to infer that a missing figure means "no effect".
+    unavailable_reasons: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         result = asdict(self)
@@ -80,8 +83,10 @@ class HistoricalRelationshipResearcher:
         correlation = self._statistics.correlation(actual, synthetic)
         zscore = self._statistics.rolling_zscore(discrepancy, self._zscore_window)
         try:
-            half_life = self._statistics.half_life(discrepancy).half_life
+            half_life_result = self._statistics.half_life(discrepancy)
+            half_life = half_life_result.half_life
         except InsufficientDataError:
+            half_life_result = None
             half_life = None
         beta_stability = self._statistics.rolling_beta(
             actual,
@@ -94,6 +99,11 @@ class HistoricalRelationshipResearcher:
             self._statistical_significance,
         )
         latest_zscore = float(zscore.iloc[-1]) if isfinite(zscore.iloc[-1]) else None
+        unavailable: dict[str, str] = {}
+        if correlation.unavailable_reason is not None:
+            unavailable["correlation"] = correlation.unavailable_reason
+        if half_life_result is not None and half_life_result.unavailable_reason is not None:
+            unavailable["half_life"] = half_life_result.unavailable_reason
         return ResearchSummary(
             relationship=relationship.name,
             target=relationship.target,
@@ -111,6 +121,7 @@ class HistoricalRelationshipResearcher:
             half_life=half_life,
             beta_stability=beta_stability,
             cointegration_stationarity=cointegration_stationarity,
+            unavailable_reasons=unavailable,
         )
 
     def _align(

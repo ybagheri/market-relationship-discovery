@@ -13,12 +13,27 @@ def test_rolling_zscore_uses_only_rolling_window() -> None:
     assert result.iloc[4] == pytest.approx(1.4142135623730951)
 
 
-def test_half_life_detects_reverting_process() -> None:
-    spread = pd.Series([3.0, 1.0, 2.0, 0.0, 1.0, -1.0, 0.5, -0.5])
-    result = StatisticalAnalyzer().half_life(spread)
+def test_half_life_detects_a_reverting_process() -> None:
+    """A mean-reverting series returns to its own mean.
+
+    The earlier version used eight hand-written points, too short to fit a
+    regression whose slope must be distinguished from zero, so it asserted a
+    result the sample could not support. A damped oscillation of a realistic
+    length is what the estimator is for.
+    """
+    decay = 0.85
+    rng = np.random.default_rng(11)
+    values = [1.0]
+    for _ in range(399):
+        values.append(decay * values[-1] + float(rng.normal(scale=0.01)))
+    series = pd.Series(values)
+
+    result = StatisticalAnalyzer().half_life(series)
 
     assert result.mean_reversion is True
     assert result.half_life is not None and result.half_life > 0
+    # An AR(1) with coefficient 0.85 has a half-life near ln(0.5)/ln(0.85).
+    assert result.half_life == pytest.approx(abs(np.log(0.5) / np.log(decay)), rel=0.5)
 
 
 def test_lead_lag_reports_requested_range() -> None:

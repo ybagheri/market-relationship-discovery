@@ -279,9 +279,11 @@ de-duplication.
 - [x] `config/settings.py` — two broker profiles may point at the same terminal
       and collect it twice under different labels, letting a comparison pair a
       broker with itself. Refused at load time, comparing resolved paths
-- [ ] `statistics/analyzer.py` — `correlation` accepts three observations;
-      `half_life` has no plausibility bound; `lead_lag` has no documented sign
-      convention or significance; `rolling_correlation` has no caller
+- [x] `statistics/analyzer.py` — `correlation` accepted three observations,
+      which guarantee a perfect correlation that is an artefact of the sample
+      size; `half_life` had no plausibility bound; `lead_lag` had no documented
+      sign convention or significance; `rolling_correlation` had no caller and
+      was removed
 - [ ] `statistics/analyzer.py` and `backtesting/multi_stage.py` — two identical
       copies of the rolling z-score used as model input
 - [ ] `backtesting/engine.py` — the no-look-ahead guarantee rests on an
