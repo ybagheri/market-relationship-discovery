@@ -308,9 +308,13 @@ de-duplication.
       state that never existed
 - [ ] `cli.py` — `_serializable` raises a context-free `TypeError` for NumPy
       scalars; `_dashboard` has no child-process lifecycle management
-- [ ] `market_data/cross_broker.py` — `maximum_*_crossable_edge` is not gated on
-      the execution verdict, so it can report a crossable edge beside
-      `crossable_observations = 0`
+- [x] `market_data/cross_broker.py` — `maximum_*_crossable_edge` was read from the
+      whole aligned frame and gated only on the contract check, while
+      `crossable_observations` beside it was counted from the rows the execution
+      verdict had also cleared. The two fields described different populations,
+      so a run could report a positive maximum crossable edge next to
+      `crossable_observations = 0`. Both are now read from the crossable rows, and
+      an empty population reports no maximum
 
 ## How to continue
 

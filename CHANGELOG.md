@@ -4,6 +4,34 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — a crossable edge reported beside zero crossable observations
+
+`maximum_gross_crossable_edge` and `maximum_net_crossable_edge` were read from
+the whole aligned frame and gated only on the contract check.
+`crossable_observations`, printed directly beside them, was counted from the
+rows filtered by `is_crossable` — which the execution verdict also forces to
+false when the position cannot be held or filled.
+
+The two fields therefore described different populations: the maximum over every
+aligned row, and the count over the rows a position could actually be taken on.
+On two feeds that disagree by far more than the spread, where the contracts
+agree but the requested size cannot be filled, the summary reported
+
+    crossable_observations       : 0
+    maximum_gross_crossable_edge : 0.0098
+
+Both figures were individually correct and they sit in one record, which is what
+makes the pair readable as a single statement about the same rows. Nothing
+errored, because each field was computed exactly as written. This is the same
+shape as the volume-cap and contract defects already corrected in this file: a
+number that is defensible in isolation and misleading in company.
+
+Both fields are now read from the crossable rows, so an empty population reports
+no maximum rather than the maximum of rows nothing was crossable on. A run that
+is genuinely executable is unaffected, and the test asserts both directions
+because suppressing the edge everywhere would satisfy the invariant just as
+quietly as over-reporting it did.
+
 ### Fixed — a dataset that failed to write still occupied its final path
 
 A stored dataset is a pair: the Parquet file and the manifest beside it. The

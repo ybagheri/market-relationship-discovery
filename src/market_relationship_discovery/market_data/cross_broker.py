@@ -511,15 +511,21 @@ class CrossBrokerComparisonEngine:
             mean_ask_difference=float(aligned["ask_difference"].mean()),
             crossable_observations=len(crossable),
             crossable_observation_fraction=len(crossable) / len(aligned),
+            # Read from `crossable`, not `aligned`. The two fields are named
+            # for the crossable population and are read beside
+            # `crossable_observations`, which is itself counted from `crossable`.
+            # Reading `aligned` gated only on the contract check reported the
+            # best edge of a population that the execution verdict had already
+            # emptied, so a run could show a positive maximum crossable edge
+            # beside `crossable_observations = 0` and leave the reader to decide
+            # which of the two figures to believe. Both now describe the same
+            # rows, and an empty population reports no maximum rather than the
+            # maximum of rows nothing was crossable on.
             maximum_gross_crossable_edge=(
-                float(aligned["gross_crossable_edge"].max())
-                if len(aligned) and not contract_blocks
-                else None
+                float(crossable["gross_crossable_edge"].max()) if len(crossable) else None
             ),
             maximum_net_crossable_edge=(
-                float(aligned["net_crossable_edge"].max())
-                if len(aligned) and not contract_blocks
-                else None
+                float(crossable["net_crossable_edge"].max()) if len(crossable) else None
             ),
             opportunity_count=len(opportunities),
             opportunity_observations=len(crossable),
