@@ -92,6 +92,17 @@ def align(
     result["alignment_delay_ms"] = (
         result["timestamp"] - result["_right_timestamp"]
     ).dt.total_seconds() * 1000.0
+    # Sign convention, stated because the two alignments in this package differ:
+    # positive means the matched right observation is *older* than the left one,
+    # so the right feed reached backwards to meet it, and negative means it
+    # reached forwards into the left row's future. A forward match is only
+    # possible under FORWARD and NEAREST, and it is the sign that tells a reader
+    # an alignment consumed an observation from the future.
+    #
+    # `cross_broker` reports the same-named column as `right - left`, so the two
+    # are opposites. They never feed one report, and no calculation branches on
+    # the sign, but a reader comparing the two would otherwise read them as the
+    # same quantity.
     # A delay is only defined for a matched row, and every other column arrived
     # empty for the same reason.
     matched_mask = result["_right_timestamp"].notna()

@@ -50,6 +50,39 @@ class NoLookAheadResult:
     trades: tuple[NoLookAheadTrade, ...]
 
 
+def _require_one_observation_grid(
+    signals: pd.Series,
+    gross_edges: pd.Series,
+    costs: pd.Series,
+) -> None:
+    """Refuse inputs that do not describe the same sequence of observations.
+
+    Reported as the number of observations each column carries, because the
+    failure is not that a timestamp is missing but that the columns are counting
+    different things, and the reader has to be able to see which.
+    """
+    named = (
+        ("signal", signals),
+        ("gross edge", gross_edges),
+        ("cost", costs),
+    )
+    for name, series in named:
+        if not isinstance(series.index, pd.DatetimeIndex):
+            raise TypeError(f"{name} observations must be indexed by timestamp")
+    reference_name, reference = named[0]
+    for name, series in named[1:]:
+        if not series.index.equals(reference.index):
+            raise ValueError(
+                "signal, gross edge, and cost must share one observation grid: "
+                f"{reference_name} has {len(reference.index)} observations, "
+                f"{name} has {len(series.index)}"
+            )
+    if reference.index.hasnans:
+        raise ValueError("backtest timestamps cannot be missing")
+    if not reference.index.is_monotonic_increasing:
+        raise ValueError("backtest timestamps must be sorted")
+
+
 class ResearchBacktester:
     def run(self, gross_edges: pd.Series, costs: pd.Series) -> BacktestMetrics:
         aligned = pd.concat([gross_edges, costs], axis=1).dropna()
@@ -94,6 +127,22 @@ class ResearchBacktester:
         gross_edges: pd.Series,
         costs: pd.Series,
     ) -> NoLookAheadResult:
+        """Pair each decision with the outcome of the *next bar on one grid*.
+
+        The no-lookahead property here is a claim about time: a decision taken
+        at bar ``t`` is settled by an outcome that had not finished forming at
+        ``t``. That claim only holds if ``t+1`` really is the next bar of the
+        same series the decision was made from.
+
+        The three inputs are therefore required to share one index. An outer
+        join cannot stand in for that. When the outcome column is on a finer
+        grid than the signal, the union's "next row" is a fraction of a second
+        after the decision, an outcome whose period overlaps the bar the
+        decision was computed from, and the reported execution bar is later
+        than the decision only in the most literal sense. That is a lookahead
+        the caller cannot see, so it is refused rather than reported.
+        """
+        _require_one_observation_grid(signals, gross_edges, costs)
         frame = pd.concat(
             [
                 signals.rename("signal"),
@@ -101,7 +150,6 @@ class ResearchBacktester:
                 costs.rename("cost"),
             ],
             axis=1,
-            join="outer",
         ).sort_index()
         if frame.index.has_duplicates:
             raise ValueError("backtest timestamps must be unique")

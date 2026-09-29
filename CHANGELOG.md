@@ -4,6 +4,60 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — an alignment delay whose sign was never stated
+
+`align_timeseries` and the cross-broker aligner both publish a column called
+`alignment_delay_ms`, and the two compute it with **opposite signs**.
+`align_timeseries` reports `left - right`, so a positive delay means the matched
+right observation is older and the right feed reached backwards; the cross-broker
+aligner reports `right - left`, so the same positive number means the opposite.
+A reader comparing the two reports would read them as the same quantity.
+
+Neither figure is wrong. The two alignments never feed the same report, no
+calculation branches on the sign, and `align()` defaults to `BACKWARD`, which is
+the one direction where the two conventions happen to read the same way. That
+last point is why it went unnoticed: the existing sign test only covered a
+backward match, where "the right observation is older" and "the delay is
+positive" agree by coincidence.
+
+The sign is now stated where the value is produced, and a test asserts it on the
+input that separates the two readings — a forward match, where the sign is the
+only evidence that an alignment consumed an observation from the future of the
+left row.
+
+### Fixed — a lookahead the shift direction could not prevent
+
+`ResearchBacktester.run_next_observation` guarantees that a decision at bar `t`
+is settled by an outcome that had not finished forming at `t`. It enforced
+that by outer-joining the signal, gross-edge, and cost columns and shifting one
+row, which is a claim about **row order** rather than about time. On two inputs
+whose timestamps agree the two readings are identical, so nothing distinguished
+them, and the guarantee was never actually tested against a case where they
+differ.
+
+The columns did not have to share a grid. Given a signal on a one-minute grid
+and an outcome on a one-second grid, the union's "next row" was one second
+after the decision: the trade was labelled `execution > decision`, satisfied
+every test that existed, and was settled by a period overlapping the very bar
+the decision was computed from. A coarser outcome grid failed in the flattering
+direction instead, skipping every intervening bar and settling the decision
+hours later while still looking like a forward trade in every printed field.
+
+A comment saying the shift is one bar forward would not have caught either
+case. The shift was one row forward; what was wrong is which sequence of bars
+that row belonged to. The three inputs must now share one `DatetimeIndex`, and
+a mismatch is refused with the two observation counts that disagree rather than
+reported as a result.
+
+A missing observation is refused the same way rather than filled: a decision
+whose own next bar has no outcome is dropped, never settled by a later bar. A
+non-timestamp index, an unsorted index, and a missing timestamp are refused for
+the same reason — "the next bar" is undefined without an ordered clock.
+
+The tests state the property in the units the claim is made in and include the
+inputs that separate the two readings of the column contract, so the guarantee
+fails loudly rather than quietly returning a plausible number.
+
 ### Fixed — one transform instead of two copies
 
 `CausalFeatureBuilder.rolling_zscore` and

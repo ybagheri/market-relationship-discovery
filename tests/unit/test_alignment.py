@@ -181,3 +181,36 @@ def test_each_direction_still_selects_its_own_neighbour() -> None:
     assert backward["right_value"].tolist() == []  # nothing before the left instant
     assert forward["right_value"].tolist() == [10.0]
     assert nearest["right_value"].tolist() == [10.0]
+
+
+def test_the_delay_sign_says_which_way_the_match_reached() -> None:
+    """`alignment_delay_ms` is the left instant minus the right instant.
+
+    Positive means the matched right observation is *older* than the left one,
+    so the right feed reached backwards in time to meet it. Negative means it
+    reached forwards.
+
+    The existing sign test only covered a backward match, where "the right
+    observation is older" and "the delay is positive" happen to agree. A
+    forward match is the case that separates the two, and it is the one that
+    matters to a reader: a negative number here is the only evidence that an
+    alignment consumed an observation from the future of the left row.
+
+    `cross_broker` computes the same-named column with the opposite sign
+    (`right - left`). The two never feed the same report, so this is a
+    convention that had to be stated rather than a figure that was wrong.
+    """
+    left = pd.DataFrame({"timestamp": pd.to_datetime(["2026-09-25T10:00:00.000Z"], utc=True)})
+    right_earlier = pd.DataFrame(
+        {"timestamp": pd.to_datetime(["2026-09-25T09:59:59.500Z"], utc=True)}
+    )
+    right_later = pd.DataFrame(
+        {"timestamp": pd.to_datetime(["2026-09-25T10:00:00.500Z"], utc=True)}
+    )
+
+    backward_match = align_timeseries(left, right_earlier, 1000, AlignmentDirection.BACKWARD)
+    forward_match = align_timeseries(left, right_later, 1000, AlignmentDirection.FORWARD)
+
+    assert backward_match["alignment_delay_ms"].tolist() == [500.0]
+    # The right observation is 500 ms in the *future* of the left one.
+    assert forward_match["alignment_delay_ms"].tolist() == [-500.0]

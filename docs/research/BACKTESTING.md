@@ -6,6 +6,36 @@
 
 `MultiStageBacktester` combines causal score columns with explicit weights and thresholds. It reports the ensemble and every individual stage. `CausalFeatureBuilder` provides rolling z-score, momentum, and realized-volatility features that use only current and past values.
 
+## "The next bar" has to mean the same bar to everyone
+
+The no-lookahead guarantee is a claim about time, and it is only true when the
+signal, gross-edge, and cost columns are all indexed by the same observation
+grid. All three are required to share one `DatetimeIndex`, and a mismatch is
+refused with the two observation counts that disagree.
+
+This was not enforced before. The three columns were outer-joined and shifted
+one row, which is a claim about *row order*, not about time. On two inputs
+that agree the two readings are identical, so nothing distinguished them. They
+part company as soon as the columns sit on different clocks:
+
+- A **finer** outcome grid meant the "next row" was a fraction of a second
+  after the decision. The trade was still labelled `execution > decision` and
+  still satisfied every test that existed, while the settling outcome was a
+  period overlapping the very bar the decision was computed from. That is
+  lookahead.
+- A **coarser** outcome grid was the flattering direction: the engine skipped
+  every intervening bar and settled the decision hours later, which still
+  looks like a forward trade in every printed field.
+
+A comment saying the shift is one bar forward would not have caught either
+case. The shift was one row forward; what was wrong is which sequence of bars
+that row belonged to. The tests therefore state the property in the units the
+claim is made in, and include the inputs that separate the two readings.
+
+A missing observation is a second way to get this wrong, and it is refused the
+same way rather than filled: a decision whose own next bar has no outcome is
+dropped, never settled by a later bar.
+
 ## Reproducibility
 
 CLI experiments generate an `EXP-*` identifier and JSON report containing software version, source filename and SHA-256, UTC data period, parameters, fold windows, metrics, trades, and limitations. The `robustness` command adds reproducible block-bootstrap simulations and named stress scenarios.
