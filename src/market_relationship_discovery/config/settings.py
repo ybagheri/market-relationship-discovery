@@ -243,3 +243,53 @@ class Settings(BaseSettings):
     costs: CostSettings = Field(default_factory=CostSettings)
     dashboard: DashboardSettings = Field(default_factory=DashboardSettings)
     symbol_mapping: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_profiles_are_distinct_terminals(self) -> "Settings":
+        """Refuse two profiles that would collect the same terminal twice.
+
+        Two labels pointing at one executable are not two brokers. They produce
+        two directories of what is one feed, and a cross-broker comparison can
+        then pair a broker with itself and report the difference between a feed
+        and a copy of it. Neither `doctor` nor the collector notices, because
+        each profile is individually healthy.
+
+        Paths are compared after resolving them, so a difference in spelling
+        or case does not hide the collision. A profile with no terminal path is
+        left alone: it is a configuration that has not been filled in, not a
+        duplicate of anything.
+        """
+        by_terminal: dict[str, list[str]] = {}
+        for name, profile in self.brokers.items():
+            path = self._identity(profile.terminal_path)
+            if path is not None:
+                by_terminal.setdefault(path, []).append(name)
+        collisions = {path: names for path, names in by_terminal.items() if len(names) > 1}
+        if collisions:
+            detail = "; ".join(
+                f"{path} used by {', '.join(sorted(names))}"
+                for path, names in sorted(collisions.items())
+            )
+            raise ValueError(
+                f"broker profiles must point at different terminals; {detail}. Two "
+                f"labels for one terminal collect the same feed twice and let a "
+                f"cross-broker comparison compare a broker with itself"
+            )
+        return self
+
+    @staticmethod
+    def _identity(path: Path | None) -> str | None:
+        """A comparable identity for a configured path.
+
+        Two spellings of one path must be recognised as one path, so the value is
+        resolved, normalised to lower case, and compared with a separator that
+        cannot occur inside a Windows component.
+        """
+        if path is None:
+            return None
+        try:
+            return str(path.resolve()).replace("\\", "/").lower()
+        except OSError:
+            # An unresolvable path is still comparable as written; a missing
+            # terminal is reported by `doctor`, not by this check.
+            return str(path).replace("\\", "/").lower()

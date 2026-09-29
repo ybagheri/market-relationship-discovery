@@ -13,7 +13,7 @@ state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 454 passed |
+| `pytest` | 463 passed |
 | `ruff check .` | clean |
 | `black --check .` | clean |
 | `mypy` (strict) | clean, 69 source files |
@@ -37,7 +37,7 @@ Commits for this session, oldest first:
 | `623e724` | Drain the collection pool before reporting a failure; keep the safety refusal distinguishable |
 | `14b0205` | Let `compare-brokers` use a multi-symbol contract export |
 
-Test count went from 324 to 454. Each correction added regression tests that fail
+Test count went from 324 to 463. Each correction added regression tests that fail
 against the code as it was before the change; the removed cost model took its one
 test with it and was replaced by three stronger ones.
 
@@ -248,22 +248,22 @@ fix, move the item into its phase, add a changelog entry describing what number
 was wrong, and update the document under `docs/research/` whose convention
 changed.
 
-Remaining counts: **0 High, 0 Medium, 8 Low**, plus 2 Phase 10 items that are
+Remaining counts: **0 High, 0 Medium, 7 Low**, plus 2 Phase 10 items that are
 deliberately out of scope.
 
 The next item, first under **Low**:
 
-`config/settings.py` — two broker profiles may point at the same terminal and
-collect it twice under different labels. This is the one remaining item that
-produces *wrong data* rather than a weaker guarantee: two datasets of the same
-feed land in separate directories under different profiles, and a cross-broker
-comparison can then pair a broker with itself. The check is cheap: reject a
-configuration where two profiles resolve to the same terminal path, naming both.
+`statistics/analyzer.py` is the largest remaining group, and it is four defects
+in one file: `correlation` accepts three observations, `half_life` has no
+plausibility bound, `lead_lag` has no documented sign convention or significance,
+and `rolling_correlation` has no caller. Each is small; they share a module, so
+one pass closes them. `correlation` and `half_life` are the two that produce a
+number a reader would believe, so take those first.
 
-`statistics/analyzer.py` follows, and is the largest remaining group:
-`correlation` accepts three observations, `half_life` has no plausibility bound,
-`lead_lag` has no documented sign convention or significance, and
-`rolling_correlation` has no caller.
+`statistics/analyzer.py` and `backtesting/multi_stage.py` follow: two identical
+copies of the rolling z-score, one of which is a model input. A duplicated
+feature that feeds a ranking model can drift from the copy the report describes,
+and the two are not currently pinned to each other.
 
 ## A study is now defined once, for several brokers
 

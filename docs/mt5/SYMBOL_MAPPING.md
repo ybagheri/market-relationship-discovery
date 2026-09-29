@@ -131,6 +131,23 @@ BROKERS={"ALPARI_1":{"terminal_path":"...","demo_only":true,"symbol_mapping":{"B
 
 Keep the example mapping in `.env.example` free of machine-specific values.
 
+## Two profiles must be two terminals
+
+Two broker profiles pointing at the same `terminal64.exe` are not two brokers.
+They collect one feed into two directories, and a cross-broker comparison can
+then pair a broker with itself and report the difference between a feed and a
+copy of it. `doctor` does not catch this, because each profile is individually
+healthy and connects on its own, so a passing diagnostic says nothing about the
+comparison that runs next.
+
+Configuration is refused at load time instead, naming the profiles that share a
+terminal. Paths are compared after resolution, so a difference in case or
+separator does not hide the collision.
+
+The `default` profile may share a terminal with a named one. It is an alias for
+a single terminal rather than a second broker, and refusing it would break every
+single-broker setup that later adds a profile.
+
 ## Defining a study once, for several brokers
 
 A study is written with canonical research names, and each profile maps them. The

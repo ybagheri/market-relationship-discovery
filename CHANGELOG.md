@@ -4,6 +4,24 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — two labels for one broker
+
+- Two broker profiles could point at the same `terminal64.exe`. They produce two
+  directories of what is one feed, and a cross-broker comparison can then pair a
+  broker with itself and report the difference between a feed and a copy of it.
+  Neither `doctor` nor the collector noticed, because each profile is
+  individually healthy and connects fine, so a passing diagnostic said nothing
+  about the comparison that would be run next
+- Configuration is now refused at load time, naming the profiles that share a
+  terminal and why it matters. Paths are compared after resolution and
+  normalised, so a difference in case or separator does not hide the collision
+- The `default` profile may still share a terminal with a named one, since it is
+  an alias for a single terminal rather than a second broker, and refusing it
+  would break every single-broker setup that later adds a profile
+- A refused configuration is now stated as a `CONFIGURATION ERROR` naming the
+  profiles and the reason, instead of a pydantic validation error wrapped in a
+  traceback that echoes the whole input
+
 ### Fixed — settings that did nothing
 
 - `DataSettings.timezone` took part in a critical `doctor` verdict while no data

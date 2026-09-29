@@ -10,6 +10,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from market_relationship_discovery.application.commands import (
     collect_historical_data,
     discover_relationships,
@@ -343,11 +345,26 @@ def main(argv: list[str] | None = None) -> int:
             return _resolve_symbols(arguments)
         if arguments.command == "dashboard":
             return _dashboard()
+    except ValidationError as exc:
+        # A configuration the platform refuses should be stated, not dumped with
+        # a traceback. The message names the profiles and the reason, and a
+        # traceback buries both under pydantic's input echo.
+        print(f"CONFIGURATION ERROR: {_configuration_message(exc)}", file=sys.stderr)
+        logging.getLogger("cli").warning(
+            "configuration_invalid", extra={"command": arguments.command}
+        )
+        return 1
     except Exception as exc:
         logging.getLogger("cli").exception("command_failed", extra={"command": arguments.command})
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     return 2
+
+
+def _configuration_message(exc: ValidationError) -> str:
+    """State what is wrong with the configuration, in the reader's terms."""
+    messages = [str(error.get("msg", "")).removeprefix("Value error, ") for error in exc.errors()]
+    return "; ".join(messages) or str(exc)
 
 
 def _doctor(broker_profile: str = "default") -> int:

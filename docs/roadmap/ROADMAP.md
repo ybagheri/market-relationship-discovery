@@ -276,8 +276,9 @@ de-duplication.
       unvalidated string the CLI ignored. The timezone now selects a report's
       display timezone and is not part of the safety verdict, the two unused
       cache settings are removed, and the statistic is validated
-- [ ] `config/settings.py` — two broker profiles may point at the same terminal
-      and collect it twice under different labels
+- [x] `config/settings.py` — two broker profiles may point at the same terminal
+      and collect it twice under different labels, letting a comparison pair a
+      broker with itself. Refused at load time, comparing resolved paths
 - [ ] `statistics/analyzer.py` — `correlation` accepts three observations;
       `half_life` has no plausibility bound; `lead_lag` has no documented sign
       convention or significance; `rolling_correlation` has no caller
