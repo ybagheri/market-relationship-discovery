@@ -13,7 +13,7 @@ state recorded on `main`. The quality gate is green.
 
 | Check | Result |
 | --- | --- |
-| `pytest` | 375 passed |
+| `pytest` | 389 passed |
 | `ruff check .` | clean |
 | `black --check .` | clean |
 | `mypy` (strict) | clean, 69 source files |
@@ -37,7 +37,7 @@ Commits for this session, oldest first:
 | `623e724` | Drain the collection pool before reporting a failure; keep the safety refusal distinguishable |
 | `14b0205` | Let `compare-brokers` use a multi-symbol contract export |
 
-Test count went from 324 to 375. Each correction added regression tests that fail
+Test count went from 324 to 389. Each correction added regression tests that fail
 against the code as it was before the change; the removed cost model took its one
 test with it and was replaced by three stronger ones.
 
@@ -232,23 +232,37 @@ fix, move the item into its phase, add a changelog entry describing what number
 was wrong, and update the document under `docs/research/` whose convention
 changed.
 
-Remaining counts: **0 High, 4 Medium, 10 Low**, plus 2 Phase 10 items that are
+Remaining counts: **0 High, 2 Medium, 10 Low**, plus 2 Phase 10 items that are
 deliberately out of scope.
 
 The next item, first under **Medium**:
 
-`market_data/panel.py` — `read_csv` infers dtypes, so a symbol code like
-`000300` becomes the integer `300` and can never join to a broker label. The
-broker catalogs make this concrete: instrument codes with leading zeros are
-common enough that a silently coerced column is a live hazard, not a theoretical
-one. Fix it by reading the symbol column as text, and pin it with a test that a
-leading-zero code survives a round trip.
+`validation/quality.py` — a string price column raises `TypeError` instead of
+`DataQualityError`, and duplicate counting runs across the whole frame, so a
+legitimate two-symbol tick file is reported invalid. The second half is the one
+that matters on live data: a two-broker comparison collects into one frame, and a
+file holding two symbols legitimately repeats every timestamp, so counting
+duplicates across the whole frame condemns correct data. The fix is to count
+within a symbol.
 
-The alias-matching item, second under **Medium**, is the one the live catalogs
-make most urgent: a substring search for oil returns `LAS VEGAS SANDS CFD` and a
-search for silver returns `SILVER WHEATON CFD`, because those tickers contain the
-alias as a substring of an equity name. The winner is also whichever symbol the
-broker listed first, which is not a rule a researcher can reproduce.
+The last **Medium** item is `market_data/alignment.py`: `align_timeseries` is
+unused and returns unmatched rows with a `NaT` delay, and the two alignment
+implementations disagree with each other. Two implementations of the same join
+that do not agree is worth resolving before either is used further.
+
+## Verified on the live catalogs
+
+The symbol-matching corrections were checked against both live brokers, not only
+against fixtures. Searching `oil` on ALPARI_1 previously returned `USAHO` ("US
+Heating Oil") first and `BRN` third; it now returns `WTI` ("WTI Crude Oil")
+first. Searching `gold` previously led with `GOLDZ6`, a futures contract; it now
+leads with a spot or cross instrument. On ALPARI_2, `gold` and `silver` now
+resolve to the exact names `GOLD` and `SILVER`.
+
+One limit is stated rather than fixed: `gold` can still lead with a futures
+contract, because deciding that a spot metal outranks its own future is a
+research policy question rather than a string rule. `SYMBOL_MAPPING` states the
+intent when it matters.
 
 ## Things to be careful about
 

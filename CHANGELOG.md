@@ -4,6 +4,36 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — symbol matching and price panels
+
+- `SymbolMapper` matched aliases as bare substrings, so `XAUUSD` also satisfied a
+  request for `XAUUSDmicro` and the winner was whichever name the broker listed
+  first. Aliases now match at a word boundary, which is what separates the spot
+  instrument from a micro or index variant, and broker separators such as
+  `EUR/USD` still resolve
+- `SymbolSearchService` results were ordered by which rule fired and then by
+  symbol name, so a description that merely mentioned the query outranked one
+  that led with it. A search for `oil` returned `USAHO` ("US Heating Oil") ahead
+  of `WTI` ("WTI Crude Oil"), with `BRN` ("Brent Crude Oil") third: the answer
+  depended on the broker's alphabetical order rather than on the match. Results
+  are now ranked by how specifically they matched, and the same catalog in a
+  different order returns the same answer
+- A symbol name is matched at a word boundary, so a search no longer returns an
+  unrelated instrument that happens to contain the query as a fragment of one
+  word. A description is still matched as prose, where the query belongs in
+  `WTI Crude Oil` wherever it appears
+- `load_price_panel` read CSV with inferred dtypes, so a long-format symbol code
+  like `000300` became the integer `300` and the panel reported a symbol no
+  broker publishes, which can never be joined back to a broker label. Exchange
+  codes with leading zeros are common, not an edge case. The CSV is read without
+  inferring numbers in any column, and price values are converted explicitly so
+  a gap stays missing and a non-numeric price is still reported as the data error
+  it is
+- A remaining limit is stated rather than fixed: a query such as `gold` can still
+  lead with a futures contract named `GOLDZ6` rather than the spot instrument,
+  because deciding that a spot metal outranks its own future is a research policy
+  question and not a string-matching rule
+
 ### Fixed — contract export loading
 
 - `symbol-specs` writes a JSON list, one entry per requested symbol, but

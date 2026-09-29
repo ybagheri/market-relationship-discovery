@@ -21,6 +21,34 @@ Nothing in the pricing engine hard-codes a broker name. Resolution happens in on
 
 If nothing matches, resolution raises `SymbolNotFoundError` rather than guessing.
 
+## Aliases match at a word boundary
+
+An alias is matched against the raw broker name at a word boundary, not as a bare
+substring. A substring test made `XAUUSD` satisfy a request for `XAUUSDmicro` and
+made the winner whichever name the broker happened to list first. A suffix means a
+different instrument, so it now has to be asked for explicitly. Broker separators
+are not suffixes: `EUR/USD` still resolves to `EURUSD`, because the boundary falls
+on the separator.
+
+A symbol **name** is matched the same way, while a **description** is matched as
+prose. The query `oil` belongs in `WTI Crude Oil` wherever it appears in that
+sentence, but a name is an identifier rather than a sentence.
+
+## Search results are ranked by match quality
+
+`search` orders results by how specifically they matched, not by which rule fired
+and then alphabetically. Ranking on the rule alone returned `USAHO` ("US Heating
+Oil") ahead of `WTI` ("WTI Crude Oil") for the query `oil`, because both matched on
+description, and the answer then depended on the broker's alphabetical order. An
+exact name outranks a name that leads with the query, which outranks one that
+contains it later, and a description match is ranked by where the query appears.
+The same catalog presented in a different order returns the same answer.
+
+A known limit is stated rather than fixed: a query such as `gold` can still lead
+with a futures contract named `GOLDZ6` ahead of the spot instrument, because
+deciding that a spot metal outranks its own future is a research policy question
+rather than a string-matching rule. Use `SYMBOL_MAPPING` to state the intent.
+
 ## Discovery before configuration
 
 Run discovery first and record what the broker actually offers:

@@ -13,6 +13,8 @@ Advanced discovery operates on a bar-price panel and produces research candidate
 
 Long input is pivoted into a wide panel. Timestamps are parsed as UTC, panels are sorted, duplicate wide timestamps and duplicate `(timestamp, symbol)` rows are rejected, prices must be numeric and positive, and missing values are not forward-filled.
 
+CSV is read without inferring numbers in any column, because instrument codes are frequently numeric with leading zeros — exchange codes such as `000300` and `600000` are the common case. Inferring turned `000300` into `300`, so the panel reported a symbol no broker publishes and the column could never be joined back to a broker label. Price values are converted explicitly afterwards, so a missing value stays missing and a genuinely non-numeric price is still reported as a data error.
+
 ## Pipeline
 
 1. Load and validate the panel.

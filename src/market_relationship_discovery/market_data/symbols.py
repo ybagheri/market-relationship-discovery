@@ -41,12 +41,39 @@ class SymbolMapper:
         if direct:
             return SymbolMatch(canonical_symbol, direct, "normalized_name")
         for alias in self._search_aliases.get(canonical_symbol, (canonical_symbol.lower(),)):
-            for normalized_name, broker_symbol in normalized.items():
-                if self._normalize(alias) in normalized_name:
+            for broker_symbol in available_symbols:
+                if self._contains_alias(broker_symbol, alias):
                     return SymbolMatch(canonical_symbol, broker_symbol, "alias")
         raise SymbolNotFoundError(
             f"No available symbol matched {canonical_symbol!r}; discover broker symbols first"
         )
+
+    @staticmethod
+    def _contains_alias(candidate: str, alias: str) -> bool:
+        """Whether a symbol contains an alias at a word boundary.
+
+        A bare substring test matched any name that happened to contain the alias
+        characters anywhere, so `XAUUSD` also matched `XAUUSDmicro`, and on a live
+        catalog a search for silver returned `SILVER WHEATON CFD` because the
+        broker named an equity that. The boundary is checked on the raw names,
+        because normalizing first would erase the separators that make a
+        boundary visible.
+        """
+        if not alias or not candidate:
+            return False
+        haystack = candidate.lower()
+        needle = alias.lower()
+        start = 0
+        while True:
+            position = haystack.find(needle, start)
+            if position < 0:
+                return False
+            before_ok = position == 0 or not haystack[position - 1].isalnum()
+            end = position + len(needle)
+            after_ok = end == len(haystack) or not haystack[end].isalnum()
+            if before_ok and after_ok:
+                return True
+            start = position + 1
 
     @staticmethod
     def _normalize(value: str) -> str:
@@ -200,7 +227,11 @@ class SymbolSearchService:
                 or self._REASON_PRIORITY[result.reason] < self._REASON_PRIORITY[current.reason]
             ):
                 best[result.name] = result
-        return sorted(best.values(), key=self._sort_key)
+        query_normalized = SymbolMapper._normalize(query)
+        return sorted(
+            best.values(),
+            key=lambda result: self._sort_key(result, query_normalized),
+        )
 
     def _match(
         self, descriptor: SymbolDescriptor, query: str
@@ -211,13 +242,18 @@ class SymbolSearchService:
         matches: list[tuple[MatchReason, str | None]] = []
         if normalized_name == normalized_query:
             matches.append((MatchReason.EXACT_NAME, None))
-        if normalized_query in normalized_name:
+        # The symbol name is matched at a word boundary on the raw name, because
+        # a normalized name has no separators left: a bare substring test made
+        # `XAUUSD` match `XAUUSDmicro` and a search for silver return
+        # `SILVER WHEATON CFD`, an equity the broker named with the word in it.
+        if SymbolMapper._contains_alias(descriptor.name, query):
             matches.append((MatchReason.NAME, None))
+        # A description is prose, so a substring is the right test there: the
+        # query "oil" belongs in "WTI Crude Oil" wherever it appears.
         if normalized_query in normalized_description:
             matches.append((MatchReason.DESCRIPTION, None))
         for canonical, aliases in SymbolMapper._search_aliases.items():
-            normalized_canonical = SymbolMapper._normalize(canonical)
-            if normalized_canonical not in normalized_name:
+            if not SymbolMapper._contains_alias(descriptor.name, canonical):
                 continue
             if any(normalized_query in SymbolMapper._normalize(alias) for alias in aliases):
                 matches.append((MatchReason.ALIAS, canonical))
@@ -231,8 +267,51 @@ class SymbolSearchService:
     }
 
     @classmethod
-    def _sort_key(cls, result: SymbolSearchResult) -> tuple[int, str]:
-        return (cls._REASON_PRIORITY[result.reason], result.name.upper())
+    def _sort_key(
+        cls, result: SymbolSearchResult, normalized_query: str
+    ) -> tuple[int, int, int, str]:
+        """Order by match quality, not by which reason fired.
+
+        Ranking on the reason alone put `USAHO` ("US Heating Oil") above `WTI`
+        ("WTI Crude Oil") for the query `oil`, because both matched on
+        description. Ordering was then by name, so the answer depended on the
+        broker's catalog order rather than on how well the symbol matched. A
+        description match that carries the query as its leading words outranks
+        one that merely mentions it in passing.
+        """
+        reason_rank = cls._REASON_PRIORITY[result.reason]
+        return (
+            reason_rank,
+            -cls._match_quality(result, normalized_query),
+            len(result.name),
+            result.name.upper(),
+        )
+
+    @staticmethod
+    def _match_quality(result: SymbolSearchResult, normalized_query: str) -> int:
+        """How much of a field the query accounts for, higher is more specific.
+
+        A name equal to the query is the strongest match available; a name that
+        merely contains it is weaker the more extra text surrounds it; a
+        description match is ranked by where in the description the query appears,
+        so a leading `WTI Crude Oil` beats a mid-string `US Heating Oil`.
+        """
+        if result.reason is MatchReason.EXACT_NAME:
+            return 400
+        name = SymbolMapper._normalize(result.descriptor.name)
+        if result.reason is MatchReason.NAME:
+            if name == normalized_query:
+                return 300
+            # A name that starts with the query is a better match than one where
+            # the query appears as a later word.
+            return 200 if name.startswith(normalized_query) else 100
+        if result.reason is MatchReason.ALIAS:
+            return 150
+        description = SymbolMapper._normalize(result.descriptor.description)
+        position = description.find(normalized_query)
+        if position < 0:
+            return 0
+        return max(1, 90 - position)
 
     def find_canonical(
         self,
