@@ -152,9 +152,18 @@ def discover_relationships(
     symbols: list[str],
     minimum_observations: int,
 ) -> dict[str, object]:
-    candidates = CandidateDiscoveryEngine().generate(symbols, minimum_observations)
+    family = CandidateDiscoveryEngine().generate(symbols, minimum_observations)
     return {
-        "candidates": [asdict(candidate) for candidate in candidates],
+        "candidates": [asdict(candidate) for candidate in family.candidates],
+        "family": family.to_dict(),
+        # A generated target is a name this module mints, not a column a broker
+        # publishes, so the evaluator will not find it. Reporting the candidates
+        # as though they awaited only observations is what inflated the
+        # requires_data count.
+        "target_note": (
+            "generated targets are synthetic names and are not panel columns; "
+            "a candidate must be materialised before it can be evaluated"
+        ),
         "disclaimer": "Research candidates are not guaranteed profitable or executable.",
     }
 

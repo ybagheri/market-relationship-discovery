@@ -1,10 +1,15 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from itertools import permutations
 
 from market_relationship_discovery.relationships.catalog import RelationshipDefinition
 from market_relationship_discovery.relationships.formula import render_symbol
+
+# Default bound on a generated candidate family. A three-symbol family grows as
+# n(n-1)(n-2), so 40 symbols already produce 59,280 candidates; every one of them
+# would otherwise enter the multiple-testing family.
+DEFAULT_MAXIMUM_CANDIDATES = 500
 
 
 class CandidateStatus(StrEnum):
@@ -22,12 +27,60 @@ class DiscoveryCandidate:
     status: CandidateStatus
     observations: int = 0
     metrics: dict[str, float] | None = None
+    target_is_synthetic: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateFamily:
+    """A generated candidate family, with what was dropped to keep it bounded.
+
+    The family size is not a detail. Every candidate that reaches a
+    multiple-testing correction widens the false-discovery rate, so an
+    unbounded combinatorial family both costs time and makes the correction
+    stricter for no reason. The bound and the number of candidates it removed are
+    reported rather than applied silently.
+    """
+
+    candidates: tuple[DiscoveryCandidate, ...]
+    generated: int
+
+    @property
+    def removed_count(self) -> int:
+        """Candidates the bound removed, so a truncated family is visible."""
+        return self.generated - len(self.candidates)
+
+    @property
+    def is_truncated(self) -> bool:
+        return self.removed_count > 0
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "candidates": len(self.candidates),
+            "generated_candidates": self.generated,
+            "removed_by_family_bound": self.removed_count,
+            "family_truncated": self.is_truncated,
+        }
 
 
 class CandidateDiscoveryEngine:
     def generate(
-        self, symbols: Sequence[str], minimum_observations: int = 100
-    ) -> list[DiscoveryCandidate]:
+        self,
+        symbols: Sequence[str],
+        minimum_observations: int = 100,
+        maximum_candidates: int = DEFAULT_MAXIMUM_CANDIDATES,
+    ) -> CandidateFamily:
+        """Propose a bounded family of ratio and triple relationships.
+
+        The two-symbol family is O(n²) and the three-symbol family is O(n³), so
+        an unbounded run over a wide catalog produces a family large enough to be
+        a research finding in itself: every added candidate makes the
+        false-discovery correction stricter without adding evidence. The family is
+        therefore bounded, and the bound is reported in :meth:`to_dict` rather
+        than applied silently. Truncation keeps candidates in generated order, so
+        it is deterministic for a given input.
+        """
+        if maximum_candidates < 1:
+            raise ValueError("maximum_candidates must be at least one")
         unique_symbols = sorted(set(symbols))
         candidates: list[DiscoveryCandidate] = []
         for numerator, denominator in permutations(unique_symbols, 2):
@@ -42,6 +95,7 @@ class CandidateDiscoveryEngine:
                     # such that re-parsing recovers the same symbol.
                     formula=f"{render_symbol(numerator)} / {render_symbol(denominator)}",
                     status=CandidateStatus.REQUIRES_DATA,
+                    target_is_synthetic=True,
                 )
             )
         for first, second, third in permutations(unique_symbols, 3):
@@ -55,30 +109,41 @@ class CandidateDiscoveryEngine:
                         f" / {render_symbol(third)}"
                     ),
                     status=CandidateStatus.REQUIRES_DATA,
+                    target_is_synthetic=True,
                 )
             )
-        return self.filter(candidates, minimum_observations=minimum_observations)
+        requested = len(candidates)
+        bounded = candidates[:maximum_candidates]
+        return CandidateFamily(
+            candidates=tuple(
+                self.filter(candidate, minimum_observations=minimum_observations)
+                for candidate in bounded
+            ),
+            generated=requested,
+        )
 
     @staticmethod
     def filter(
-        candidates: Sequence[DiscoveryCandidate],
+        candidate: DiscoveryCandidate,
         minimum_observations: int,
-    ) -> list[DiscoveryCandidate]:
-        return [
-            (
-                candidate
-                if candidate.observations >= minimum_observations
-                else DiscoveryCandidate(
-                    name=candidate.name,
-                    target=candidate.target,
-                    formula=candidate.formula,
-                    status=CandidateStatus.INSUFFICIENT_OBSERVATIONS,
-                    observations=candidate.observations,
-                    metrics=candidate.metrics,
-                )
-            )
-            for candidate in candidates
-        ]
+    ) -> DiscoveryCandidate:
+        """Apply the observation gate without inventing a measurement.
+
+        ``INSUFFICIENT_OBSERVATIONS`` is a claim that a candidate *was* evaluated
+        and the panel held too few rows. Applying it to a candidate that was never
+        evaluated reports an absent measurement as a measured one, and relabels a
+        candidate awaiting data as a candidate judged on it. A candidate that
+        carries no evaluation keeps its own status, so ``requires_data`` means
+        "not evaluated" rather than "evaluated and found wanting".
+        """
+        if candidate.status is CandidateStatus.REQUIRES_DATA:
+            return candidate
+        if candidate.observations >= minimum_observations:
+            return candidate
+        return replace(
+            candidate,
+            status=CandidateStatus.INSUFFICIENT_OBSERVATIONS,
+        )
 
     @staticmethod
     def catalog_to_candidates(

@@ -105,6 +105,16 @@ information, and corrections such as `sidak` assume independence that price
 series do not satisfy. `holm` and `bonferroni` remain valid under dependence,
 which is the safer choice when candidates overlap.
 
+For the same reason the generated candidate family is bounded. A two-symbol
+family grows as n(n-1) and a three-symbol family as n(n-1)(n-2), so 40 symbols
+would produce 59,280 candidates before any test ran. Each of those candidates
+would enter the family, making the correction stricter without adding evidence.
+Generation is therefore capped and the cap is reported as
+`family_truncated` and `removed_by_family_bound` in the discovery payload, so a
+truncated family is visible rather than silently smaller. The bound is a research
+judgement, not a measurement, and changing it changes which candidates are
+tested.
+
 ## Observed run
 
 Against 1370 M1 bars from one demo broker covering six symbols, the discovery

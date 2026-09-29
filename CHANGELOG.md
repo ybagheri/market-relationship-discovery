@@ -4,6 +4,33 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — generated candidate family
+
+- The observation gate relabelled every candidate that had never been evaluated
+  as `insufficient_observations`, which is a claim that the candidate *was*
+  evaluated and the panel held too few rows. The two are different statements:
+  one is a measurement, the other is an absence of one. Because `generate` set
+  `observations = 0` on every candidate it minted, `discover` reported its entire
+  output as measured-and-rejected. The gate now leaves a candidate that carries
+  no evaluation at its own status, and still applies to a candidate that was
+  evaluated
+- The three-symbol family grew as n(n-1)(n-2) with no bound, so 40 symbols
+  produced 59,280 candidates before a single test ran. Every one of them would
+  have entered the false-discovery family, making the correction stricter
+  without adding evidence. Generation is now bounded and reports what the bound
+  removed, via `family_truncated` and `removed_by_family_bound`, so a truncated
+  family is visible rather than silently smaller. Truncation is deterministic for
+  a given input
+- A generated target is a name this module mints (`SYNTH_A_DIV_B`), not a column
+  a broker publishes, so the evaluator can never find it and would report
+  `requires_data` with the minted name in `missing_symbols`. That is what
+  inflated the `requires_data` count. Candidates now carry
+  `target_is_synthetic`, and the `discover` payload states that a generated
+  target must be materialised before it can be evaluated
+- `generate` returns a `CandidateFamily` rather than a bare list, because the size
+  and truncation of a candidate family are results, not an implementation detail
+  a caller should have to reconstruct
+
 ### Fixed — contract compatibility
 
 - A broker that halved its `contract_size` without halving its `tick_value` was

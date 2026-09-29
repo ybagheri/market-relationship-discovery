@@ -20,7 +20,11 @@ def test_a_hyphenated_broker_name_survives_candidate_generation() -> None:
     ``XAU-USD`` reads as a subtraction, so the generated candidate would ask for
     a symbol that does not exist in the panel and could never be evaluated.
     """
-    candidates = CandidateDiscoveryEngine().generate(["XAU-USD", "EURUSD"], minimum_observations=0)
+    candidates = (
+        CandidateDiscoveryEngine()
+        .generate(["XAU-USD", "EURUSD"], minimum_observations=0)
+        .candidates
+    )
 
     assert candidates
     for candidate in candidates:
@@ -28,7 +32,11 @@ def test_a_hyphenated_broker_name_survives_candidate_generation() -> None:
 
 
 def test_generated_candidates_do_not_depend_on_a_symbol_that_cannot_exist() -> None:
-    candidates = CandidateDiscoveryEngine().generate(["XAU-USD", "EURUSD"], minimum_observations=0)
+    candidates = (
+        CandidateDiscoveryEngine()
+        .generate(["XAU-USD", "EURUSD"], minimum_observations=0)
+        .candidates
+    )
 
     dependencies = {
         symbol

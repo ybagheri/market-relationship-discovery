@@ -114,7 +114,9 @@ remaining ones are listed below rather than left implicit.
 - [x] One malformed candidate degrades to a status instead of aborting the run
 - [x] `A-B` parses as a subtraction; a hyphenated broker name is written quoted
 - [x] Formula rendering round-trips: a rendered formula re-parses to the same identity
-- [!] `generate` emits unevaluable targets and inflates `REQUIRES_DATA`
+- [x] A generated candidate is not reported as evaluated when it was not
+- [x] Bounded candidate family, with the truncation reported
+- [x] `generate` declares a synthetic target rather than inflating `REQUIRES_DATA`
 
 ## Phase 7 — Backtesting
 
@@ -227,7 +229,7 @@ de-duplication.
 - [x] `market_data/contract.py` — a broker that halves `contract_size` without
       halving `tick_value` is not describing the same instrument, and the pair is
       now refused instead of normalized
-- [ ] `discovery/engine.py` — `filter` overwrites `REQUIRES_DATA` with
+- [x] `discovery/engine.py` — `filter` overwrites `REQUIRES_DATA` with
       `INSUFFICIENT_OBSERVATIONS`, and the `permutations(..., 3)` family is O(n³)
 - [ ] `costs/analyzer.py` — `CostAwareAnalyzer` and `CostModel` have no caller, and
       the model holds a latency assumption it never applies
