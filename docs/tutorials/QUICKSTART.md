@@ -1,11 +1,21 @@
 # Quickstart
 
+Requires the full Python 3.12+ interpreter. Check the version first, then build the
+environment from that interpreter explicitly so the project never lands in a
+version outside its declared range.
+
 ```bash
-python -m venv .venv
+py -3.12 --version
+py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 Copy-Item .env.example .env
 ```
+
+If `py` is unavailable, substitute `python` after confirming it is 3.12 or newer.
+If `-m venv` reports `venv` is missing, the interpreter is a partial installation
+such as the embeddable distribution; install the full interpreter from python.org.
 
 Set local MT5 paths in `.env`, open the demo terminal, and run:
 

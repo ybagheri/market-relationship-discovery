@@ -78,13 +78,30 @@ class MarginRequirement:
 
 @dataclass(frozen=True, slots=True)
 class FillEstimate:
-    """Whether a requested size can actually be filled at one broker."""
+    """Whether a requested size can actually be filled at one broker.
+
+    ``partial_fill`` is derived from the two volumes rather than supplied beside
+    them, because a supplied flag had two available readings and the looser one
+    won: it was set to "filled is not equal to requested", which is a relation
+    between two numbers a reader can recompute for themselves and which stays
+    true for a fill of nothing. Deriving it here means the estimator cannot
+    publish a partial fill of zero lots, however many branches it grows.
+    """
 
     status: VolumeStatus
     requested_volume: float
     filled_volume: float
     limited_by: str | None
-    partial_fill: bool
+
+    @property
+    def partial_fill(self) -> bool:
+        """Whether a positive but reduced amount was filled.
+
+        Zero lots filled is not a partial fill. A size the broker refuses, and an
+        absent contract specification, both report ``False`` here and are
+        distinguished by ``status`` and ``limited_by``.
+        """
+        return 0.0 < self.filled_volume < self.requested_volume
 
     @property
     def fill_ratio(self) -> float:
@@ -227,7 +244,6 @@ class FillSimulator:
                 requested_volume=requested_volume,
                 filled_volume=0.0,
                 limited_by="missing_contract_specification",
-                partial_fill=True,
             )
         step = specification.volume_step
         stepped = self._round_down(requested_volume, step)
@@ -237,7 +253,6 @@ class FillSimulator:
                 requested_volume=requested_volume,
                 filled_volume=0.0,
                 limited_by="volume_min",
-                partial_fill=True,
             )
         if requested_volume > specification.volume_max:
             capped = self._round_down(specification.volume_max, step)
@@ -251,14 +266,12 @@ class FillSimulator:
                     requested_volume=requested_volume,
                     filled_volume=0.0,
                     limited_by="volume_max_rounds_below_volume_min",
-                    partial_fill=True,
                 )
             return FillEstimate(
                 status=VolumeStatus.ABOVE_MAXIMUM,
                 requested_volume=requested_volume,
                 filled_volume=capped,
                 limited_by="volume_max",
-                partial_fill=True,
             )
         if stepped < requested_volume:
             return FillEstimate(
@@ -266,14 +279,12 @@ class FillSimulator:
                 requested_volume=requested_volume,
                 filled_volume=stepped,
                 limited_by="volume_step",
-                partial_fill=True,
             )
         return FillEstimate(
             status=VolumeStatus.FILLABLE,
             requested_volume=requested_volume,
             filled_volume=stepped,
             limited_by=None,
-            partial_fill=False,
         )
 
     def pair(

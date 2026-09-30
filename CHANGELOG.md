@@ -4,6 +4,41 @@ All notable changes follow semantic versioning.
 
 ## [Unreleased]
 
+### Fixed — a refused size reported itself as a partial fill
+
+`partial_fill` was published as `true` beside `filled_volume: 0.0` on every path
+where the broker filled nothing at all. The flag was set at each return site as
+"filled is not equal to requested", which is a relation between two numbers a
+reader can recompute for themselves; unlike the meaning the module documents, it
+stays true when nothing is filled. An absent contract specification, a request
+below `volume_min`, and a `volume_max` that rounds down below `volume_min` all
+reported a partially filled order of zero lots. `dashboard/app.py` prints the
+fill block verbatim, so the claim reached the reader as
+`'filled_volume': 0.0, 'partial_fill': True, 'fill_ratio': 0.0`.
+
+The flag is now derived from the two volumes and means *a positive but reduced
+amount was filled*, so a fill of nothing reports `false` and the refusal is
+conveyed by `status` and `limited_by` alone. Deriving it rather than patching the
+three branches makes the state unrepresentable in however many branches
+`FillSimulator.estimate` grows.
+
+This also completes a correction that had only half landed. The earlier fix for a
+`volume_max` that is not a whole `volume_step` recorded `filled_volume = 0.0`
+with `partial_fill = True` as the defect, and changed `status` from
+`above_maximum` to `below_minimum` and named the cap in `limited_by` — but left
+the flag set, and `EXECUTION_MODEL.md` was then written to state the size is
+refused "rather than reported as a partial fill of zero", which the code did not
+do. The test that fix added asserted `status`, `filled_volume`, `fill_ratio`, and
+`limited_by`, and named `partial_fill` in its own docstring while asserting
+nothing about it, so the surviving half was invisible to it. Both the document
+and the flag now say the same thing.
+
+Genuine partial fills are unchanged: a cap that accepts a positive reduced size
+and an off-step request the broker rounds harmlessly both still report
+`partial_fill: true`, and the 0.123-under-a-0.01-step example the document relies
+on stays executable. Tests pin all three cases so a fix that reported `false`
+everywhere could not pass.
+
 ### Fixed — two CLI failures that reported nothing
 
 Neither defect produced a wrong number; both produced no information at all,

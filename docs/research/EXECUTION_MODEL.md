@@ -52,6 +52,22 @@ side alone.
   reported as a partial fill of zero,
 - an absent contract specification yields `unknown_contract`.
 
+### What `partial_fill` means
+
+`partial_fill` is **derived** from the two volumes rather than supplied beside
+them, and it means *a positive but reduced amount was filled*. Zero lots filled
+is not a partial fill, so a refused size and an absent contract specification
+both report `partial_fill: false` and are told apart by `status` and
+`limited_by`.
+
+The field used to be set at each return site as "filled is not equal to
+requested". That is a relation between two numbers any reader can recompute for
+themselves, and unlike the intended meaning it stays true when nothing at all is
+filled, so every refusal published `partial_fill: true` beside
+`filled_volume: 0.0` — a claim of a partially filled order when the broker filled
+none of it. Deriving the flag removes the possibility rather than correcting the
+three branches that made the mistake.
+
 ## A capped leg is not a smaller opportunity
 
 A capped leg **blocks** the cross-broker pair. `above_maximum` is a blocking

@@ -183,10 +183,32 @@ See [architecture](docs/architecture/ARCHITECTURE.md) and [data flow](docs/archi
 
 Python 3.12 or newer and Windows with MetaTrader 5 are recommended for live terminal integration.
 
+Install the full 64-bit Python 3.12+ interpreter first. On Windows that means running
+the installer from [python.org](https://www.python.org/downloads/windows/) as an
+administrator and accepting **"Add python.exe to PATH"**; per-user installs work too
+and are a reasonable choice when admin rights are not available. Check the version
+before continuing, because the project declares `requires-python = ">=3.12"` and an
+older interpreter fails at install time rather than at import time.
+
 ```bash
-python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"
+py -3.12 --version
 ```
+
+Create the environment and install the project into it. `py -3.12` names the
+interpreter explicitly so the environment is built from a known version instead of
+whatever `python` happens to resolve to on the machine.
+
+```bash
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```
+
+If `py` is unavailable, use `python` in its place after confirming with
+`python --version` that it is 3.12 or newer. If `-m venv` reports that `venv` is
+missing, the interpreter is a partial installation such as the embeddable
+distribution, which ships without `venv` and `ensurepip`; install the full
+interpreter from python.org and repeat the step above.
 
 ## Configuration
 

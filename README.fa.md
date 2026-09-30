@@ -141,10 +141,31 @@ CLI / Streamlit Dashboard
 
 Python 3.12 یا جدیدتر و Windows همراه MetaTrader 5 برای اتصال واقعی به ترمینال توصیه می‌شود.
 
+ابتدا مفسر کامل ۶۴ بیتی Python 3.12 یا جدیدتر را نصب کنید. در Windows یعنی اجرای
+نصب‌کننده از [python.org](https://www.python.org/downloads/windows/) با دسترسی مدیر
+و پذیرفتن گزینهٔ **«Add python.exe to PATH»**؛ نصب per-user هم کار می‌کند و وقتی
+دسترسی مدیر در دسترس نیست انتخاب معقولی است. پیش از ادامه نسخه را بررسی کنید، چون
+پروژه `requires-python = ">=3.12"` را اعلام می‌کند و مفسر قدیمی‌تر به‌جای هنگام import،
+همان موقع نصب شکست می‌خورد.
+
 ```bash
-python -m venv .venv
-.venv\Scripts\python -m pip install -e ".[dev]"
+py -3.12 --version
 ```
+
+محیط را بسازید و پروژه را در آن نصب کنید. `py -3.12` مفسر را صریحاً نام می‌برد تا
+محیط از نسخه‌ای شناخته‌شده ساخته شود، نه از هر چیزی که `python` روی آن ماشین به آن
+اشاره می‌کند.
+
+```bash
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```
+
+اگر `py` در دسترس نیست، پس از بررسی با `python --version` که نسخه 3.12 یا جدیدتر
+است، همان `python` را جایگزین کنید. اگر `-m venv` گزارش دهد که `venv` وجود ندارد،
+مفسر یک نصب ناقص مانند توزیع embeddable است که بدون `venv` و `ensurepip` عرضه
+می‌شود؛ در آن حالت مفسر کامل را از python.org نصب کنید و مرحله را تکرار کنید.
 
 ## پیکربندی
 

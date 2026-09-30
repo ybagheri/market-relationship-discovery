@@ -385,6 +385,70 @@ def test_step_rounding_within_the_default_threshold_stays_executable() -> None:
     assert assessment.binding_fill_ratio == pytest.approx(0.12 / 0.123)
 
 
+@pytest.mark.parametrize(
+    ("contract", "requested"),
+    [
+        pytest.param(None, 1.0, id="absent_contract_specification"),
+        pytest.param(specification(volume_min=0.1, volume_step=0.01), 0.05, id="below_volume_min"),
+        pytest.param(
+            specification(volume_min=0.01, volume_step=0.1, volume_max=0.05),
+            0.2,
+            id="volume_max_rounds_below_volume_min",
+        ),
+    ],
+)
+def test_a_refused_size_never_claims_a_partial_fill(
+    contract: ContractSpecification | None, requested: float
+) -> None:
+    """A size that fills nothing must not be described as partially filled.
+
+    ``EXECUTION_MODEL.md`` states that a cap leaving the achievable size below
+    ``volume_min`` is refused as ``below_minimum`` rather than "reported as a
+    partial fill of zero", and the earlier correction to this module recorded
+    ``partial_fill = True`` beside ``filled_volume = 0.0`` as the defect it was
+    fixing. That correction changed ``status`` and ``limited_by`` but left the
+    ``partial_fill`` flag set, so all three refusal paths still published
+    ``partial_fill: true`` next to a filled volume of zero lots.
+
+    The flag was set as "filled is not equal to requested", which is a relation
+    between two numbers that any reader can recompute and that says nothing about
+    whether anything was filled at all. It has to mean "a positive but lesser
+    amount was filled", under which a fill of nothing is not a partial fill.
+
+    The genuine partial fills are asserted separately below, on purpose: a fix
+    that reported ``False`` everywhere would satisfy these cases while destroying
+    the only real content the field carries.
+    """
+    estimate = FillSimulator().estimate(contract, requested)
+
+    assert estimate.filled_volume == 0.0
+    assert estimate.partial_fill is False
+    assert estimate.to_dict()["partial_fill"] is False
+
+
+def test_a_genuinely_reduced_size_is_still_reported_as_a_partial_fill() -> None:
+    """The flag must keep meaning something once the zero-fill cases are gone.
+
+    Both of these fill strictly between zero and the request, which is the only
+    situation the flag is for: the cap is the ``above_maximum`` case, and the
+    off-step request is the one the document relies on to stay executable.
+    """
+    capped = FillSimulator().estimate(specification(volume_max=10.0), 25.0)
+    off_step = FillSimulator().estimate(specification(), 0.123)
+
+    assert capped.filled_volume > 0.0
+    assert capped.partial_fill is True
+    assert off_step.filled_volume > 0.0
+    assert off_step.partial_fill is True
+
+
+def test_an_exact_fill_is_not_a_partial_fill() -> None:
+    estimate = FillSimulator().estimate(specification(), 1.0)
+
+    assert estimate.filled_volume == pytest.approx(1.0)
+    assert estimate.partial_fill is False
+
+
 def test_a_cap_that_rounds_below_the_broker_minimum_fills_nothing() -> None:
     """``volume_max`` that is not a step multiple must not yield a zero fill.
 

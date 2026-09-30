@@ -1,11 +1,21 @@
 # شروع سریع
 
+به مفسر کامل Python 3.12 یا جدیدتر نیاز دارد. ابتدا نسخه را بررسی کنید، سپس محیط را
+صریحاً از همان مفسر بسازید تا پروژه هرگز در نسخه‌ای خارج از بازهٔ اعلام‌شده نصب
+نشود.
+
 ```bash
-python -m venv .venv
+py -3.12 --version
+py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 Copy-Item .env.example .env
 ```
+
+اگر `py` در دسترس نیست، پس از تأیید 3.12 یا جدیدتر بودن، همان `python` را
+جایگزین کنید. اگر `-m venv` گزارش دهد `venv` وجود ندارد، مفسر یک نصب ناقص مانند
+توزیع embeddable است؛ مفسر کامل را از python.org نصب کنید.
 
 مسیرهای محلی MT5 را در `.env` قرار دهید، ترمینال دمو را باز کنید و اجرا کنید:
 

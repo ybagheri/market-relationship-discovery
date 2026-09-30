@@ -220,6 +220,17 @@ key joined names with `,` and `^` unescaped, which quoting would have turned int
 a way to forge another formula's key and merge two hypotheses during
 de-duplication.
 
+The `partial_fill` item is the clearest instance in the project of a fix landing
+only halfway and the documentation then describing the finished version. The
+earlier correction recorded `filled_volume = 0.0` with `partial_fill = True` as
+the defect, and changed `status` and `limited_by` while leaving the flag set;
+`EXECUTION_MODEL.md` was written to state the size is refused "rather than
+reported as a partial fill of zero", which the code did not do. The test that fix
+added named `partial_fill` in its own docstring and asserted four other fields
+around it, so the surviving half was invisible to the very test written for it.
+The flag is now derived from the two volumes, so the estimator cannot publish the
+state however many branches it grows.
+
 ### High — a reported figure is wrong
 
 - [x] `relationships/formula.py` — `-` inside the identifier class made `A-B` a
@@ -263,6 +274,11 @@ de-duplication.
       matched `XAUUSDmicro` and the winner was whichever symbol the broker listed
       first. Aliases now match at a word boundary and results are ranked by match
       quality rather than catalog order
+- [x] `costs/execution.py` — `partial_fill` was published as `true` beside
+      `filled_volume: 0.0` on all three paths where the broker filled nothing, so a
+      refused size was reported as a partially filled order. The flag is now
+      derived from the two volumes and means a positive but reduced fill, which
+      makes the state unrepresentable rather than patching three branches
 
 ### Low — hygiene with real consequences
 
